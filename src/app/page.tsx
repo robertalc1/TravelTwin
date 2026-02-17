@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plane,
   Hotel,
   Compass,
   Search,
   MapPin,
-  Calendar,
-  Users,
   ArrowRight,
   Sparkles,
   Globe,
@@ -17,6 +15,10 @@ import {
   Headphones,
   TrendingDown,
   Star,
+  Loader2,
+  DollarSign,
+  Calendar,
+  ChevronDown,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -24,34 +26,12 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { JourneyTimeline } from "@/components/shared/JourneyTimeline";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import type { TripRecommendation } from "@/lib/supabase/types";
 
-/* ── Search Tabs ── */
-const searchTabs = [
-  { id: "flights", label: "Flights", icon: Plane },
-  { id: "hotels", label: "Hotels", icon: Hotel },
-  { id: "explore", label: "Explore", icon: Compass },
-] as const;
-
-type SearchTab = (typeof searchTabs)[number]["id"];
-
-/* ── Mock Data ── */
-const destinations = [
-  { city: "Santorini", country: "Greece", image: "https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?w=800&q=80", price: 449, tag: "Popular" },
-  { city: "Kyoto", country: "Japan", image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=80", price: 689, tag: "Trending" },
-  { city: "Marrakech", country: "Morocco", image: "https://images.unsplash.com/photo-1597212618440-806262de4f6b?w=800&q=80", price: 379, tag: "Great Deal" },
-  { city: "Reykjavik", country: "Iceland", image: "https://images.unsplash.com/photo-1504829857797-ddff29c27927?w=800&q=80", price: 529, tag: "Adventure" },
-  { city: "Bali", country: "Indonesia", image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80", price: 419, tag: "Relaxation" },
-  { city: "Amalfi Coast", country: "Italy", image: "https://images.unsplash.com/photo-1534113414509-0eec2bfb493f?w=800&q=80", price: 599, tag: "Romantic" },
-];
-
-const deals = [
-  { route: "NYC → London", airline: "Multiple", price: 287, originalPrice: 542, savings: 47, departure: "Mar 15", stops: "Direct" },
-  { route: "LA → Tokyo", airline: "ANA", price: 498, originalPrice: 890, savings: 44, departure: "Apr 2", stops: "1 stop" },
-  { route: "Chicago → Paris", airline: "Air France", price: 342, originalPrice: 620, savings: 45, departure: "Mar 28", stops: "Direct" },
-  { route: "Miami → Cancún", airline: "JetBlue", price: 129, originalPrice: 245, savings: 47, departure: "Mar 10", stops: "Direct" },
-];
-
+/* ── Static Data ── */
 const timelineStages = [
   { label: "Inspire", completed: true, icon: "✨" },
   { label: "Search", completed: true, icon: "🔍" },
@@ -61,14 +41,210 @@ const timelineStages = [
 ];
 
 const trustItems = [
-  { icon: Globe, label: "1000+ Airlines", subtitle: "Worldwide coverage" },
+  { icon: Globe, label: "9 Brazilian Cities", subtitle: "Nationwide coverage" },
   { icon: Shield, label: "Best Price Guarantee", subtitle: "Or we match it" },
   { icon: Headphones, label: "24/7 Support", subtitle: "Always here for you" },
-  { icon: Star, label: "4.8★ Rating", subtitle: "Trusted by millions" },
+  { icon: Star, label: "271K+ Flights", subtitle: "In our database" },
 ];
 
+const flightTypes = [
+  { value: "economic", label: "Economic" },
+  { value: "premium", label: "Premium" },
+  { value: "firstClass", label: "First Class" },
+];
+
+const dayOptions = [1, 2, 3, 4];
+
+/* ── Trip Card Component ── */
+function TripCard({ trip, budget }: { trip: TripRecommendation; budget: number }) {
+  return (
+    <div className="group rounded-radius-xl border border-border-default bg-surface overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-border-emphasis">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-lg font-bold text-white">
+              {trip.destination}
+            </h3>
+            <p className="text-sm text-primary-100">
+              {trip.outboundFlight.from} → {trip.destination}
+            </p>
+          </div>
+          {trip.savingsPercent > 0 && (
+            <Badge variant="success" icon={<TrendingDown className="h-3 w-3" />}>
+              Save {trip.savingsPercent}%
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Outbound Flight */}
+        <div className="flex items-center gap-3 rounded-radius-md bg-surface-sunken p-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-radius-full bg-primary-50 shrink-0">
+            <Plane className="h-4 w-4 text-primary-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-text-primary truncate">
+              ✈️ {trip.outboundFlight.from} → {trip.outboundFlight.to}
+            </p>
+            <p className="text-xs text-text-muted">
+              {trip.outboundFlight.agency} · {trip.outboundFlight.time} · {trip.outboundFlight.distance}km
+            </p>
+          </div>
+          <span className="font-mono text-sm font-bold text-text-primary shrink-0">
+            R${trip.outboundFlight.price}
+          </span>
+        </div>
+
+        {/* Return Flight */}
+        <div className="flex items-center gap-3 rounded-radius-md bg-surface-sunken p-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-radius-full bg-accent-50 shrink-0">
+            <Plane className="h-4 w-4 text-accent-500 rotate-180" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-text-primary truncate">
+              ✈️ {trip.returnFlight.from} → {trip.returnFlight.to}
+            </p>
+            <p className="text-xs text-text-muted">
+              {trip.returnFlight.agency} · {trip.returnFlight.time} · {trip.returnFlight.distance}km
+            </p>
+          </div>
+          <span className="font-mono text-sm font-bold text-text-primary shrink-0">
+            R${trip.returnFlight.price}
+          </span>
+        </div>
+
+        {/* Hotel */}
+        <div className="flex items-center gap-3 rounded-radius-md bg-surface-sunken p-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-radius-full bg-gold-50 shrink-0">
+            <Hotel className="h-4 w-4 text-gold-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-text-primary truncate">
+              🏨 {trip.hotel.name}
+            </p>
+            <p className="text-xs text-text-muted">
+              {trip.hotel.days} {trip.hotel.days === 1 ? "night" : "nights"} · R${trip.hotel.price}/night
+            </p>
+          </div>
+          <span className="font-mono text-sm font-bold text-text-primary shrink-0">
+            R${trip.hotel.total}
+          </span>
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-border-default" />
+
+        {/* Total */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-text-muted uppercase tracking-wider font-semibold">Total Cost</p>
+            <p className="font-mono text-2xl font-bold text-primary-500">
+              R${trip.totalCost.toLocaleString()}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-text-muted">Budget: R${budget.toLocaleString()}</p>
+            <p className="text-sm font-semibold text-success">
+              Save R${trip.savings.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Loading Skeletons ── */
+function ResultsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="rounded-radius-xl border border-border-default bg-surface overflow-hidden">
+          <Skeleton className="h-20 rounded-none" />
+          <div className="p-5 space-y-3">
+            <Skeleton className="h-14 rounded-radius-md" />
+            <Skeleton className="h-14 rounded-radius-md" />
+            <Skeleton className="h-14 rounded-radius-md" />
+            <div className="h-px bg-border-default" />
+            <div className="flex justify-between">
+              <Skeleton className="h-10 w-32" />
+              <Skeleton className="h-10 w-24" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Main Page ── */
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<SearchTab>("flights");
+  const [cities, setCities] = useState<string[]>([]);
+  const [selectedCity, setSelectedCity] = useState("");
+  const [budget, setBudget] = useState("1500");
+  const [days, setDays] = useState("2");
+  const [flightType, setFlightType] = useState("economic");
+  const [results, setResults] = useState<TripRecommendation[]>([]);
+  const [message, setMessage] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(true);
+
+  // Load cities on mount
+  useEffect(() => {
+    async function loadCities() {
+      try {
+        const supabase = createClient();
+        const { data } = await supabase
+          .from("flights")
+          .select("from")
+          .limit(1000);
+
+        if (data) {
+          const unique = [...new Set(data.map((f: { from: string }) => f.from))].sort() as string[];
+          setCities(unique);
+          if (unique.length > 0) setSelectedCity(unique[0]);
+        }
+      } catch {
+        // Fallback if query fails
+      } finally {
+        setLoadingCities(false);
+      }
+    }
+    loadCities();
+  }, []);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedCity) return;
+
+    setSearching(true);
+    setHasSearched(true);
+    setResults([]);
+    setMessage("");
+
+    try {
+      const res = await fetch("/api/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: selectedCity,
+          budget: Number(budget),
+          days: Number(days),
+          flightType,
+        }),
+      });
+      const data = await res.json();
+      setResults(data.recommendations || []);
+      setMessage(data.message || "");
+    } catch {
+      setMessage("Failed to search. Please try again.");
+    } finally {
+      setSearching(false);
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -84,7 +260,6 @@ export default function Home() {
             <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-accent-500/20 blur-[100px]" />
             <div className="absolute top-1/2 -left-32 w-80 h-80 rounded-full bg-primary-300/15 blur-[80px]" />
             <div className="absolute bottom-0 right-1/4 w-64 h-64 rounded-full bg-gold-500/10 blur-[60px]" />
-            {/* Subtle grid pattern */}
             <div
               className="absolute inset-0 opacity-[0.03]"
               style={{
@@ -102,144 +277,132 @@ export default function Home() {
                 AI-Powered Travel Planning
               </Badge>
               <h1 className="text-display text-white mb-6 !text-4xl md:!text-5xl lg:!text-[56px] lg:!leading-[64px]">
-                Where will your next{" "}
+                Find your perfect{" "}
                 <span className="relative">
-                  <span className="text-accent-400">journey</span>
+                  <span className="text-accent-400">trip package</span>
                   <svg className="absolute -bottom-1 left-0 w-full h-2 text-accent-400/40" viewBox="0 0 200 8" preserveAspectRatio="none">
                     <path d="M0 7 Q50 0 100 5 T200 3" stroke="currentColor" strokeWidth="2" fill="none" />
                   </svg>
                 </span>{" "}
-                take you?
+                in Brazil
               </h1>
               <p className="text-lg text-primary-100/90 max-w-xl mx-auto">
-                Discover, compare, and book flights and hotels from 1,000+ providers.
-                Your trusted companion for every trip.
+                Search flights + hotels across 9 Brazilian cities. Set your budget
+                and we&apos;ll find the best trip packages for you.
               </p>
             </div>
 
             {/* ── Search Form ── */}
-            <div className="mx-auto max-w-4xl animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-              <div className="rounded-radius-xl bg-surface/95 backdrop-blur-xl p-2 shadow-xl border border-white/10">
-                {/* Tabs */}
-                <div className="flex gap-1 mb-3 px-2 pt-1">
-                  {searchTabs.map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      onClick={() => setActiveTab(id)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-radius-full px-5 py-2.5 text-sm font-semibold transition-all duration-200",
-                        activeTab === id
-                          ? "bg-primary-500 text-white shadow-sm"
-                          : "text-text-secondary hover:bg-surface-sunken"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Search fields */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-2 px-2 pb-2">
-                  {activeTab === "flights" ? (
-                    <>
-                      <div className="md:col-span-3">
-                        <div className="flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <MapPin className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">From</div>
-                            <div className="text-sm font-medium text-text-primary">Anywhere</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-3">
-                        <div className="flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <MapPin className="h-4 w-4 text-accent-500 shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">To</div>
-                            <div className="text-sm font-medium text-text-primary">Anywhere</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-3">
-                        <div className="flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <Calendar className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">When</div>
-                            <div className="text-sm font-medium text-text-primary">Anytime</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-3 flex gap-2">
-                        <div className="flex-1 flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <Users className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Who</div>
-                            <div className="text-sm font-medium text-text-primary">1 Adult</div>
-                          </div>
-                        </div>
-                        <Link href="/flights">
-                          <Button variant="primary" size="lg" className="h-full px-5 shrink-0">
-                            <Search className="h-4.5 w-4.5" />
-                          </Button>
-                        </Link>
-                      </div>
-                    </>
-                  ) : activeTab === "hotels" ? (
-                    <>
-                      <div className="md:col-span-4">
-                        <div className="flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <MapPin className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Destination</div>
-                            <div className="text-sm font-medium text-text-primary">Where are you going?</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-4">
-                        <div className="flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <Calendar className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Check-in — Check-out</div>
-                            <div className="text-sm font-medium text-text-primary">Select dates</div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-4 flex gap-2">
-                        <div className="flex-1 flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                          <Users className="h-4 w-4 text-text-muted shrink-0" />
-                          <div>
-                            <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">Guests & Rooms</div>
-                            <div className="text-sm font-medium text-text-primary">2 Adults, 1 Room</div>
-                          </div>
-                        </div>
-                        <Link href="/hotels">
-                          <Button variant="primary" size="lg" className="h-full px-5">
-                            <Search className="h-4.5 w-4.5" />
-                          </Button>
-                        </Link>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="md:col-span-12 flex gap-2">
-                      <div className="flex-1 flex items-center gap-3 rounded-radius-md border border-border-default bg-surface-sunken px-4 py-3.5 hover:border-border-emphasis transition-colors">
-                        <Sparkles className="h-4 w-4 text-accent-500 shrink-0" />
-                        <div>
-                          <div className="text-[10px] font-semibold text-text-muted uppercase tracking-wider">AI Trip Planner</div>
-                          <div className="text-sm font-medium text-text-muted">Describe your dream trip — &quot;Beach getaway for 2 under $1000&quot;</div>
-                        </div>
-                      </div>
-                      <Link href="/explore">
-                        <Button variant="primary" size="lg" className="h-full px-6">
-                          <Sparkles className="h-4 w-4" />
-                          Explore
-                        </Button>
-                      </Link>
+            <form onSubmit={handleSearch} className="mx-auto max-w-4xl animate-fade-in-up" style={{ animationDelay: "150ms" }}>
+              <div className="rounded-radius-xl bg-surface/95 backdrop-blur-xl p-4 shadow-xl border border-white/10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* From city */}
+                  <div className="relative">
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block px-1">
+                      Departure City
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                      <select
+                        value={selectedCity}
+                        onChange={(e) => setSelectedCity(e.target.value)}
+                        disabled={loadingCities}
+                        className="w-full appearance-none rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-8 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20"
+                      >
+                        {loadingCities ? (
+                          <option>Loading cities...</option>
+                        ) : (
+                          cities.map((city) => (
+                            <option key={city} value={city}>
+                              {city}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
                     </div>
-                  )}
+                  </div>
+
+                  {/* Budget */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block px-1">
+                      Budget (R$)
+                    </label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                      <input
+                        type="number"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                        min={200}
+                        max={50000}
+                        className="w-full rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-4 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20"
+                        placeholder="1500"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Days */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block px-1">
+                      Nights
+                    </label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                      <select
+                        value={days}
+                        onChange={(e) => setDays(e.target.value)}
+                        className="w-full appearance-none rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-8 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20"
+                      >
+                        {dayOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d} {d === 1 ? "night" : "nights"}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* Flight type + search */}
+                  <div>
+                    <label className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-1 block px-1">
+                      Class
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Plane className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                        <select
+                          value={flightType}
+                          onChange={(e) => setFlightType(e.target.value)}
+                          className="w-full appearance-none rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-8 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20"
+                        >
+                          {flightTypes.map(({ value, label }) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
+                      </div>
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        className="h-auto px-5 shrink-0"
+                        disabled={searching || loadingCities}
+                      >
+                        {searching ? (
+                          <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                        ) : (
+                          <Search className="h-4.5 w-4.5" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </form>
           </div>
 
           {/* Wave divider */}
@@ -249,6 +412,60 @@ export default function Home() {
             </svg>
           </div>
         </section>
+
+        {/* ════════════════════════════════
+            SEARCH RESULTS
+           ════════════════════════════════ */}
+        {hasSearched && (
+          <section className="py-12 lg:py-16">
+            <div className="mx-auto max-w-7xl px-4 lg:px-8">
+              <div className="flex items-end justify-between mb-8">
+                <div>
+                  <p className="text-overline text-accent-500 mb-2">RESULTS</p>
+                  <h2 className="text-h2 text-text-primary">
+                    {searching
+                      ? "Searching for packages..."
+                      : results.length > 0
+                        ? `${results.length} Trip Package${results.length !== 1 ? "s" : ""} Found`
+                        : "No Packages Found"}
+                  </h2>
+                  <p className="text-body text-text-tertiary mt-2 max-w-lg">
+                    {searching
+                      ? "Analyzing flights and hotels to find the best deals..."
+                      : results.length > 0
+                        ? `Best trip packages from ${selectedCity} within R$${Number(budget).toLocaleString()} budget`
+                        : message || "Try adjusting your budget or search criteria"}
+                  </p>
+                </div>
+              </div>
+
+              {searching ? (
+                <ResultsSkeleton />
+              ) : results.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {results.map((trip, i) => (
+                    <div key={`${trip.destination}-${i}`} className="stagger-item">
+                      <TripCard trip={trip} budget={Number(budget)} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-16 rounded-radius-xl bg-surface-sunken border border-border-default">
+                  <Compass className="h-12 w-12 text-text-muted mx-auto mb-4" />
+                  <h3 className="text-h4 text-text-primary mb-2">No packages available</h3>
+                  <p className="text-body text-text-muted max-w-md mx-auto mb-6">
+                    {message || "Try increasing your budget, changing the flight class, or selecting a different departure city."}
+                  </p>
+                  <div className="flex items-center justify-center gap-3 text-sm text-text-muted">
+                    <span>💡 Suggestions:</span>
+                    <Badge variant="neutral">Increase budget to R$2000+</Badge>
+                    <Badge variant="neutral">Try Economic class</Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* ════════════════════════════════
             TRUST BAR
@@ -266,135 +483,6 @@ export default function Home() {
                     <p className="text-xs text-text-muted">{subtitle}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ════════════════════════════════
-            POPULAR DESTINATIONS — Asymmetric Bento Grid
-           ════════════════════════════════ */}
-        <section className="py-16 lg:py-24">
-          <div className="mx-auto max-w-7xl px-4 lg:px-8">
-            <div className="flex items-end justify-between mb-10">
-              <div>
-                <p className="text-overline text-accent-500 mb-2">DISCOVER</p>
-                <h2 className="text-h2 text-text-primary">Popular Destinations</h2>
-                <p className="text-body text-text-tertiary mt-2 max-w-lg">
-                  Handpicked destinations loved by travelers worldwide
-                </p>
-              </div>
-              <Link
-                href="/explore"
-                className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors"
-              >
-                View all destinations
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            {/* Bento Grid — asymmetric layout */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4 auto-rows-[180px] md:auto-rows-[200px]">
-              {destinations.map((dest, i) => {
-                const spanClass =
-                  i === 0
-                    ? "col-span-2 row-span-2"
-                    : i === 3
-                      ? "col-span-2"
-                      : "";
-                return (
-                  <Link
-                    key={dest.city}
-                    href="/explore"
-                    className={cn(
-                      "stagger-item group relative overflow-hidden rounded-radius-lg",
-                      spanClass
-                    )}
-                  >
-                    {/* Image */}
-                    <div className="absolute inset-0">
-                      <img
-                        src={dest.image}
-                        alt={`${dest.city}, ${dest.country}`}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading={i < 2 ? "eager" : "lazy"}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    </div>
-
-                    {/* Content */}
-                    <div className="relative flex h-full flex-col justify-end p-4 lg:p-5">
-                      <Badge
-                        variant="accent"
-                        className="self-start mb-2 text-[10px] !bg-white/20 !text-white backdrop-blur-sm"
-                      >
-                        {dest.tag}
-                      </Badge>
-                      <h3 className="font-display text-lg font-bold text-white lg:text-xl">
-                        {dest.city}
-                      </h3>
-                      <p className="text-sm text-white/80">{dest.country}</p>
-                      <p className="mt-1 text-sm font-semibold text-accent-400">
-                        From ${dest.price}
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ════════════════════════════════
-            TRENDING DEALS
-           ════════════════════════════════ */}
-        <section className="py-16 bg-surface-sunken">
-          <div className="mx-auto max-w-7xl px-4 lg:px-8">
-            <div className="flex items-end justify-between mb-10">
-              <div>
-                <p className="text-overline text-accent-500 mb-2">SAVE BIG</p>
-                <h2 className="text-h2 text-text-primary">Trending Flight Deals</h2>
-                <p className="text-body text-text-tertiary mt-2">
-                  The best fares we&apos;ve found this week
-                </p>
-              </div>
-              <Link
-                href="/flights"
-                className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 transition-colors"
-              >
-                See all deals
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {deals.map((deal, i) => (
-                <Link
-                  key={deal.route}
-                  href="/flights"
-                  className="stagger-item group rounded-radius-lg bg-surface border border-border-default p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <Badge variant="success" icon={<TrendingDown className="h-3 w-3" />}>
-                      {deal.savings}% OFF
-                    </Badge>
-                    <span className="text-caption text-text-muted">{deal.departure}</span>
-                  </div>
-                  <h3 className="font-display text-lg font-bold text-text-primary mb-1">
-                    {deal.route}
-                  </h3>
-                  <p className="text-body-sm text-text-muted mb-4">
-                    {deal.airline} · {deal.stops}
-                  </p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-2xl font-bold text-primary-500">
-                      ${deal.price}
-                    </span>
-                    <span className="text-sm text-text-muted line-through">
-                      ${deal.originalPrice}
-                    </span>
-                  </div>
-                </Link>
               ))}
             </div>
           </div>
@@ -423,18 +511,18 @@ export default function Home() {
               {[
                 {
                   step: "1",
-                  title: "Discover & Inspire",
-                  desc: "Tell our AI what kind of trip you want. Beach retreat? Mountain adventure? We'll find the perfect match.",
+                  title: "Set Your Budget",
+                  desc: "Choose your departure city, budget, hotel nights, and flight class. Our engine searches 271K+ flights and 40K+ hotels.",
                 },
                 {
                   step: "2",
-                  title: "Compare & Choose",
-                  desc: "See every option side by side with transparent pricing. No hidden fees, no tricks — just honest deals.",
+                  title: "Compare Packages",
+                  desc: "See complete trip packages side by side — flights + hotels bundled with transparent pricing and savings.",
                 },
                 {
                   step: "3",
-                  title: "Book & Travel",
-                  desc: "Secure your trip with confidence. Get your Journey Timeline stamp and start the countdown to departure.",
+                  title: "Save & Book",
+                  desc: "Save your favorite packages, track them in your trips, and book when you're ready to go.",
                 },
               ].map(({ step, title, desc }) => (
                 <div key={step} className="text-center px-4">
