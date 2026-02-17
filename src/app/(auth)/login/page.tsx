@@ -1,13 +1,48 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Mail, Lock, Eye, EyeOff, Compass } from "lucide-react";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+function LoginForm() {
     const [showPassword, setShowPassword] = useState(false);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const redirectTo = searchParams.get("redirectTo") || "/";
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+        try {
+            const supabase = createClient();
+            const { error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) {
+                setError(error.message);
+                return;
+            }
+
+            router.push(redirectTo);
+            router.refresh();
+        } catch {
+            setError("An unexpected error occurred. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    }
 
     return (
         <div>
@@ -26,12 +61,21 @@ export default function LoginPage() {
                 Sign in to access your trips and bookings
             </p>
 
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            {error && (
+                <div className="mb-4 rounded-radius-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+                    {error}
+                </div>
+            )}
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
                 <Input
                     label="Email"
                     type="email"
                     placeholder="john@example.com"
                     leadingIcon={<Mail className="h-4 w-4" />}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
                 />
                 <div className="relative">
                     <Input
@@ -49,6 +93,9 @@ export default function LoginPage() {
                                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                         }
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
                     />
                 </div>
 
@@ -62,8 +109,20 @@ export default function LoginPage() {
                     </a>
                 </div>
 
-                <Button variant="primary" size="lg" className="w-full mt-2">
-                    Sign In
+                <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full mt-2"
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Signing in...
+                        </>
+                    ) : (
+                        "Sign In"
+                    )}
                 </Button>
             </form>
 
@@ -93,5 +152,17 @@ export default function LoginPage() {
                 </Link>
             </p>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+            </div>
+        }>
+            <LoginForm />
+        </Suspense>
     );
 }

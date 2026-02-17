@@ -1,153 +1,181 @@
 "use client";
 
-import Link from "next/link";
-import { Plus, Calendar, Plane, Hotel, Ticket, MapPin } from "lucide-react";
-import { JourneyTimeline } from "@/components/shared/JourneyTimeline";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, MapPin, Calendar, Plane, Hotel, Clock, Loader2, Trash2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { JourneyTimeline } from "@/components/shared/JourneyTimeline";
 import { cn } from "@/lib/utils";
-
-const mockTrips = [
-    {
-        id: "london-2025",
-        name: "London Adventure",
-        destination: "London, UK",
-        dates: "Mar 15 – Mar 22, 2025",
-        duration: "7 days",
-        image: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800&q=80",
-        flights: 2,
-        hotels: 1,
-        activities: 5,
-        stages: [
-            { label: "Inspire", completed: true },
-            { label: "Search", completed: true },
-            { label: "Compare", completed: true },
-            { label: "Book", completed: true },
-            { label: "Travel", completed: false },
-        ],
-        status: "Booked",
-    },
-    {
-        id: "bali-2025",
-        name: "Bali Relaxation",
-        destination: "Bali, Indonesia",
-        dates: "May 1 – May 10, 2025",
-        duration: "10 days",
-        image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
-        flights: 2,
-        hotels: 2,
-        activities: 3,
-        stages: [
-            { label: "Inspire", completed: true },
-            { label: "Search", completed: true },
-            { label: "Compare", completed: false },
-            { label: "Book", completed: false },
-            { label: "Travel", completed: false },
-        ],
-        status: "Planning",
-    },
-    {
-        id: "tokyo-2025",
-        name: "Tokyo Discovery",
-        destination: "Tokyo, Japan",
-        dates: "Jun 14 – Jun 25, 2025",
-        duration: "12 days",
-        image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
-        flights: 0,
-        hotels: 0,
-        activities: 0,
-        stages: [
-            { label: "Inspire", completed: true },
-            { label: "Search", completed: false },
-            { label: "Compare", completed: false },
-            { label: "Book", completed: false },
-            { label: "Travel", completed: false },
-        ],
-        status: "Draft",
-    },
-];
+import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@/hooks/useUser";
+import type { SavedTrip } from "@/lib/supabase/types";
 
 export default function TripsPage() {
-    return (
-        <div className="min-h-screen bg-background">
-            <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-h1 text-text-primary">My Trips</h1>
-                        <p className="text-body text-text-tertiary mt-1">
-                            {mockTrips.length} trips planned
-                        </p>
-                    </div>
-                    <Link href="/trips/new">
-                        <Button variant="primary" icon={<Plus className="h-4 w-4" />}>
-                            New Trip
-                        </Button>
-                    </Link>
-                </div>
+    const { user, loading: userLoading } = useUser();
+    const [trips, setTrips] = useState<SavedTrip[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [deleting, setDeleting] = useState<string | null>(null);
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {mockTrips.map((trip, i) => (
-                        <Link
-                            key={trip.id}
-                            href={`/trips/${trip.id}`}
-                            className="stagger-item group rounded-radius-xl overflow-hidden bg-surface border border-border-default hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                        >
-                            {/* Hero image */}
-                            <div className="relative aspect-[16/10] overflow-hidden">
-                                <img
-                                    src={trip.image}
-                                    alt={trip.destination}
-                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                                <div className="absolute bottom-4 left-4 right-4">
-                                    <Badge
-                                        variant={trip.status === "Booked" ? "success" : trip.status === "Planning" ? "primary" : "neutral"}
-                                        className="mb-2"
-                                    >
-                                        {trip.status}
-                                    </Badge>
-                                    <h3 className="font-display text-xl font-bold text-white">{trip.name}</h3>
-                                    <div className="flex items-center gap-1.5 text-sm text-white/80 mt-1">
-                                        <MapPin className="h-3.5 w-3.5" />
-                                        {trip.destination}
-                                    </div>
-                                </div>
-                            </div>
+    useEffect(() => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
+        loadTrips();
+    }, [user]);
 
-                            {/* Content */}
-                            <div className="p-4">
-                                <div className="flex items-center gap-2 text-body-sm text-text-muted mb-3">
-                                    <Calendar className="h-3.5 w-3.5" />
-                                    {trip.dates} · {trip.duration}
-                                </div>
+    async function loadTrips() {
+        try {
+            const supabase = createClient();
+            const { data, error } = await supabase
+                .from("saved_trips")
+                .select("*")
+                .eq("user_id", user!.id)
+                .order("created_at", { ascending: false });
 
-                                {/* Trip components */}
-                                <div className="flex items-center gap-4 mb-4">
-                                    {trip.flights > 0 && (
-                                        <span className="flex items-center gap-1 text-body-sm text-text-secondary">
-                                            <Plane className="h-3.5 w-3.5" /> {trip.flights}
-                                        </span>
-                                    )}
-                                    {trip.hotels > 0 && (
-                                        <span className="flex items-center gap-1 text-body-sm text-text-secondary">
-                                            <Hotel className="h-3.5 w-3.5" /> {trip.hotels}
-                                        </span>
-                                    )}
-                                    {trip.activities > 0 && (
-                                        <span className="flex items-center gap-1 text-body-sm text-text-secondary">
-                                            <Ticket className="h-3.5 w-3.5" /> {trip.activities}
-                                        </span>
-                                    )}
-                                </div>
+            if (error) throw error;
+            setTrips((data as SavedTrip[]) || []);
+        } catch (err) {
+            console.error("Failed to load trips:", err);
+        } finally {
+            setLoading(false);
+        }
+    }
 
-                                {/* Journey Timeline stamps */}
-                                <JourneyTimeline stages={trip.stages} className="justify-center" />
-                            </div>
-                        </Link>
+    async function deleteTrip(tripId: string) {
+        setDeleting(tripId);
+        try {
+            const supabase = createClient();
+            await supabase.from("saved_trips").delete().eq("id", tripId);
+            setTrips((prev) => prev.filter((t) => t.id !== tripId));
+        } catch (err) {
+            console.error("Failed to delete trip:", err);
+        } finally {
+            setDeleting(null);
+        }
+    }
+
+    const statusColor = (s: string) => {
+        switch (s) {
+            case "planning": return "neutral";
+            case "booked": return "primary";
+            case "completed": return "success";
+            default: return "neutral";
+        }
+    };
+
+    const timelineStages = (status: string) => [
+        { label: "Planned", completed: true, icon: "📝" },
+        { label: "Booked", completed: status === "booked" || status === "completed", icon: "✅" },
+        { label: "Completed", completed: status === "completed", icon: "✈️" },
+    ];
+
+    if (userLoading || loading) {
+        return (
+            <div className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
+                <Skeleton className="h-10 w-48 mb-6" />
+                <div className="space-y-4">
+                    {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-48 rounded-radius-xl" />
                     ))}
                 </div>
             </div>
+        );
+    }
+
+    return (
+        <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-h2 text-text-primary">My Trips</h1>
+                    <p className="text-body text-text-muted mt-1">
+                        {trips.length} {trips.length === 1 ? "trip" : "trips"} saved
+                    </p>
+                </div>
+            </div>
+
+            {trips.length === 0 ? (
+                <div className="text-center py-24 rounded-radius-xl bg-surface-sunken border border-border-default">
+                    <MapPin className="h-14 w-14 text-text-muted mx-auto mb-4 opacity-30" />
+                    <h3 className="text-h3 text-text-primary mb-2">No trips yet</h3>
+                    <p className="text-body text-text-muted max-w-md mx-auto mb-6">
+                        Search for trips on the homepage and save the ones you like. They&apos;ll appear here for you to track and manage.
+                    </p>
+                    <Button variant="primary" size="lg" onClick={() => window.location.href = "/"}>
+                        Start Searching
+                    </Button>
+                </div>
+            ) : (
+                <div className="space-y-5">
+                    {trips.map((trip) => (
+                        <div
+                            key={trip.id}
+                            className="rounded-radius-xl border border-border-default bg-surface overflow-hidden hover:shadow-md transition-shadow"
+                        >
+                            <div className="bg-gradient-to-r from-primary-600 to-primary-500 px-6 py-4 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <h3 className="font-display text-lg font-bold text-white">
+                                        {trip.origin} → {trip.destination}
+                                    </h3>
+                                    <Badge variant={statusColor(trip.status) as "neutral" | "primary" | "success"}>
+                                        {trip.status}
+                                    </Badge>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-primary-100">
+                                        {new Date(trip.created_at).toLocaleDateString()}
+                                    </span>
+                                    <button
+                                        onClick={() => deleteTrip(trip.id)}
+                                        disabled={deleting === trip.id}
+                                        className="text-white/60 hover:text-error transition-colors"
+                                        aria-label="Delete trip"
+                                    >
+                                        {deleting === trip.id ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-4 w-4" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-6">
+                                <div className="flex items-center gap-6 mb-4">
+                                    <JourneyTimeline stages={timelineStages(trip.status)} />
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="rounded-radius-md bg-surface-sunken p-3 text-center">
+                                        <Calendar className="h-4 w-4 text-text-muted mx-auto mb-1" />
+                                        <p className="text-lg font-bold text-text-primary">{trip.days}</p>
+                                        <p className="text-xs text-text-muted">{trip.days === 1 ? "Night" : "Nights"}</p>
+                                    </div>
+                                    <div className="rounded-radius-md bg-surface-sunken p-3 text-center">
+                                        <span className="text-lg font-bold text-primary-500">R${trip.total_cost.toLocaleString()}</span>
+                                        <p className="text-xs text-text-muted">Total Cost</p>
+                                    </div>
+                                    <div className="rounded-radius-md bg-surface-sunken p-3 text-center">
+                                        <span className="text-lg font-bold text-text-primary">R${trip.budget.toLocaleString()}</span>
+                                        <p className="text-xs text-text-muted">Budget</p>
+                                    </div>
+                                    <div className="rounded-radius-md bg-surface-sunken p-3 text-center">
+                                        <span className={cn(
+                                            "text-lg font-bold",
+                                            trip.budget - trip.total_cost >= 0 ? "text-success" : "text-error"
+                                        )}>
+                                            R${(trip.budget - trip.total_cost).toLocaleString()}
+                                        </span>
+                                        <p className="text-xs text-text-muted">Saved</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

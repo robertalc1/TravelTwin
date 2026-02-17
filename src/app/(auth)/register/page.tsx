@@ -2,12 +2,83 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Mail, Lock, Eye, EyeOff, User, Compass } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, User, Compass, Loader2, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { createClient } from "@/lib/supabase/client";
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+
+        try {
+            const supabase = createClient();
+            const { error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    data: {
+                        full_name: `${firstName} ${lastName}`.trim(),
+                    },
+                },
+            });
+
+            if (error) {
+                setError(error.message);
+                return;
+            }
+
+            // Try to auto-login after signup
+            const { error: loginError } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (!loginError) {
+                router.push("/");
+                router.refresh();
+            } else {
+                setSuccess(true);
+            }
+        } catch {
+            setError("An unexpected error occurred. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    if (success) {
+        return (
+            <div className="text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10 mx-auto mb-4">
+                    <CheckCircle2 className="h-8 w-8 text-success" />
+                </div>
+                <h1 className="text-h2 text-text-primary mb-2">Check your email</h1>
+                <p className="text-body text-text-tertiary mb-6">
+                    We&apos;ve sent a confirmation link to <strong className="text-text-primary">{email}</strong>.
+                    Click the link to activate your account.
+                </p>
+                <Link href="/login">
+                    <Button variant="primary" size="lg" className="w-full">
+                        Back to Sign In
+                    </Button>
+                </Link>
+            </div>
+        );
+    }
 
     return (
         <div>
@@ -26,16 +97,28 @@ export default function RegisterPage() {
                 Join millions of travelers and start planning your next adventure
             </p>
 
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+            {error && (
+                <div className="mb-4 rounded-radius-md border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+                    {error}
+                </div>
+            )}
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="grid grid-cols-2 gap-3">
                     <Input
                         label="First Name"
                         placeholder="John"
                         leadingIcon={<User className="h-4 w-4" />}
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        required
                     />
                     <Input
                         label="Last Name"
                         placeholder="Doe"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        required
                     />
                 </div>
                 <Input
@@ -43,6 +126,9 @@ export default function RegisterPage() {
                     type="email"
                     placeholder="john@example.com"
                     leadingIcon={<Mail className="h-4 w-4" />}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
                 />
                 <Input
                     label="Password"
@@ -59,13 +145,17 @@ export default function RegisterPage() {
                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                     }
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
                 />
                 <p className="text-caption text-text-muted">
-                    Must be at least 8 characters with one uppercase, one number, and one special character.
+                    Must be at least 6 characters.
                 </p>
 
                 <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" className="h-4 w-4 rounded border-border-emphasis text-primary-500 mt-0.5" />
+                    <input type="checkbox" className="h-4 w-4 rounded border-border-emphasis text-primary-500 mt-0.5" required />
                     <span className="text-body-sm text-text-secondary">
                         I agree to the{" "}
                         <a href="#" className="text-primary-500 hover:underline">Terms of Service</a>{" "}
@@ -74,8 +164,20 @@ export default function RegisterPage() {
                     </span>
                 </label>
 
-                <Button variant="primary" size="lg" className="w-full mt-2">
-                    Create Account
+                <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full mt-2"
+                    disabled={loading}
+                >
+                    {loading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Creating account...
+                        </>
+                    ) : (
+                        "Create Account"
+                    )}
                 </Button>
             </form>
 
