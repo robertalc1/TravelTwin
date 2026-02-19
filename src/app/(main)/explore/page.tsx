@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, MapPin, Search, Loader2, Star, DollarSign, Thermometer } from "lucide-react";
+import { Sparkles, MapPin, Search, Loader2, Star, DollarSign, Thermometer, Heart } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface CityData {
     id: number;
@@ -36,6 +37,7 @@ interface DailyCostData {
 }
 
 export default function ExplorePage() {
+    const { user } = useAuth();
     const [query, setQuery] = useState("");
     const [cities, setCities] = useState<CityData[]>([]);
     const [loading, setLoading] = useState(true);
@@ -43,6 +45,8 @@ export default function ExplorePage() {
     const [attractions, setAttractions] = useState<AttractionData[]>([]);
     const [dailyCosts, setDailyCosts] = useState<DailyCostData[]>([]);
     const [loadingDetail, setLoadingDetail] = useState(false);
+    const [favoritedCities, setFavoritedCities] = useState<Set<string>>(new Set());
+    const [togglingFav, setTogglingFav] = useState<string | null>(null);
 
     useEffect(() => {
         async function loadCities() {
@@ -63,6 +67,56 @@ export default function ExplorePage() {
         }
         loadCities();
     }, []);
+
+    // Load user's favorites
+    useEffect(() => {
+        if (!user) return;
+        async function loadFavorites() {
+            try {
+                const supabase = createClient();
+                const { data } = await supabase
+                    .from("favorites")
+                    .select("city_name")
+                    .eq("user_id", user!.id);
+                if (data) {
+                    setFavoritedCities(new Set(data.map((f: { city_name: string }) => f.city_name)));
+                }
+            } catch {
+                // Ignore
+            }
+        }
+        loadFavorites();
+    }, [user]);
+
+    async function toggleFavorite(e: React.MouseEvent, cityName: string, cityData: CityData) {
+        e.stopPropagation();
+        if (!user) {
+            window.location.href = "/login";
+            return;
+        }
+        setTogglingFav(cityName);
+        try {
+            if (favoritedCities.has(cityName)) {
+                await fetch(`/api/favorites?city_name=${encodeURIComponent(cityName)}`, { method: "DELETE" });
+                setFavoritedCities((prev) => {
+                    const next = new Set(prev);
+                    next.delete(cityName);
+                    return next;
+                });
+            } else {
+                await fetch("/api/favorites", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ city_name: cityName, city_data: { id: cityData.id, description: cityData.description, temperature: cityData.temperature, avg_budget: cityData.avg_budget } }),
+                });
+                setFavoritedCities((prev) => new Set(prev).add(cityName));
+            }
+        } catch {
+            // Ignore
+        } finally {
+            setTogglingFav(null);
+        }
+    }
 
     async function loadCityDetails(city: CityData) {
         setSelectedCity(city);
@@ -287,12 +341,26 @@ export default function ExplorePage() {
                                                 <h3 className="font-display text-lg font-bold text-white">
                                                     {city.name}
                                                 </h3>
-                                                {city.temperature && (
-                                                    <Badge variant="neutral" className="!bg-white/20 !text-white backdrop-blur-sm text-[10px]">
-                                                        <Thermometer className="h-3 w-3" />
-                                                        {city.temperature}
-                                                    </Badge>
-                                                )}
+                                                <div className="flex items-center gap-1.5">
+                                                    {city.temperature && (
+                                                        <Badge variant="neutral" className="!bg-white/20 !text-white backdrop-blur-sm text-[10px]">
+                                                            <Thermometer className="h-3 w-3" />
+                                                            {city.temperature}
+                                                        </Badge>
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => toggleFavorite(e, city.name, city)}
+                                                        disabled={togglingFav === city.name}
+                                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/40 transition-colors"
+                                                        aria-label={favoritedCities.has(city.name) ? "Remove from favorites" : "Add to favorites"}
+                                                    >
+                                                        {togglingFav === city.name ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <Heart className={cn("h-4 w-4", favoritedCities.has(city.name) && "fill-red-400 text-red-400")} />
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     ) : (

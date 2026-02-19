@@ -19,6 +19,8 @@ import {
   DollarSign,
   Calendar,
   ChevronDown,
+  Bookmark,
+  CheckCircle2,
 } from "lucide-react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -29,6 +31,7 @@ import { JourneyTimeline } from "@/components/shared/JourneyTimeline";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/providers/AuthProvider";
 import type { TripRecommendation } from "@/lib/supabase/types";
 
 /* ── Static Data ── */
@@ -40,11 +43,11 @@ const timelineStages = [
   { label: "Travel", completed: false, icon: "✈️" },
 ];
 
-const trustItems = [
-  { icon: Globe, label: "9 Brazilian Cities", subtitle: "Nationwide coverage" },
-  { icon: Shield, label: "Best Price Guarantee", subtitle: "Or we match it" },
-  { icon: Headphones, label: "24/7 Support", subtitle: "Always here for you" },
-  { icon: Star, label: "271K+ Flights", subtitle: "In our database" },
+const defaultTrustItems = [
+  { icon: Globe, label: "Cities", subtitle: "Nationwide coverage", count: "..." },
+  { icon: Shield, label: "Best Price Guarantee", subtitle: "Or we match it", count: "" },
+  { icon: Headphones, label: "24/7 Support", subtitle: "Always here for you", count: "" },
+  { icon: Star, label: "Flights", subtitle: "In our database", count: "..." },
 ];
 
 const flightTypes = [
@@ -57,6 +60,40 @@ const dayOptions = [1, 2, 3, 4];
 
 /* ── Trip Card Component ── */
 function TripCard({ trip, budget }: { trip: TripRecommendation; budget: number }) {
+  const { user } = useAuth();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSaveTrip() {
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destination: trip.destination,
+          origin: trip.outboundFlight.from,
+          outbound_flight: trip.outboundFlight,
+          return_flight: trip.returnFlight,
+          hotel: trip.hotel,
+          total_cost: trip.totalCost,
+          budget,
+          days: trip.hotel.days,
+          status: "planning",
+        }),
+      });
+      if (res.ok) setSaved(true);
+    } catch {
+      // Show nothing on failure for now
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="group rounded-radius-xl border border-border-default bg-surface overflow-hidden transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-border-emphasis">
       {/* Header */}
@@ -151,6 +188,26 @@ function TripCard({ trip, budget }: { trip: TripRecommendation; budget: number }
             </p>
           </div>
         </div>
+
+        {/* Save Trip Button */}
+        <button
+          onClick={handleSaveTrip}
+          disabled={saving || saved}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 rounded-radius-md py-2.5 text-sm font-semibold transition-all duration-200",
+            saved
+              ? "bg-success/10 text-success border border-success/30 cursor-default"
+              : "bg-primary-50 text-primary-600 hover:bg-primary-100 border border-primary-200 dark:bg-primary-500/10 dark:border-primary-500/30 dark:hover:bg-primary-500/20"
+          )}
+        >
+          {saving ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+          ) : saved ? (
+            <><CheckCircle2 className="h-4 w-4" /> Saved to My Trips</>
+          ) : (
+            <><Bookmark className="h-4 w-4" /> {user ? "Save Trip" : "Login to Save"}</>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -214,6 +271,32 @@ export default function Home() {
       }
     }
     loadCities();
+  }, []);
+
+  // Load live stats for trust bar
+  const [trustItems, setTrustItems] = useState(defaultTrustItems);
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        const supabase = createClient();
+        const [flightsRes, hotelsRes, citiesRes, attractionsRes] = await Promise.all([
+          supabase.from("flights").select("*", { count: "exact", head: true }),
+          supabase.from("hotels").select("*", { count: "exact", head: true }),
+          supabase.from("cities").select("*", { count: "exact", head: true }),
+          supabase.from("attractions").select("*", { count: "exact", head: true }),
+        ]);
+        const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}K+` : `${n}`;
+        setTrustItems([
+          { icon: Globe, label: `${citiesRes.count || 0} Cities`, subtitle: "Nationwide coverage", count: "" },
+          { icon: Shield, label: "Best Price Guarantee", subtitle: "Or we match it", count: "" },
+          { icon: Hotel, label: `${fmt(hotelsRes.count || 0)} Hotels`, subtitle: "Verified properties", count: "" },
+          { icon: Star, label: `${fmt(flightsRes.count || 0)} Flights`, subtitle: "In our database", count: "" },
+        ]);
+      } catch {
+        // Keep defaults
+      }
+    }
+    loadStats();
   }, []);
 
   async function handleSearch(e: React.FormEvent) {
