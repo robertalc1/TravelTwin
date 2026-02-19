@@ -5,7 +5,9 @@ import { Heart, MapPin, Wifi, Car, Waves, Coffee } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { RatingStars } from "@/components/ui/RatingStars";
+import { SourceBadge } from "@/components/ui/SourceBadge";
 import { cn } from "@/lib/utils";
+import type { DataSource } from "@/lib/supabase/types";
 
 interface HotelCardProps {
     name: string;
@@ -16,9 +18,14 @@ interface HotelCardProps {
     rating: number;
     reviewCount: number;
     price: number;
+    currency?: string;
     originalPrice?: number;
     amenities?: string[];
     badges?: string[];
+    source?: DataSource;
+    lastUpdated?: string;
+    roomType?: string;
+    cancellationPolicy?: string;
     className?: string;
 }
 
@@ -37,9 +44,14 @@ export function HotelCard({
     rating,
     reviewCount,
     price,
+    currency,
     originalPrice,
     amenities = [],
     badges = [],
+    source,
+    lastUpdated,
+    roomType,
+    cancellationPolicy,
     className,
 }: HotelCardProps) {
     const [liked, setLiked] = useState(false);
@@ -109,7 +121,19 @@ export function HotelCard({
                     {distance && (
                         <Badge variant="neutral" className="ml-1 text-[10px]">{distance}</Badge>
                     )}
+                    {source && <SourceBadge source={source} lastUpdated={lastUpdated} className="ml-auto" />}
                 </div>
+
+                {(roomType || cancellationPolicy) && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {roomType && roomType !== "Standard Room" && (
+                            <span className="text-[10px] font-medium text-text-muted bg-surface-sunken rounded px-1.5 py-0.5">{roomType}</span>
+                        )}
+                        {cancellationPolicy && cancellationPolicy.toLowerCase().includes("free") && (
+                            <span className="text-[10px] font-medium text-green-600 bg-green-50 dark:bg-green-500/10 dark:text-green-400 rounded px-1.5 py-0.5">Free cancellation</span>
+                        )}
+                    </div>
+                )}
 
                 <RatingStars rating={rating} reviewCount={reviewCount} className="mb-3" />
 
@@ -138,9 +162,13 @@ export function HotelCard({
                 <div className="flex items-end justify-between">
                     <div>
                         <div className="flex items-baseline gap-1.5">
-                            <span className="font-mono text-xl font-bold text-text-primary">${price}</span>
+                            <span className="font-mono text-xl font-bold text-text-primary">
+                                {currency === "BRL" ? "R$" : currency === "EUR" ? "\u20AC" : "$"}{price}
+                            </span>
                             {originalPrice && (
-                                <span className="text-sm text-text-muted line-through">${originalPrice}</span>
+                                <span className="text-sm text-text-muted line-through">
+                                    {currency === "BRL" ? "R$" : currency === "EUR" ? "\u20AC" : "$"}{originalPrice}
+                                </span>
                             )}
                         </div>
                         <span className="text-caption text-text-muted">per night</span>

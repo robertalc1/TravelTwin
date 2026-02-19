@@ -127,3 +127,64 @@ export interface TripRecommendation {
     savings: number;
     savingsPercent: number;
 }
+
+/* ── Normalized API types (Amadeus + static) ── */
+export type DataSource = 'live' | 'cached' | 'fallback';
+
+export interface NormalizedFlight {
+    id: string;
+    origin: string;
+    originCity: string;
+    destination: string;
+    destinationCity: string;
+    departureDate: string;
+    arrivalDate: string;
+    departureTime: string;
+    arrivalTime: string;
+    duration: string;
+    stops: number;
+    airline: string;
+    airlineName: string;
+    price: number;
+    currency: string;
+    travelClass: string;
+    source: DataSource;
+    lastUpdated: string;
+    bookingLink?: string;
+}
+
+export interface NormalizedHotel {
+    id: string;
+    name: string;
+    cityCode: string;
+    cityName: string;
+    address: string;
+    rating: number;
+    pricePerNight: number;
+    totalPrice: number;
+    currency: string;
+    roomType: string;
+    amenities: string[];
+    cancellationPolicy: string;
+    source: DataSource;
+    lastUpdated: string;
+    bookingLink?: string;
+}
+
+export interface LocationResult {
+    iataCode: string;
+    name: string;
+    cityName: string;
+    countryName: string;
+    type: 'AIRPORT' | 'CITY';
+}
+
+export interface FlightInspiration {
+    destination: string;
+    destinationCity: string;
+    departureDate: string;
+    returnDate: string;
+    price: number;
+    currency: string;
+    source: DataSource;
+}

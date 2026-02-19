@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Sparkles, MapPin, Search, Loader2, Star, DollarSign, Thermometer, Heart } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Sparkles, MapPin, Search, Loader2, Star, DollarSign, Thermometer, Heart, Plane, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { SourceBadge } from "@/components/ui/SourceBadge";
+import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import type { FlightInspiration } from "@/lib/supabase/types";
 
 interface CityData {
     id: number;
@@ -47,6 +50,29 @@ export default function ExplorePage() {
     const [loadingDetail, setLoadingDetail] = useState(false);
     const [favoritedCities, setFavoritedCities] = useState<Set<string>>(new Set());
     const [togglingFav, setTogglingFav] = useState<string | null>(null);
+
+    // Inspiration state
+    const [inspirationOrigin, setInspirationOrigin] = useState("");
+    const [inspirationOriginDisplay, setInspirationOriginDisplay] = useState("");
+    const [inspirations, setInspirations] = useState<FlightInspiration[]>([]);
+    const [loadingInspiration, setLoadingInspiration] = useState(false);
+    const [inspirationMessage, setInspirationMessage] = useState("");
+
+    const loadInspiration = useCallback(async (origin: string) => {
+        if (!origin) return;
+        setLoadingInspiration(true);
+        setInspirationMessage("");
+        try {
+            const res = await fetch(`/api/flights/inspiration?origin=${origin}`);
+            const data = await res.json();
+            setInspirations(data.destinations || []);
+            setInspirationMessage(data.message || "");
+        } catch {
+            setInspirationMessage("Could not load flight inspiration.");
+        } finally {
+            setLoadingInspiration(false);
+        }
+    }, []);
 
     useEffect(() => {
         async function loadCities() {
@@ -177,6 +203,78 @@ export default function ExplorePage() {
             </div>
 
             <div className="mx-auto max-w-7xl px-4 lg:px-8 -mt-8">
+                {/* Flight Inspiration Section */}
+                <section className="mb-8 rounded-radius-xl bg-surface border border-border-default shadow-lg overflow-hidden">
+                    <div className="bg-gradient-to-r from-accent-600 to-accent-500 px-6 py-4">
+                        <div className="flex items-center gap-2 mb-1">
+                            <Zap className="h-5 w-5 text-white" />
+                            <h2 className="font-display text-lg font-bold text-white">
+                                Cheapest Flights From Your City
+                            </h2>
+                        </div>
+                        <p className="text-sm text-white/80">
+                            Powered by Amadeus — see real-time prices to top destinations
+                        </p>
+                    </div>
+                    <div className="p-6">
+                        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                            <LocationAutocomplete
+                                value={inspirationOrigin}
+                                displayValue={inspirationOriginDisplay}
+                                onSelect={(code, display) => {
+                                    setInspirationOrigin(code);
+                                    setInspirationOriginDisplay(display);
+                                    loadInspiration(code);
+                                }}
+                                placeholder="Select your departure city..."
+                                icon="origin"
+                                className="flex-1"
+                            />
+                        </div>
+
+                        {loadingInspiration ? (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {[1, 2, 3, 4].map((i) => (
+                                    <Skeleton key={i} className="h-24 rounded-radius-md" />
+                                ))}
+                            </div>
+                        ) : inspirations.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                {inspirations.slice(0, 8).map((dest, i) => (
+                                    <div
+                                        key={`${dest.destination}-${i}`}
+                                        className="rounded-radius-md border border-border-default bg-surface-sunken p-4 hover:border-border-emphasis transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="font-mono text-lg font-bold text-primary-500">
+                                                {dest.destination}
+                                            </span>
+                                            <SourceBadge source={dest.source} />
+                                        </div>
+                                        <p className="text-sm text-text-primary font-medium truncate">
+                                            {dest.destinationCity !== dest.destination ? dest.destinationCity : dest.destination}
+                                        </p>
+                                        <div className="flex items-center justify-between mt-2">
+                                            <span className="font-mono text-sm font-bold text-accent-500">
+                                                {dest.currency === "EUR" ? "\u20AC" : "$"}{dest.price}
+                                            </span>
+                                            <span className="text-[10px] text-text-muted">
+                                                {dest.departureDate}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : inspirationMessage ? (
+                            <p className="text-center text-sm text-text-muted py-4">{inspirationMessage}</p>
+                        ) : (
+                            <p className="text-center text-sm text-text-muted py-4">
+                                Select a departure city above to see cheapest flight deals
+                            </p>
+                        )}
+                    </div>
+                </section>
+
                 {/* City detail panel */}
                 {selectedCity && (
                     <div className="mb-8 rounded-radius-xl bg-surface border border-border-default shadow-lg overflow-hidden">

@@ -3,7 +3,9 @@
 import { Plane } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { SourceBadge } from "@/components/ui/SourceBadge";
 import { cn } from "@/lib/utils";
+import type { DataSource } from "@/lib/supabase/types";
 
 interface FlightCardProps {
     airline: string;
@@ -17,8 +19,11 @@ interface FlightCardProps {
     duration: string;
     stops: number;
     price: number;
+    currency?: string;
     tripType?: string;
     badges?: string[];
+    source?: DataSource;
+    lastUpdated?: string;
     className?: string;
 }
 
@@ -33,8 +38,11 @@ export function FlightCard({
     duration,
     stops,
     price,
+    currency,
     tripType = "Round trip",
     badges = [],
+    source,
+    lastUpdated,
     className,
 }: FlightCardProps) {
     const stopsLabel = stops === 0 ? "Direct" : stops === 1 ? "1 stop" : `${stops} stops`;
@@ -52,10 +60,15 @@ export function FlightCard({
                     <div className="flex h-9 w-9 items-center justify-center rounded-radius-full bg-primary-50 dark:bg-primary-50 shrink-0">
                         <Plane className="h-4 w-4 text-primary-500" />
                     </div>
-                    <span className="text-body-sm font-medium text-text-secondary">{airline}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-body-sm font-medium text-text-secondary">{airline}</span>
+                        {source && <SourceBadge source={source} lastUpdated={lastUpdated} />}
+                    </div>
                 </div>
                 <div className="text-right">
-                    <p className="font-mono text-xl font-bold text-text-primary">${price}</p>
+                    <p className="font-mono text-xl font-bold text-text-primary">
+                        {currency === "BRL" ? "R$" : currency === "EUR" ? "\u20AC" : "$"}{price}
+                    </p>
                     <p className="text-caption text-text-muted">{tripType}</p>
                 </div>
             </div>
