@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import { cn } from "@/lib/utils";
+import { formatDuration, formatPrice } from "@/lib/hotelImages";
 import type { DataSource } from "@/lib/supabase/types";
 
 interface FlightCardProps {
@@ -29,6 +30,7 @@ interface FlightCardProps {
 
 export function FlightCard({
     airline,
+    airlineLogo,
     departureTime,
     arrivalTime,
     departureCode,
@@ -38,14 +40,24 @@ export function FlightCard({
     duration,
     stops,
     price,
-    currency,
+    currency = "USD",
     tripType = "Round trip",
     badges = [],
     source,
     lastUpdated,
     className,
 }: FlightCardProps) {
-    const stopsLabel = stops === 0 ? "Direct" : stops === 1 ? "1 stop" : `${stops} stops`;
+    const stopsLabel =
+        stops === 0 ? "Direct" : stops === 1 ? "1 stop" : `${stops} stops`;
+
+    // Airline logo: use provided URL, or construct from avs.io CDN for valid IATA codes
+    const isIataCode = /^[A-Z0-9]{2}$/.test(airline);
+    const logoSrc =
+        airlineLogo ||
+        (isIataCode ? `https://pics.avs.io/200/200/${airline}.png` : null);
+
+    const formattedDuration = formatDuration(duration);
+    const formattedPrice = formatPrice(price, currency);
 
     return (
         <div
@@ -57,28 +69,51 @@ export function FlightCard({
             {/* Top row: airline + price */}
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-radius-full bg-primary-50 dark:bg-primary-50 shrink-0">
-                        <Plane className="h-4 w-4 text-primary-500" />
+                    {/* Airline logo / icon */}
+                    <div className="flex h-9 w-9 items-center justify-center rounded-radius-full bg-primary-50 dark:bg-primary-50/10 shrink-0 overflow-hidden">
+                        {logoSrc ? (
+                            <img
+                                src={logoSrc}
+                                alt={airline}
+                                className="h-7 w-7 object-contain"
+                                onError={(e) => {
+                                    const img = e.currentTarget as HTMLImageElement;
+                                    img.style.display = "none";
+                                    const fallback = img.nextElementSibling as HTMLElement | null;
+                                    if (fallback) fallback.style.display = "flex";
+                                }}
+                            />
+                        ) : null}
+                        <Plane
+                            className="h-4 w-4 text-primary-500"
+                            style={{ display: logoSrc ? "none" : "block" }}
+                        />
                     </div>
+
                     <div className="flex items-center gap-2">
-                        <span className="text-body-sm font-medium text-text-secondary">{airline}</span>
-                        {source && <SourceBadge source={source} lastUpdated={lastUpdated} />}
+                        <span className="text-body-sm font-medium text-text-secondary">
+                            {airline}
+                        </span>
+                        {source && (
+                            <SourceBadge source={source} lastUpdated={lastUpdated} />
+                        )}
                     </div>
                 </div>
+
                 <div className="text-right">
                     <p className="font-mono text-xl font-bold text-text-primary">
-                        {currency === "BRL" ? "R$" : currency === "EUR" ? "\u20AC" : "$"}{price}
+                        {formattedPrice}
                     </p>
                     <p className="text-caption text-text-muted">{tripType}</p>
                 </div>
             </div>
 
-            {/* Route visualization — departure board aesthetic */}
+            {/* Route visualization */}
             <div className="flex items-center gap-3 mb-3">
                 {/* Departure */}
                 <div className="text-left">
                     <p className="font-mono text-2xl font-bold text-text-primary tracking-tight">
-                        {departureTime}
+                        {departureTime || "—"}
                     </p>
                     <p className="font-mono text-sm font-semibold text-text-secondary tracking-wider">
                         {departureCode}
@@ -88,7 +123,13 @@ export function FlightCard({
                 {/* Route line */}
                 <div className="flex-1 flex items-center px-2">
                     <div className="flex-1 relative">
-                        <div className="h-px bg-border-emphasis" style={{ backgroundImage: "repeating-linear-gradient(90deg, var(--border-emphasis) 0, var(--border-emphasis) 4px, transparent 4px, transparent 8px)" }} />
+                        <div
+                            className="h-px bg-border-emphasis"
+                            style={{
+                                backgroundImage:
+                                    "repeating-linear-gradient(90deg, var(--border-emphasis) 0, var(--border-emphasis) 4px, transparent 4px, transparent 8px)",
+                            }}
+                        />
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface px-1">
                             <Plane className="h-4 w-4 text-accent-500 rotate-90" />
                         </div>
@@ -98,7 +139,7 @@ export function FlightCard({
                 {/* Arrival */}
                 <div className="text-right">
                     <p className="font-mono text-2xl font-bold text-text-primary tracking-tight">
-                        {arrivalTime}
+                        {arrivalTime || "—"}
                     </p>
                     <p className="font-mono text-sm font-semibold text-text-secondary tracking-wider">
                         {arrivalCode}
@@ -108,11 +149,19 @@ export function FlightCard({
 
             {/* Meta row */}
             <div className="flex items-center justify-between text-body-sm text-text-muted mb-4">
-                <span>{departureCity}</span>
-                <span className="flex items-center gap-1">
-                    {duration} · <span className={cn(stops === 0 && "text-success font-medium")}>{stopsLabel}</span>
+                <span className="truncate max-w-[30%]">{departureCity}</span>
+                <span className="flex items-center gap-1 shrink-0 text-center">
+                    {formattedDuration}
+                    {formattedDuration && " · "}
+                    <span
+                        className={cn(stops === 0 && "text-success font-medium")}
+                    >
+                        {stopsLabel}
+                    </span>
                 </span>
-                <span>{arrivalCity}</span>
+                <span className="truncate max-w-[30%] text-right">
+                    {arrivalCity}
+                </span>
             </div>
 
             {/* Badges + CTA */}
@@ -121,7 +170,13 @@ export function FlightCard({
                     {badges.map((badge) => (
                         <Badge
                             key={badge}
-                            variant={badge === "Best Price" ? "success" : badge === "Direct" ? "primary" : "accent"}
+                            variant={
+                                badge === "Best Price"
+                                    ? "success"
+                                    : badge === "Direct"
+                                      ? "primary"
+                                      : "accent"
+                            }
                         >
                             {badge}
                         </Badge>

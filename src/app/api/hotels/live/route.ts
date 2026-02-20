@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
-import { createClient } from '@/lib/supabase/server';
 import { getCityFromIata } from '@/lib/iataMapping';
-import type { NormalizedHotel, Hotel } from '@/lib/supabase/types';
+import type { NormalizedHotel } from '@/lib/supabase/types';
 
-function normalizeAmadeusHotel(offer: Record<string, unknown>, cityCode: string): NormalizedHotel {
+function normalizeAmadeusHotel(
+  offer: Record<string, unknown>,
+  cityCode: string
+): NormalizedHotel {
   const hotel = offer.hotel as Record<string, unknown> | undefined;
   const offers = (offer.offers as Record<string, unknown>[]) || [];
   const firstOffer = offers[0] || {};
@@ -14,50 +16,58 @@ function normalizeAmadeusHotel(offer: Record<string, unknown>, cityCode: string)
   const room = firstOffer.room as Record<string, unknown> | undefined;
   const roomDesc = room?.description as Record<string, unknown> | undefined;
   const policies = firstOffer.policies as Record<string, unknown> | undefined;
-  const cancellation = policies?.cancellations as Record<string, unknown>[] | undefined;
+  const cancellation = policies?.cancellations as
+    | Record<string, unknown>[]
+    | undefined;
 
   const totalPrice = parseFloat(price?.total as string) || 0;
-  const checkIn = firstOffer.checkInDate as string || '';
-  const checkOut = firstOffer.checkOutDate as string || '';
-  const nights = checkIn && checkOut
-    ? Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
-    : 1;
+  const checkIn = (firstOffer.checkInDate as string) || '';
+  const checkOut = (firstOffer.checkOutDate as string) || '';
+  const nights =
+    checkIn && checkOut
+      ? Math.max(
+          1,
+          Math.ceil(
+            (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
+              86400000
+          )
+        )
+      : 1;
+
+  // Sanity check: price per night should be reasonable (< $5000)
+  const rawPricePerNight = totalPrice / nights;
+  const pricePerNight =
+    rawPricePerNight > 5000
+      ? Math.round(rawPricePerNight / 100) // Might be in minor currency units
+      : Math.round(rawPricePerNight * 100) / 100;
+
+  const correctedTotal = Math.round(pricePerNight * nights * 100) / 100;
 
   return {
     id: (hotel?.hotelId as string) || crypto.randomUUID(),
     name: (hotel?.name as string) || 'Unknown Hotel',
     cityCode,
     cityName: getCityFromIata(cityCode),
-    address: ((hotel?.address as Record<string, unknown>)?.lines as string[])?.join(', ') || '',
+    address:
+      ((hotel?.address as Record<string, unknown>)?.lines as string[])?.join(
+        ', '
+      ) || '',
     rating: parseInt(hotel?.rating as string) || 3,
-    pricePerNight: Math.round(totalPrice / nights),
-    totalPrice,
-    currency: (price?.currency as string) || 'EUR',
-    roomType: (roomDesc?.text as string) || (room?.typeEstimated as Record<string, unknown>)?.category as string || 'Standard Room',
+    pricePerNight,
+    totalPrice: correctedTotal,
+    currency: (price?.currency as string) || 'USD',
+    roomType:
+      (roomDesc?.text as string) ||
+      ((room?.typeEstimated as Record<string, unknown>)
+        ?.category as string) ||
+      'Standard Room',
     amenities: ((hotel?.amenities as string[]) || []).slice(0, 6),
     cancellationPolicy: cancellation?.[0]
-      ? `Free cancellation before ${(cancellation[0].deadline as string)?.split('T')[0] || 'check-in'}`
+      ? `Free cancellation before ${
+          (cancellation[0].deadline as string)?.split('T')[0] || 'check-in'
+        }`
       : 'Non-refundable',
     source: 'live',
-    lastUpdated: new Date().toISOString(),
-  };
-}
-
-function normalizeStaticHotel(hotel: Hotel): NormalizedHotel {
-  return {
-    id: `static-${hotel.id}`,
-    name: hotel.name,
-    cityCode: '',
-    cityName: hotel.place,
-    address: hotel.place,
-    rating: 3 + Math.round(Math.random() * 2), // Static data doesn't have ratings
-    pricePerNight: hotel.price,
-    totalPrice: hotel.total,
-    currency: 'BRL',
-    roomType: 'Standard Room',
-    amenities: ['WiFi', 'Breakfast'],
-    cancellationPolicy: 'Contact hotel for policy',
-    source: 'fallback',
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -78,11 +88,14 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Check cache
+    // 1. Check cache (30 min TTL)
     const cacheKey = `hotel:${cityCode}:${checkInDate}:${checkOutDate}:${adults}:${rooms}`;
     const cached = await getCached(cacheKey);
     if (cached) {
-      const hotels = (cached.data as NormalizedHotel[]).map((h) => ({ ...h, source: 'cached' as const }));
+      const hotels = (cached.data as NormalizedHotel[]).map((h) => ({
+        ...h,
+        source: 'cached' as const,
+      }));
       return NextResponse.json({ hotels, source: 'cached', count: hotels.length });
     }
 
@@ -91,70 +104,81 @@ export async function GET(request: Request) {
       try {
         // First get hotel IDs for the city
         recordAmadeusCall();
-        const hotelsResponse = await amadeus.referenceData.locations.hotels.byCity.get({
-          cityCode,
-          radius: 30,
-          radiusUnit: 'KM',
-        });
+        const hotelsResponse =
+          await amadeus.referenceData.locations.hotels.byCity.get({
+            cityCode,
+            radius: 30,
+            radiusUnit: 'KM',
+          });
 
-        const hotelIds = ((hotelsResponse.data || []) as Record<string, unknown>[])
-          .slice(0, 10)
+        const hotelIds = (
+          (hotelsResponse.data || []) as Record<string, unknown>[]
+        )
+          .slice(0, 20)
           .map((h) => h.hotelId as string)
           .filter(Boolean);
 
         if (hotelIds.length > 0) {
           recordAmadeusCall();
-          const offersResponse = await amadeus.shopping.hotelOffersSearch.get({
-            hotelIds: hotelIds.join(','),
-            checkInDate,
-            checkOutDate,
-            adults,
-            roomQuantity: rooms,
-            currency: 'USD',
-          });
+          const offersResponse =
+            await amadeus.shopping.hotelOffersSearch.get({
+              hotelIds: hotelIds.join(','),
+              checkInDate,
+              checkOutDate,
+              adults,
+              roomQuantity: rooms,
+              currency: 'USD',
+            });
 
-          const hotels: NormalizedHotel[] = ((offersResponse.data || []) as Record<string, unknown>[])
-            .map((offer) => normalizeAmadeusHotel(offer, cityCode));
+          const hotels: NormalizedHotel[] = (
+            (offersResponse.data || []) as Record<string, unknown>[]
+          ).map((offer) => normalizeAmadeusHotel(offer, cityCode));
 
           if (hotels.length > 0) {
             await setCache(cacheKey, hotels, 30);
-            return NextResponse.json({ hotels, source: 'live', count: hotels.length });
+            return NextResponse.json({
+              hotels,
+              source: 'live',
+              count: hotels.length,
+            });
           }
         }
+
+        // No hotels found
+        return NextResponse.json({
+          hotels: [],
+          source: 'live',
+          count: 0,
+          warning: `No hotels found in ${cityCode} for the selected dates. Try different dates.`,
+        });
       } catch (err: unknown) {
-        const error = err as { response?: { statusCode?: number }; message?: string };
-        console.warn('[Hotels] Amadeus error:', error?.response?.statusCode || error?.message);
+        const error = err as {
+          response?: { statusCode?: number };
+          message?: string;
+        };
+        console.warn(
+          '[Hotels] Amadeus error:',
+          error?.response?.statusCode || error?.message
+        );
       }
     }
 
-    // 3. Fallback to static data
-    const supabase = await createClient();
-    const cityName = getCityFromIata(cityCode);
-    const nights = Math.max(
-      1,
-      Math.ceil((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000)
-    );
-
-    let query = supabase.from('hotels').select('*').limit(20);
-    if (cityName && cityName !== cityCode) {
-      query = query.eq('place', cityName);
-    }
-    query = query.eq('days', Math.min(nights, 4)); // Static data has 1-4 days
-    query = query.order('price', { ascending: true });
-
-    const { data: staticHotels } = await query;
-    const hotels = (staticHotels || []).map((h: Hotel) => normalizeStaticHotel(h));
-
+    // 3. Rate-limited or Amadeus unavailable — friendly error
     return NextResponse.json({
-      hotels,
-      source: 'fallback',
-      count: hotels.length,
-      warning: 'Showing reference data. Live pricing temporarily unavailable.',
+      hotels: [],
+      source: 'error',
+      count: 0,
+      warning: 'Unable to fetch live hotel prices right now. Please try again in a moment.',
     });
   } catch (error) {
     console.error('[Hotels] Unexpected error:', error);
     return NextResponse.json(
-      { hotels: [], source: 'fallback', count: 0, error: 'Search failed. Please try again.' },
+      {
+        hotels: [],
+        source: 'error',
+        count: 0,
+        warning: 'Search failed. Please try again.',
+      },
       { status: 200 }
     );
   }
