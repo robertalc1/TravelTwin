@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
-import { createClient } from '@/lib/supabase/server';
-import { getCityFromIata, getIataCode, getCityName, extractStateCode } from '@/lib/iataMapping';
-import type { NormalizedFlight, Flight } from '@/lib/supabase/types';
+import { getCityFromIata } from '@/lib/iataMapping';
+import type { NormalizedFlight } from '@/lib/supabase/types';
 
 function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFlight {
   const itinerary = (offer.itineraries as Record<string, unknown>[])?.[0];
@@ -18,7 +17,7 @@ function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFligh
   const fareDetail = (travelerPricings[0]?.fareDetailsBySegment as Record<string, unknown>[]) || [];
 
   return {
-    id: offer.id as string || crypto.randomUUID(),
+    id: (offer.id as string) || crypto.randomUUID(),
     origin: departure?.iataCode || '',
     originCity: getCityFromIata(departure?.iataCode || ''),
     destination: arrival?.iataCode || '',
@@ -32,40 +31,9 @@ function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFligh
     airline: (firstSeg.carrierCode as string) || '',
     airlineName: (firstSeg.carrierCode as string) || '',
     price: parseFloat(price?.total as string) || 0,
-    currency: (price?.currency as string) || 'EUR',
+    currency: (price?.currency as string) || 'USD',
     travelClass: (fareDetail[0]?.cabin as string) || 'ECONOMY',
     source: 'live',
-    lastUpdated: new Date().toISOString(),
-  };
-}
-
-function normalizeStaticFlight(flight: Flight): NormalizedFlight {
-  const originIata = getIataCode(flight.from) || extractStateCode(flight.from);
-  const destIata = getIataCode(flight.to) || extractStateCode(flight.to);
-  const classMap: Record<string, string> = {
-    economic: 'ECONOMY',
-    premium: 'PREMIUM_ECONOMY',
-    firstClass: 'FIRST',
-  };
-
-  return {
-    id: `static-${flight.id}`,
-    origin: originIata,
-    originCity: getCityName(flight.from),
-    destination: destIata,
-    destinationCity: getCityName(flight.to),
-    departureDate: flight.date || '',
-    arrivalDate: flight.date || '',
-    departureTime: flight.time || '',
-    arrivalTime: '',
-    duration: `${flight.distance}km`,
-    stops: 0,
-    airline: flight.agency,
-    airlineName: flight.agency,
-    price: flight.price,
-    currency: 'BRL',
-    travelClass: classMap[flight.flightType] || 'ECONOMY',
-    source: 'fallback',
     lastUpdated: new Date().toISOString(),
   };
 }
@@ -87,11 +55,14 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Check cache
+    // 1. Check cache (15 min TTL)
     const cacheKey = `flight:${origin}:${destination}:${departureDate}:${returnDate || ''}:${travelClass}`;
     const cached = await getCached(cacheKey);
     if (cached) {
-      const flights = (cached.data as NormalizedFlight[]).map((f) => ({ ...f, source: 'cached' as const }));
+      const flights = (cached.data as NormalizedFlight[]).map((f) => ({
+        ...f,
+        source: 'cached' as const,
+      }));
       return NextResponse.json({ flights, source: 'cached', count: flights.length });
     }
 
@@ -111,62 +82,45 @@ export async function GET(request: Request) {
         if (returnDate) params.returnDate = returnDate;
 
         const response = await amadeus.shopping.flightOffersSearch.get(params);
-        const flights: NormalizedFlight[] = ((response.data || []) as Record<string, unknown>[]).map(normalizeAmadeusFlight);
+        const flights: NormalizedFlight[] = (
+          (response.data || []) as Record<string, unknown>[]
+        ).map(normalizeAmadeusFlight);
 
         if (flights.length > 0) {
-          // Save to cache (15 min TTL)
           await setCache(cacheKey, flights, 15);
           return NextResponse.json({ flights, source: 'live', count: flights.length });
         }
-        // Empty result from Amadeus — fall through to static
+
+        // Amadeus returned no results
+        return NextResponse.json({
+          flights: [],
+          source: 'live',
+          count: 0,
+          warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
+        });
       } catch (err: unknown) {
         const error = err as { response?: { statusCode?: number }; message?: string };
         console.warn('[Flights] Amadeus error:', error?.response?.statusCode || error?.message);
-        // Fall through to static data
       }
     }
 
-    // 3. Fallback to static Supabase data
-    const supabase = await createClient();
-    const originCity = getCityFromIata(origin);
-    const destCity = getCityFromIata(destination);
-
-    let query = supabase.from('flights').select('*').limit(20);
-
-    if (originCity && originCity !== origin) {
-      query = query.eq('from', originCity);
-    }
-    if (destCity && destCity !== destination) {
-      query = query.eq('to', destCity);
-    }
-
-    // Map travelClass to static format
-    const classMap: Record<string, string> = {
-      ECONOMY: 'economic',
-      PREMIUM_ECONOMY: 'premium',
-      BUSINESS: 'premium',
-      FIRST: 'firstClass',
-    };
-    if (classMap[travelClass]) {
-      query = query.eq('flightType', classMap[travelClass]);
-    }
-
-    query = query.order('price', { ascending: true });
-
-    const { data: staticFlights } = await query;
-    const flights = (staticFlights || []).map((f: Flight) => normalizeStaticFlight(f));
-
+    // 3. Rate-limited or Amadeus unavailable — friendly error
     return NextResponse.json({
-      flights,
-      source: 'fallback',
-      count: flights.length,
-      warning: 'Showing reference data. Live pricing temporarily unavailable.',
+      flights: [],
+      source: 'error',
+      count: 0,
+      warning: 'Unable to fetch live flight prices right now. Please try again in a moment.',
     });
   } catch (error) {
     console.error('[Flights] Unexpected error:', error);
     return NextResponse.json(
-      { flights: [], source: 'fallback', count: 0, error: 'Search failed. Please try again.' },
-      { status: 200 } // Return 200 so frontend doesn't break
+      {
+        flights: [],
+        source: 'error',
+        count: 0,
+        warning: 'Search failed. Please try again.',
+      },
+      { status: 200 }
     );
   }
 }
