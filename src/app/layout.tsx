@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import "./globals.css";
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const inter = Inter({
   variable: "--font-display",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const dmSans = DM_Sans({
+const interBody = Inter({
   variable: "--font-body",
   subsets: ["latin"],
   weight: ["400", "500", "600"],
@@ -26,10 +26,10 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TravelTwin — Your Trusted Travel Companion",
+  title: "TRYP — Travel more, for less",
   description:
-    "Discover, compare, and book flights, hotels, and complete trips with AI-powered recommendations. TravelTwin makes travel planning feel like an adventure.",
-  keywords: ["travel", "flights", "hotels", "booking", "trips", "AI travel"],
+    "Trains, buses, flights and stays combined with AI. Find personalized travel itineraries based on your budget, preferences and schedule.",
+  keywords: ["travel", "flights", "hotels", "booking", "trips", "AI travel", "cheap flights", "travel deals"],
 };
 
 export default function RootLayout({
@@ -57,7 +57,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${plusJakartaSans.variable} ${dmSans.variable} ${jetbrainsMono.variable} font-body antialiased`}
+        className={`${inter.variable} ${interBody.variable} ${jetbrainsMono.variable} font-body antialiased`}
       >
         <a href="#main-content" className="skip-link">
           Skip to main content
