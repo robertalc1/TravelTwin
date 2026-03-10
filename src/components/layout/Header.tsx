@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Compass, Plane, Hotel, MapIcon, LogOut, User, Heart, Loader2 } from "lucide-react";
+import { Compass, Plane, Hotel, MapIcon, LogOut, User, Heart, Loader2, Headphones } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { useState, useEffect } from "react";
@@ -44,19 +44,23 @@ export function Header() {
             className={cn(
                 "sticky top-0 z-50 w-full transition-all duration-300",
                 scrolled
-                    ? "bg-surface/90 shadow-sm backdrop-blur-xl border-b border-border-default"
+                    ? "bg-white/95 shadow-sm backdrop-blur-xl border-b border-neutral-200 dark:bg-surface/95 dark:border-border-default"
                     : "bg-transparent"
             )}
         >
-            <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 lg:px-8">
-                {/* Logo */}
-                <Link href="/" className="flex items-center gap-2.5 group">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-radius-lg bg-primary-500 transition-transform duration-200 group-hover:scale-105">
-                        <Compass className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="font-display text-xl font-extrabold tracking-tight text-text-primary">
-                        Travel<span className="text-accent-500">Twin</span>
+            <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 lg:px-8">
+                {/* Logo — TRYP */}
+                <Link href="/" className="flex items-center gap-1 group">
+                    <span className={cn(
+                        "font-display text-2xl font-extrabold tracking-tight transition-colors",
+                        scrolled ? "text-secondary-500" : "text-white"
+                    )}>
+                        TRYP
                     </span>
+                    <span className={cn(
+                        "text-2xl font-extrabold tracking-tight",
+                        scrolled ? "text-primary-500" : "text-primary-300"
+                    )}>.</span>
                 </Link>
 
                 {/* Desktop Nav */}
@@ -68,10 +72,14 @@ export function Header() {
                                 key={href}
                                 href={href}
                                 className={cn(
-                                    "flex items-center gap-2 rounded-radius-full px-4 py-2 text-body-sm font-medium transition-all duration-200",
-                                    isActive
-                                        ? "bg-primary-50 text-primary-600 dark:bg-primary-50 dark:text-primary-500"
-                                        : "text-text-secondary hover:text-text-primary hover:bg-surface-sunken"
+                                    "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
+                                    scrolled
+                                        ? isActive
+                                            ? "bg-primary-50 text-primary-600"
+                                            : "text-text-secondary hover:text-text-primary hover:bg-neutral-100"
+                                        : isActive
+                                            ? "bg-white/20 text-white"
+                                            : "text-white/80 hover:text-white hover:bg-white/10"
                                 )}
                                 aria-current={isActive ? "page" : undefined}
                             >
@@ -84,23 +92,43 @@ export function Header() {
 
                 {/* Right side */}
                 <div className="flex items-center gap-3">
+                    {/* Live Agent button */}
+                    <button className={cn(
+                        "hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
+                        scrolled
+                            ? "bg-neutral-100 text-text-secondary hover:bg-neutral-200"
+                            : "bg-white/15 text-white/90 hover:bg-white/25"
+                    )}>
+                        <Headphones className="h-4 w-4" />
+                        Live Agent
+                    </button>
+
                     <ThemeToggle />
 
                     {loading ? (
-                        <div className="h-9 w-20 rounded-radius-full bg-surface-sunken animate-pulse" />
+                        <div className="h-9 w-20 rounded-full bg-neutral-100 animate-pulse" />
                     ) : user ? (
-                        /* Logged in state */
                         <div className="flex items-center gap-2">
                             <Link
                                 href="/favorites"
-                                className="hidden sm:flex items-center justify-center h-9 w-9 rounded-radius-full text-text-secondary hover:bg-surface-sunken hover:text-accent-500 transition-colors"
+                                className={cn(
+                                    "hidden sm:flex items-center justify-center h-9 w-9 rounded-full transition-colors",
+                                    scrolled
+                                        ? "text-text-secondary hover:bg-neutral-100 hover:text-primary-500"
+                                        : "text-white/80 hover:bg-white/10 hover:text-white"
+                                )}
                                 title="Favorites"
                             >
                                 <Heart className="h-4 w-4" />
                             </Link>
                             <Link
                                 href="/profile"
-                                className="hidden sm:flex items-center gap-2 rounded-radius-full bg-surface-sunken px-3 py-2 text-sm font-medium text-text-primary hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                                className={cn(
+                                    "hidden sm:flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors",
+                                    scrolled
+                                        ? "bg-neutral-100 text-text-primary hover:bg-neutral-200"
+                                        : "bg-white/15 text-white hover:bg-white/25"
+                                )}
                             >
                                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-white text-xs font-bold">
                                     {displayName.charAt(0).toUpperCase()}
@@ -110,7 +138,12 @@ export function Header() {
                             <button
                                 onClick={handleLogout}
                                 disabled={loggingOut}
-                                className="hidden sm:flex items-center justify-center h-9 w-9 rounded-radius-full text-text-secondary hover:bg-surface-sunken hover:text-error transition-colors"
+                                className={cn(
+                                    "hidden sm:flex items-center justify-center h-9 w-9 rounded-full transition-colors",
+                                    scrolled
+                                        ? "text-text-secondary hover:bg-neutral-100 hover:text-error"
+                                        : "text-white/80 hover:bg-white/10 hover:text-red-300"
+                                )}
                                 title="Sign out"
                             >
                                 {loggingOut ? (
@@ -121,19 +154,17 @@ export function Header() {
                             </button>
                         </div>
                     ) : (
-                        /* Logged out state */
                         <div className="flex items-center gap-2">
                             <Link
                                 href="/login"
-                                className="hidden sm:flex items-center rounded-radius-full bg-primary-500 px-5 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-600 hover:shadow-md active:scale-[0.98]"
+                                className={cn(
+                                    "hidden sm:flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.98]",
+                                    scrolled
+                                        ? "bg-primary-500 text-white hover:bg-primary-600 hover:shadow-md"
+                                        : "bg-white text-secondary-500 hover:bg-white/90"
+                                )}
                             >
                                 Sign In
-                            </Link>
-                            <Link
-                                href="/register"
-                                className="hidden md:flex items-center rounded-radius-full border border-border-default px-4 py-2 text-sm font-medium text-text-secondary hover:bg-surface-sunken transition-colors"
-                            >
-                                Register
                             </Link>
                         </div>
                     )}

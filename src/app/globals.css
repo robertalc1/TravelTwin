@@ -1,42 +1,53 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════
-   TravelTwin Design Token System
-   Color vocabulary: ocean at golden hour, warm tarmac,
-   sunset coral, night sky at 35,000 feet
+   TRYP Design Token System
+   Vibrant Orange + Dark Navy — inspired by tryp.com
    ═══════════════════════════════════════════════ */
 
 :root {
-  /* ──── Primary — Deep Ocean ──── */
-  --primary-50: #EEF4FB;
-  --primary-100: #D4E4F7;
-  --primary-200: #A9C9EF;
-  --primary-300: #7EAEDF;
-  --primary-400: #4A82BF;
-  --primary-500: #1A4D8F;
-  --primary-600: #163D73;
-  --primary-700: #0F2D5A;
-  --primary-800: #0B2048;
-  --primary-900: #091A36;
+  /* ──── Primary — Vibrant Orange ──── */
+  --primary-50: #FFF3ED;
+  --primary-100: #FFE0CC;
+  --primary-200: #FFC199;
+  --primary-300: #FFA266;
+  --primary-400: #FF8333;
+  --primary-500: #E85D04;
+  --primary-600: #D14A00;
+  --primary-700: #B33D00;
+  --primary-800: #8A2F00;
+  --primary-900: #661F00;
 
-  /* ──── Accent — Sunset Coral ──── */
-  --accent-50: #FFF0ED;
-  --accent-100: #FFD9D1;
-  --accent-200: #FFB3A3;
-  --accent-300: #FF9985;
-  --accent-400: #FF7F6E;
-  --accent-500: #FF6F61;
-  --accent-600: #E85A4F;
-  --accent-700: #C4443B;
-  --accent-800: #9E322D;
+  /* ──── Secondary — Dark Navy ──── */
+  --secondary-50: #E8E8EC;
+  --secondary-100: #C5C5CE;
+  --secondary-200: #9393A3;
+  --secondary-300: #616178;
+  --secondary-400: #3A3A53;
+  --secondary-500: #1A1A2E;
+  --secondary-600: #151528;
+  --secondary-700: #0F0F1E;
+  --secondary-800: #0A0A14;
+  --secondary-900: #05050A;
 
-  /* ──── Warm Gold — ratings, highlights, premium ──── */
+  /* ──── Accent — Blue (links, info) ──── */
+  --accent-50: #EFF6FF;
+  --accent-100: #DBEAFE;
+  --accent-200: #BFDBFE;
+  --accent-300: #93C5FD;
+  --accent-400: #60A5FA;
+  --accent-500: #3B82F6;
+  --accent-600: #2563EB;
+  --accent-700: #1D4ED8;
+  --accent-800: #1E40AF;
+
+  /* ──── Warm Gold — ratings ──── */
   --gold-300: #FFD97A;
   --gold-400: #FFCA4F;
   --gold-500: #F9C74F;
   --gold-600: #E5AD2E;
 
-  /* ──── Neutrals — Warm gray (not cold slate) ──── */
+  /* ──── Neutrals ──── */
   --neutral-50: #F8F9FA;
   --neutral-100: #F0F2F5;
   --neutral-200: #E5E7EB;
@@ -49,30 +60,30 @@
   --neutral-900: #111827;
 
   /* ──── Surfaces ──── */
-  --background: #F6F9FC;
+  --background: #FFFFFF;
   --surface: #FFFFFF;
   --surface-elevated: #FFFFFF;
-  --surface-sunken: #F0F2F5;
+  --surface-sunken: #F8F9FA;
 
   /* ──── Semantic ──── */
-  --success: #2E8B57;
+  --success: #10B981;
   --warning: #F59E0B;
   --error: #EF4444;
   --info: #3B82F6;
 
-  /* ──── Borders (rgba for blending) ──── */
-  --border-default: rgba(0, 0, 0, 0.08);
+  /* ──── Borders ──── */
+  --border-default: #E5E7EB;
   --border-subtle: rgba(0, 0, 0, 0.04);
   --border-emphasis: rgba(0, 0, 0, 0.15);
-  --border-focus: rgba(26, 77, 143, 0.5);
+  --border-focus: rgba(232, 93, 4, 0.5);
 
-  /* ──── Text hierarchy (four levels) ──── */
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
+  /* ──── Text ──── */
+  --text-primary: #1A1A2E;
+  --text-secondary: #6B7280;
   --text-tertiary: #6B7280;
   --text-muted: #9CA3AF;
 
-  /* ──── Shadows — subtle lift ──── */
+  /* ──── Shadows ──── */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
@@ -89,24 +100,27 @@
 
 /* ──── Dark Theme ──── */
 .dark {
-  --primary-50: #1C2940;
-  --primary-100: #253552;
-  --primary-200: #3B5998;
-  --primary-300: #5B8AD0;
-  --primary-400: #7BAAEB;
-  --primary-500: #60A5FA;
-  --primary-600: #93C5FD;
-  --primary-700: #BFDBFE;
-  --primary-800: #DBEAFE;
-  --primary-900: #EFF6FF;
+  --primary-50: #2A1800;
+  --primary-100: #3D2200;
+  --primary-200: #5C3500;
+  --primary-300: #8A4F00;
+  --primary-400: #CC7A1F;
+  --primary-500: #E85D04;
+  --primary-600: #FF8333;
+  --primary-700: #FFA266;
+  --primary-800: #FFC199;
+  --primary-900: #FFE0CC;
 
-  --accent-500: #FB923C;
-  --accent-600: #FDBA74;
-  --accent-400: #F97316;
+  --secondary-500: #E8E8EC;
+  --secondary-600: #C5C5CE;
 
-  --background: #0B1120;
-  --surface: #151E2F;
-  --surface-elevated: #1C2940;
+  --accent-500: #60A5FA;
+  --accent-600: #93C5FD;
+  --accent-400: #3B82F6;
+
+  --background: #0B0F1A;
+  --surface: #151B2B;
+  --surface-elevated: #1C2438;
   --surface-sunken: #070D19;
 
   --text-primary: #F1F5F9;
@@ -114,10 +128,10 @@
   --text-tertiary: #64748B;
   --text-muted: #475569;
 
-  --border-default: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.08);
   --border-subtle: rgba(255, 255, 255, 0.03);
   --border-emphasis: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(96, 165, 250, 0.5);
+  --border-focus: rgba(232, 93, 4, 0.5);
 
   --success: #4ADE80;
   --warning: #FBBF24;
@@ -150,6 +164,17 @@
   --color-primary-700: var(--primary-700);
   --color-primary-800: var(--primary-800);
   --color-primary-900: var(--primary-900);
+
+  --color-secondary-50: var(--secondary-50);
+  --color-secondary-100: var(--secondary-100);
+  --color-secondary-200: var(--secondary-200);
+  --color-secondary-300: var(--secondary-300);
+  --color-secondary-400: var(--secondary-400);
+  --color-secondary-500: var(--secondary-500);
+  --color-secondary-600: var(--secondary-600);
+  --color-secondary-700: var(--secondary-700);
+  --color-secondary-800: var(--secondary-800);
+  --color-secondary-900: var(--secondary-900);
 
   --color-accent-50: var(--accent-50);
   --color-accent-100: var(--accent-100);
@@ -204,8 +229,8 @@
   --radius-xl: var(--radius-xl);
   --radius-full: var(--radius-full);
 
-  --font-display: "Plus Jakarta Sans", sans-serif;
-  --font-body: "DM Sans", sans-serif;
+  --font-display: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 }
 
@@ -230,7 +255,7 @@ body {
   font-size: 48px;
   line-height: 56px;
   letter-spacing: -0.02em;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .text-h1 {
@@ -346,6 +371,31 @@ body {
   50% { transform: translateY(-6px); }
 }
 
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-underline {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
 .animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out forwards;
 }
@@ -356,6 +406,20 @@ body {
 
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.animate-count-up {
+  animation: count-up 0.6s ease-out forwards;
 }
 
 /* Card stagger animation */
@@ -372,6 +436,7 @@ body {
 .stagger-item:nth-child(6) { animation-delay: 250ms; }
 .stagger-item:nth-child(7) { animation-delay: 300ms; }
 .stagger-item:nth-child(8) { animation-delay: 350ms; }
+.stagger-item:nth-child(9) { animation-delay: 400ms; }
 
 /* ──── Focus visible ──── */
 :focus-visible {
@@ -435,4 +500,28 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ──── Custom Utilities ──── */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
