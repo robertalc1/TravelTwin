@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
+import { amadeusGet } from '@/lib/amadeus-rest';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { CITY_TO_IATA, getCityName } from '@/lib/iataMapping';
@@ -48,9 +49,33 @@ export async function GET(request: Request) {
           await setCache(cacheKey, locations, 1440); // 24 hours
           return NextResponse.json({ locations, source: 'live' });
         }
-      } catch (err: unknown) {
-        const error = err as { message?: string };
-        console.warn('[Locations] Amadeus error:', error?.message);
+      } catch (sdkError: unknown) {
+        console.warn('[Locations] SDK failed, trying REST:', (sdkError as Error)?.message);
+        try {
+          const data = await amadeusGet('/v1/reference-data/locations', {
+            keyword,
+            subType: 'CITY,AIRPORT',
+            'page[limit]': '10',
+          });
+          const locations: LocationResult[] = (((data as Record<string, unknown>).data as Record<string, unknown>[]) || []).map(
+            (loc) => {
+              const address = loc.address as Record<string, string> | undefined;
+              return {
+                iataCode: loc.iataCode as string,
+                name: loc.name as string,
+                cityName: address?.cityName || (loc.name as string),
+                countryName: address?.countryName || '',
+                type: (loc.subType as 'AIRPORT' | 'CITY') || 'CITY',
+              };
+            }
+          );
+          if (locations.length > 0) {
+            await setCache(cacheKey, locations, 1440);
+            return NextResponse.json({ locations, source: 'live' });
+          }
+        } catch (restError) {
+          console.error('[Locations] Both SDK and REST failed:', (restError as Error)?.message);
+        }
       }
     }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
+import { amadeusGet } from '@/lib/amadeus-rest';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
@@ -98,9 +99,30 @@ export async function GET(request: Request) {
           count: 0,
           warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
         });
-      } catch (err: unknown) {
-        const error = err as { response?: { statusCode?: number }; message?: string };
-        console.warn('[Flights] Amadeus error:', error?.response?.statusCode || error?.message);
+      } catch (sdkError: unknown) {
+        console.warn('[Flights] SDK failed, trying REST:', (sdkError as Error)?.message);
+        try {
+          const restParams: Record<string, string> = {
+            originLocationCode: origin,
+            destinationLocationCode: destination,
+            departureDate,
+            adults,
+            travelClass,
+            max: '20',
+            currencyCode: 'USD',
+          };
+          if (returnDate) restParams.returnDate = returnDate;
+          const data = await amadeusGet('/v2/shopping/flight-offers', restParams);
+          const flights: NormalizedFlight[] = (
+            ((data as Record<string, unknown>).data as Record<string, unknown>[] || [])
+          ).map(normalizeAmadeusFlight);
+          if (flights.length > 0) {
+            await setCache(cacheKey, flights, 15);
+            return NextResponse.json({ flights, source: 'live', count: flights.length });
+          }
+        } catch (restError) {
+          console.error('[Flights] Both SDK and REST failed:', (restError as Error)?.message);
+        }
       }
     }
 

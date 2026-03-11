@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
+import { amadeusGet } from '@/lib/amadeus-rest';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { parseFlightOffer, parseHotelOffer } from '@/lib/amadeus/helpers';
@@ -104,15 +105,45 @@ export async function POST(request: Request) {
             } catch {
                 // POI fetch is non-critical
             }
-        } catch (err: unknown) {
-            const error = err as { message?: string };
-            console.error('[Itinerary] Amadeus error:', error?.message);
-            return NextResponse.json({
-                packages: [],
-                flights: [],
-                hotels: [],
-                warning: 'Unable to fetch travel data. Please try again.',
-            });
+        } catch (sdkError: unknown) {
+            console.warn('[Itinerary] SDK failed, trying REST:', (sdkError as Error)?.message);
+            try {
+                const [flightsData, hotelsListData] = await Promise.all([
+                    amadeusGet('/v2/shopping/flight-offers', {
+                        ...flightParams,
+                    }),
+                    amadeusGet('/v1/reference-data/locations/hotels/by-city', {
+                        cityCode: destination,
+                        ratings: '3,4,5',
+                        radius: '10',
+                        radiusUnit: 'KM',
+                    }),
+                ]);
+                flights = (((flightsData as Record<string, unknown>).data as Record<string, unknown>[]) || []).map(parseFlightOffer);
+                const hotelIds = (((hotelsListData as Record<string, unknown>).data as Record<string, unknown>[]) || [])
+                    .slice(0, 15)
+                    .map((h) => h.hotelId as string)
+                    .filter(Boolean);
+                if (hotelIds.length > 0) {
+                    const offersData = await amadeusGet('/v3/shopping/hotel-offers', {
+                        hotelIds: hotelIds.join(','),
+                        checkInDate: departureDate,
+                        checkOutDate: returnDate,
+                        adults: String(adults),
+                        roomQuantity: '1',
+                        currency,
+                    });
+                    hotels = (((offersData as Record<string, unknown>).data as Record<string, unknown>[]) || []).map(parseHotelOffer);
+                }
+            } catch (restError) {
+                console.error('[Itinerary] Both SDK and REST failed:', (restError as Error)?.message);
+                return NextResponse.json({
+                    packages: [],
+                    flights: [],
+                    hotels: [],
+                    warning: 'Unable to fetch travel data. Please try again.',
+                });
+            }
         }
 
         // Generate budget-optimized packages

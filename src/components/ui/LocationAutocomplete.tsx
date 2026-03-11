@@ -105,7 +105,7 @@ export function LocationAutocomplete({
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-radius-md border border-border-default bg-surface shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-[9999] mt-1 w-full rounded-radius-md border border-border-default bg-surface shadow-lg max-h-60 overflow-y-auto">
           {results.map((loc, i) => (
             <button
               key={`${loc.iataCode}-${i}`}
