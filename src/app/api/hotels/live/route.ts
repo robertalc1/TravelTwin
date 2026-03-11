@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
+import { amadeusGet } from '@/lib/amadeus-rest';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
@@ -26,12 +27,12 @@ function normalizeAmadeusHotel(
   const nights =
     checkIn && checkOut
       ? Math.max(
-          1,
-          Math.ceil(
-            (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
-              86400000
-          )
+        1,
+        Math.ceil(
+          (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
+          86400000
         )
+      )
       : 1;
 
   // Sanity check: price per night should be reasonable (< $5000)
@@ -63,9 +64,8 @@ function normalizeAmadeusHotel(
       'Standard Room',
     amenities: ((hotel?.amenities as string[]) || []).slice(0, 6),
     cancellationPolicy: cancellation?.[0]
-      ? `Free cancellation before ${
-          (cancellation[0].deadline as string)?.split('T')[0] || 'check-in'
-        }`
+      ? `Free cancellation before ${(cancellation[0].deadline as string)?.split('T')[0] || 'check-in'
+      }`
       : 'Non-refundable',
     source: 'live',
     lastUpdated: new Date().toISOString(),
@@ -151,15 +151,38 @@ export async function GET(request: Request) {
           count: 0,
           warning: `No hotels found in ${cityCode} for the selected dates. Try different dates.`,
         });
-      } catch (err: unknown) {
-        const error = err as {
-          response?: { statusCode?: number };
-          message?: string;
-        };
-        console.warn(
-          '[Hotels] Amadeus error:',
-          error?.response?.statusCode || error?.message
-        );
+      } catch (sdkError: unknown) {
+        console.warn('[Hotels] SDK failed, trying REST:', (sdkError as Error)?.message);
+        try {
+          const listData = await amadeusGet('/v1/reference-data/locations/hotels/by-city', {
+            cityCode,
+            radius: '30',
+            radiusUnit: 'KM',
+          });
+          const hotelIds = (((listData as Record<string, unknown>).data as Record<string, unknown>[]) || [])
+            .slice(0, 20)
+            .map((h) => h.hotelId as string)
+            .filter(Boolean);
+          if (hotelIds.length > 0) {
+            const offersData = await amadeusGet('/v3/shopping/hotel-offers', {
+              hotelIds: hotelIds.join(','),
+              checkInDate,
+              checkOutDate,
+              adults,
+              roomQuantity: rooms,
+              currency: 'USD',
+            });
+            const hotels: NormalizedHotel[] = (
+              ((offersData as Record<string, unknown>).data as Record<string, unknown>[]) || []
+            ).map((offer) => normalizeAmadeusHotel(offer, cityCode));
+            if (hotels.length > 0) {
+              await setCache(cacheKey, hotels, 30);
+              return NextResponse.json({ hotels, source: 'live', count: hotels.length });
+            }
+          }
+        } catch (restError) {
+          console.error('[Hotels] Both SDK and REST failed:', (restError as Error)?.message);
+        }
       }
     }
 

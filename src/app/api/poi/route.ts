@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import amadeus from '@/lib/amadeus';
+import { amadeusGet } from '@/lib/amadeus-rest';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 
 export async function GET(request: Request) {
@@ -52,9 +53,34 @@ export async function GET(request: Request) {
             );
 
             return NextResponse.json({ pois, count: pois.length });
-        } catch (err: unknown) {
-            const error = err as { message?: string };
-            console.warn('[POI] Amadeus error:', error?.message);
+        } catch (sdkError: unknown) {
+            console.warn('[POI] SDK failed, trying REST:', (sdkError as Error)?.message);
+            try {
+                const data = await amadeusGet('/v1/reference-data/locations/pois', {
+                    latitude,
+                    longitude,
+                    radius,
+                });
+                const pois = (((data as Record<string, unknown>).data as Record<string, unknown>[]) || []).map(
+                    (poi) => {
+                        const geoCode = poi.geoCode as Record<string, number> | undefined;
+                        return {
+                            id: (poi.id as string) || '',
+                            name: (poi.name as string) || '',
+                            category: (poi.category as string) || 'SIGHTSEEING',
+                            rank: (poi.rank as number) || 0,
+                            tags: (poi.tags as string[]) || [],
+                            geoCode: {
+                                latitude: geoCode?.latitude || 0,
+                                longitude: geoCode?.longitude || 0,
+                            },
+                        };
+                    }
+                );
+                return NextResponse.json({ pois, count: pois.length });
+            } catch (restError) {
+                console.error('[POI] Both SDK and REST failed:', (restError as Error)?.message);
+            }
             return NextResponse.json({
                 pois: [],
                 count: 0,

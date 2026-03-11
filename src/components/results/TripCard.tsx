@@ -69,7 +69,7 @@ export function TripCard({
     const fallbackImage = `https://source.unsplash.com/800x600/?${encodeURIComponent(destinationCity + ' travel')}`;
 
     return (
-        <div className="group rounded-xl overflow-hidden bg-white border border-neutral-200 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+        <div className="group rounded-xl overflow-hidden bg-white dark:bg-surface border border-neutral-200 dark:border-border-default transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             {/* Image */}
             <div className="relative aspect-[16/10] overflow-hidden">
                 <img

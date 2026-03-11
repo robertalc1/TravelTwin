@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Compass, Github, Twitter, Instagram, Mail, Heart, Star } from "lucide-react";
+import { Heart, Star } from "lucide-react";
 
 const footerLinks = {
     SITE: [
@@ -26,13 +26,6 @@ const footerLinks = {
     ],
 };
 
-const socialLinks = [
-    { icon: Twitter, href: "#", label: "Twitter" },
-    { icon: Instagram, href: "#", label: "Instagram" },
-    { icon: Github, href: "#", label: "GitHub" },
-    { icon: Mail, href: "#", label: "Email" },
-];
-
 const paymentIcons = ["Visa", "Mastercard", "Amex", "PayPal", "Apple Pay"];
 
 export function Footer() {
@@ -42,40 +35,18 @@ export function Footer() {
                 <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
                     {/* Brand */}
                     <div className="col-span-2">
-                        <Link href="/" className="flex items-center gap-1 mb-4">
-                            <span className="font-display text-2xl font-extrabold tracking-tight text-secondary-500">
-                                TRYP<span className="text-primary-500">.</span>
-                            </span>
+                        <Link href="/" className="flex items-center gap-0 mb-4">
+                            <span className="font-display text-2xl font-extrabold tracking-tight text-primary-500">
+                                Travel</span><span className="font-display text-2xl font-extrabold tracking-tight text-secondary-500">Twin</span>
                         </Link>
                         <p className="text-body-sm text-text-secondary max-w-[280px] mb-4">
                             Travel more for less. Together with AI we help millions
                             simply get the best travel deals.
                         </p>
                         <p className="text-caption text-text-muted mb-4">
-                            Piata N. Filipescu nr. 2, etaj, Bl. 62, scara A,
-                            etaj 4, apt.14, Bucharest, Romania
+                            Constanța, Romania
                         </p>
-                        <div className="flex items-center gap-3 mb-4">
-                            {socialLinks.map(({ icon: Icon, href, label }) => (
-                                <a
-                                    key={label}
-                                    href={href}
-                                    className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-text-muted transition-all duration-200 hover:text-primary-500 hover:bg-primary-50 dark:bg-surface dark:hover:bg-primary-50/10"
-                                    aria-label={label}
-                                >
-                                    <Icon className="h-4 w-4" />
-                                </a>
-                            ))}
-                        </div>
-                        {/* App store badges */}
-                        <div className="flex items-center gap-2 mb-4">
-                            <div className="flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-white">
-                                <span className="text-[10px] font-medium">App Store</span>
-                            </div>
-                            <div className="flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-white">
-                                <span className="text-[10px] font-medium">Google Play</span>
-                            </div>
-                        </div>
+
                         {/* Google Reviews */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-medium text-text-secondary">Google Reviews</span>
@@ -126,7 +97,7 @@ export function Footer() {
                 {/* Bottom bar */}
                 <div className="mt-6 flex flex-col items-center justify-between gap-4 md:flex-row">
                     <p className="text-caption text-text-muted">
-                        © {new Date().getFullYear()} TRYP. All rights reserved.
+                        © {new Date().getFullYear()} TravelTwin. All rights reserved.
                     </p>
                     <p className="flex items-center gap-1 text-caption text-text-muted">
                         Made with <Heart className="h-3 w-3 fill-primary-500 text-primary-500" /> for travelers everywhere

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { MapPin, Search, Calendar, Users, ChevronDown, X } from "lucide-react";
+import { MapPin, Search, Calendar, Users, X } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 
 const regionCards = [
@@ -31,6 +31,8 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
     const [showWhereDropdown, setShowWhereDropdown] = useState(false);
     const [showWhenDropdown, setShowWhenDropdown] = useState(false);
     const [showTravelersDropdown, setShowTravelersDropdown] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+    const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
     const [originIata, setOriginIata] = useState("");
     const [originDisplay, setOriginDisplay] = useState("");
@@ -46,6 +48,13 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
     const whereRef = useRef<HTMLDivElement>(null);
     const whenRef = useRef<HTMLDivElement>(null);
     const travelersRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const check = () => setIsMobile(window.innerWidth < 768);
+        check();
+        window.addEventListener("resize", check);
+        return () => window.removeEventListener("resize", check);
+    }, []);
 
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
@@ -81,6 +90,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
             adults,
             children,
         });
+        setMobileSearchOpen(false);
     }
 
     function getDateOffset(days: number): string {
@@ -110,10 +120,165 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
         }
     }
 
+    // ─── MOBILE: Full-screen search overlay ───
+    if (isMobile) {
+        return (
+            <>
+                {/* Compact search trigger */}
+                <button
+                    onClick={() => setMobileSearchOpen(true)}
+                    className="w-full max-w-md mx-auto flex items-center gap-3 rounded-full bg-white shadow-xl border border-neutral-200 px-5 py-3.5 text-left"
+                >
+                    <Search className="h-5 w-5 text-primary-500 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-text-primary truncate">
+                            {whereLabel === "Where to?" ? "Where to?" : whereLabel}
+                        </p>
+                        <p className="text-xs text-text-muted">{whenLabel} · {totalTravelers} traveler{totalTravelers !== 1 ? "s" : ""}</p>
+                    </div>
+                </button>
+
+                {/* Full screen overlay */}
+                {mobileSearchOpen && (
+                    <div className="fixed inset-0 z-[9999] bg-white dark:bg-surface flex flex-col overflow-y-auto">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-border-default">
+                            <h2 className="text-lg font-bold text-text-primary">Search Trips</h2>
+                            <button
+                                onClick={() => setMobileSearchOpen(false)}
+                                className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated"
+                            >
+                                <X className="h-5 w-5 text-text-secondary" />
+                            </button>
+                        </div>
+
+                        <div className="flex-1 p-4 space-y-6">
+                            {/* Origin */}
+                            <div>
+                                <label className="text-sm font-bold text-text-primary mb-2 block">Departing from</label>
+                                <LocationAutocomplete
+                                    value={originIata}
+                                    displayValue={originDisplay}
+                                    onSelect={(code, display) => { setOriginIata(code); setOriginDisplay(display); }}
+                                    placeholder="Constanța, Romania"
+                                    icon="origin"
+                                />
+                            </div>
+
+                            {/* Destination */}
+                            <div>
+                                <label className="text-sm font-bold text-text-primary mb-2 block">Where do you want to go?</label>
+                                <LocationAutocomplete
+                                    value={destinationIata}
+                                    displayValue={destinationDisplay}
+                                    onSelect={(code, display) => { setDestinationIata(code); setDestinationDisplay(display); }}
+                                    placeholder="Search location"
+                                    icon="destination"
+                                />
+                            </div>
+
+                            {/* Region cards */}
+                            <div className="grid grid-cols-3 gap-2">
+                                {regionCards.map((region) => (
+                                    <button
+                                        key={region.id}
+                                        onClick={() => handleRegionSelect(region.id)}
+                                        className={`flex flex-col items-center gap-1.5 rounded-xl border-2 p-3 transition-all ${selectedRegion === region.id
+                                            ? "border-primary-500 bg-primary-50"
+                                            : "border-neutral-200 bg-white dark:bg-surface-elevated dark:border-border-default"
+                                            }`}
+                                    >
+                                        <span className="text-xl">{region.emoji}</span>
+                                        <span className="text-xs font-medium text-text-primary">{region.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Dates */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-semibold text-text-secondary mb-1 block">Departure</label>
+                                    <input
+                                        type="date"
+                                        value={departureDate}
+                                        min={new Date().toISOString().split("T")[0]}
+                                        onChange={(e) => setDepartureDate(e.target.value)}
+                                        className="w-full rounded-lg border border-neutral-200 dark:border-border-default dark:bg-surface-sunken dark:text-text-primary px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-text-secondary mb-1 block">Return</label>
+                                    <input
+                                        type="date"
+                                        value={returnDate}
+                                        min={departureDate || new Date().toISOString().split("T")[0]}
+                                        onChange={(e) => setReturnDate(e.target.value)}
+                                        className="w-full rounded-lg border border-neutral-200 dark:border-border-default dark:bg-surface-sunken dark:text-text-primary px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Travelers */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-text-primary">Adults</p>
+                                        <p className="text-xs text-text-muted">Age 18+</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setAdults(Math.max(1, adults - 1))}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-text-secondary"
+                                        >−</button>
+                                        <span className="text-sm font-bold w-4 text-center">{adults}</span>
+                                        <button
+                                            onClick={() => setAdults(Math.min(9, adults + 1))}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-text-secondary"
+                                        >+</button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-semibold text-text-primary">Children</p>
+                                        <p className="text-xs text-text-muted">Age 0-17</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setChildren(Math.max(0, children - 1))}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-text-secondary"
+                                        >−</button>
+                                        <span className="text-sm font-bold w-4 text-center">{children}</span>
+                                        <button
+                                            onClick={() => setChildren(Math.min(9, children + 1))}
+                                            className="flex h-8 w-8 items-center justify-center rounded-full border border-neutral-300 text-text-secondary"
+                                        >+</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bottom search button */}
+                        <div className="p-4 border-t border-neutral-200 dark:border-border-default">
+                            <button
+                                onClick={handleSearch}
+                                disabled={loading || !originIata}
+                                className="w-full flex items-center justify-center gap-2 bg-primary-500 text-white rounded-xl py-3.5 font-semibold text-sm hover:bg-primary-600 transition-colors disabled:opacity-50"
+                            >
+                                <Search className="h-4 w-4" />
+                                Search
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    }
+
+    // ─── DESKTOP: Original pill bar ───
     return (
         <div className="relative mx-auto max-w-4xl">
             {/* Main bar */}
-            <div className="flex items-stretch rounded-full bg-white shadow-xl border border-neutral-200 overflow-hidden">
+            <div className="flex items-stretch rounded-full bg-white shadow-xl border border-neutral-200 overflow-visible">
                 {/* Where to */}
                 <div ref={whereRef} className="relative flex-1 min-w-0">
                     <button
@@ -129,7 +294,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
 
                     {/* Where dropdown */}
                     {showWhereDropdown && (
-                        <div className="absolute top-full left-0 mt-2 w-[560px] bg-white rounded-2xl shadow-2xl border border-neutral-200 p-6 z-50 animate-fade-in">
+                        <div className="absolute top-full left-0 mt-2 w-[calc(100vw-2rem)] sm:w-[560px] bg-white dark:bg-surface-elevated rounded-2xl shadow-2xl border border-neutral-200 dark:border-border-default p-6 z-[100] animate-fade-in">
                             <div className="grid grid-cols-2 gap-6">
                                 {/* Departing from */}
                                 <div>
@@ -162,8 +327,8 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                                         key={region.id}
                                         onClick={() => handleRegionSelect(region.id)}
                                         className={`flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition-all duration-200 hover:scale-[1.02] ${selectedRegion === region.id
-                                                ? "border-primary-500 bg-primary-50"
-                                                : "border-neutral-200 hover:border-primary-300 bg-white"
+                                            ? "border-primary-500 bg-primary-50"
+                                            : "border-neutral-200 hover:border-primary-300 bg-white dark:bg-surface dark:border-border-default"
                                             }`}
                                     >
                                         <span className="text-2xl">{region.emoji}</span>
@@ -192,7 +357,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                     </button>
 
                     {showWhenDropdown && (
-                        <div className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-neutral-200 p-5 z-50 animate-fade-in min-w-[300px]">
+                        <div className="absolute top-full right-0 mt-2 bg-white dark:bg-surface-elevated rounded-2xl shadow-2xl border border-neutral-200 dark:border-border-default p-5 z-[100] animate-fade-in min-w-[300px]">
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-xs font-semibold text-text-secondary mb-1 block">Departure</label>
@@ -201,7 +366,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                                         value={departureDate}
                                         min={new Date().toISOString().split("T")[0]}
                                         onChange={(e) => setDepartureDate(e.target.value)}
-                                        className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                                        className="w-full rounded-lg border border-neutral-200 dark:border-border-default dark:bg-surface-sunken dark:text-text-primary px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                                     />
                                 </div>
                                 <div>
@@ -211,7 +376,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                                         value={returnDate}
                                         min={departureDate || new Date().toISOString().split("T")[0]}
                                         onChange={(e) => setReturnDate(e.target.value)}
-                                        className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
+                                        className="w-full rounded-lg border border-neutral-200 dark:border-border-default dark:bg-surface-sunken dark:text-text-primary px-3 py-2.5 text-sm focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"
                                     />
                                 </div>
                                 <button
@@ -242,7 +407,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                     </button>
 
                     {showTravelersDropdown && (
-                        <div className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-neutral-200 p-5 z-50 animate-fade-in min-w-[250px]">
+                        <div className="absolute top-full right-0 mt-2 bg-white dark:bg-surface-elevated rounded-2xl shadow-2xl border border-neutral-200 dark:border-border-default p-5 z-[100] animate-fade-in min-w-[250px]">
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <div>

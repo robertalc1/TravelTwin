@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TRYP — Travel more, for less",
+  title: "TravelTwin — Your Travel Companion",
   description:
     "Trains, buses, flights and stays combined with AI. Find personalized travel itineraries based on your budget, preferences and schedule.",
   keywords: ["travel", "flights", "hotels", "booking", "trips", "AI travel", "cheap flights", "travel deals"],
@@ -58,6 +58,7 @@ export default function RootLayout({
       </head>
       <body
         className={`${inter.variable} ${interBody.variable} ${jetbrainsMono.variable} font-body antialiased`}
+        suppressHydrationWarning
       >
         <a href="#main-content" className="skip-link">
           Skip to main content
