@@ -222,9 +222,13 @@ export default function Home() {
         {/* Background image with gradient — clipped to section bounds */}
         <div className="absolute inset-0 overflow-hidden">
           <img
-            src="https://images.unsplash.com/photo-1436491865332-7a61a109db05?w=1600&h=900&fit=crop&q=80"
+            src="https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1920&h=1080&fit=crop&q=80"
             alt=""
             className="w-full h-full object-cover"
+            loading="eager"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&h=1080&fit=crop&q=80';
+            }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-secondary-500/70 via-secondary-500/50 to-secondary-500/80" />
         </div>
