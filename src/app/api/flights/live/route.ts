@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import amadeus from '@/lib/amadeus';
-import { amadeusGet } from '@/lib/amadeus-rest';
+import { searchFlights } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
@@ -32,7 +31,7 @@ function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFligh
     airline: (firstSeg.carrierCode as string) || '',
     airlineName: (firstSeg.carrierCode as string) || '',
     price: parseFloat(price?.total as string) || 0,
-    currency: (price?.currency as string) || 'USD',
+    currency: (price?.currency as string) || 'EUR',
     travelClass: (fareDetail[0]?.cabin as string) || 'ECONOMY',
     source: 'live',
     lastUpdated: new Date().toISOString(),
@@ -67,7 +66,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ flights, source: 'cached', count: flights.length });
     }
 
-    // 2. Try Amadeus API
+    // 2. Try Amadeus API (SDK with automatic REST fallback)
     if (canMakeAmadeusCall()) {
       try {
         recordAmadeusCall();
@@ -78,55 +77,29 @@ export async function GET(request: Request) {
           adults,
           travelClass,
           max: '20',
-          currencyCode: 'USD',
+          currencyCode: 'EUR',
         };
         if (returnDate) params.returnDate = returnDate;
 
-        const response = await amadeus.shopping.flightOffersSearch.get(params);
-        const flights: NormalizedFlight[] = (
-          (response.data || []) as Record<string, unknown>[]
-        ).map(normalizeAmadeusFlight);
+        const rawFlights = await searchFlights(params);
+        const flights: NormalizedFlight[] = (rawFlights as Record<string, unknown>[]).map(normalizeAmadeusFlight);
 
         if (flights.length > 0) {
           await setCache(cacheKey, flights, 15);
           return NextResponse.json({ flights, source: 'live', count: flights.length });
         }
 
-        // Amadeus returned no results
         return NextResponse.json({
           flights: [],
           source: 'live',
           count: 0,
           warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
         });
-      } catch (sdkError: unknown) {
-        console.warn('[Flights] SDK failed, trying REST:', (sdkError as Error)?.message);
-        try {
-          const restParams: Record<string, string> = {
-            originLocationCode: origin,
-            destinationLocationCode: destination,
-            departureDate,
-            adults,
-            travelClass,
-            max: '20',
-            currencyCode: 'USD',
-          };
-          if (returnDate) restParams.returnDate = returnDate;
-          const data = await amadeusGet('/v2/shopping/flight-offers', restParams);
-          const flights: NormalizedFlight[] = (
-            ((data as Record<string, unknown>).data as Record<string, unknown>[] || [])
-          ).map(normalizeAmadeusFlight);
-          if (flights.length > 0) {
-            await setCache(cacheKey, flights, 15);
-            return NextResponse.json({ flights, source: 'live', count: flights.length });
-          }
-        } catch (restError) {
-          console.error('[Flights] Both SDK and REST failed:', (restError as Error)?.message);
-        }
+      } catch (err: unknown) {
+        console.error('[Flights] Amadeus search failed:', (err as Error)?.message);
       }
     }
 
-    // 3. Rate-limited or Amadeus unavailable — friendly error
     return NextResponse.json({
       flights: [],
       source: 'error',
@@ -136,12 +109,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('[Flights] Unexpected error:', error);
     return NextResponse.json(
-      {
-        flights: [],
-        source: 'error',
-        count: 0,
-        warning: 'Search failed. Please try again.',
-      },
+      { flights: [], source: 'error', count: 0, warning: 'Search failed. Please try again.' },
       { status: 200 }
     );
   }

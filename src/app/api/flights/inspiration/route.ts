@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import amadeus from '@/lib/amadeus';
-import { amadeusGet } from '@/lib/amadeus-rest';
+import { searchFlightInspirations } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
@@ -25,64 +24,34 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Try Amadeus API
+    // 2. Try Amadeus API (SDK with automatic REST fallback)
     if (canMakeAmadeusCall()) {
       try {
         recordAmadeusCall();
-        const response = await amadeus.shopping.flightDestinations.get({
-          origin,
-          maxPrice: '500',
-        });
+        const rawData = await searchFlightInspirations(origin);
 
-        const destinations: FlightInspiration[] = ((response.data || []) as Record<string, unknown>[]).map(
-          (d) => {
-            const price = d.price as Record<string, string> | undefined;
-            const links = d.links as Record<string, string> | undefined;
-            return {
-              destination: d.destination as string,
-              destinationCity: getCityFromIata(d.destination as string),
-              departureDate: d.departureDate as string,
-              returnDate: d.returnDate as string,
-              price: parseFloat(price?.total || '0'),
-              currency: 'EUR',
-              source: 'live' as const,
-            };
-          }
-        );
+        const destinations: FlightInspiration[] = (rawData as Record<string, unknown>[]).map((d) => {
+          const price = d.price as Record<string, string> | undefined;
+          return {
+            destination: d.destination as string,
+            destinationCity: getCityFromIata(d.destination as string),
+            departureDate: d.departureDate as string,
+            returnDate: d.returnDate as string,
+            price: parseFloat(price?.total || '0'),
+            currency: 'EUR',
+            source: 'live' as const,
+          };
+        });
 
         if (destinations.length > 0) {
           await setCache(cacheKey, destinations, 15);
           return NextResponse.json({ destinations, source: 'live' });
         }
-      } catch (sdkError: unknown) {
-        console.warn('[Inspiration] SDK failed, trying REST:', (sdkError as Error)?.message);
-        try {
-          const data = await amadeusGet('/v1/shopping/flight-destinations', { origin, maxPrice: '500' });
-          const destinations: FlightInspiration[] = (((data as Record<string, unknown>).data as Record<string, unknown>[]) || []).map(
-            (d) => {
-              const price = d.price as Record<string, string> | undefined;
-              return {
-                destination: d.destination as string,
-                destinationCity: getCityFromIata(d.destination as string),
-                departureDate: d.departureDate as string,
-                returnDate: d.returnDate as string,
-                price: parseFloat(price?.total || '0'),
-                currency: 'EUR',
-                source: 'live' as const,
-              };
-            }
-          );
-          if (destinations.length > 0) {
-            await setCache(cacheKey, destinations, 15);
-            return NextResponse.json({ destinations, source: 'live' });
-          }
-        } catch (restError) {
-          console.error('[Inspiration] Both SDK and REST failed:', (restError as Error)?.message);
-        }
+      } catch (err: unknown) {
+        console.warn('[Inspiration] Amadeus search failed:', (err as Error)?.message);
       }
     }
 
-    // 3. No fallback for inspiration — return empty with message
     return NextResponse.json({
       destinations: [],
       source: 'fallback',

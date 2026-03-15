@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npx next build:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(find /c/Users/user/Desktop/traveltwin/src/app/api -name \"*.ts\" -type f | xargs wc -l | tail -1)"
     ]
   }
 }
