@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plane, Hotel, MapPin, Calendar, Users, Star, Clock, ChevronRight } from "lucide-react";
+import { Plane, Hotel, MapPin, Calendar, Users, Star, Clock } from "lucide-react";
+import AttractionPhotos from "@/components/AttractionPhotos";
 
 export const metadata: Metadata = {
   title: "Trip Itinerary — TravelTwin",
@@ -246,14 +247,8 @@ export default function TripSharePage({ params }: { params: { ref: string } }) {
 
         {/* Highlights */}
         <section className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-6">
-          <h2 className="font-bold text-text-primary mb-3">Top Attractions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {trip.highlights.map((h) => (
-              <div key={h} className="flex items-center gap-2 text-sm text-text-secondary">
-                <ChevronRight className="h-4 w-4 text-primary-500 shrink-0" /> {h}
-              </div>
-            ))}
-          </div>
+          <h2 className="font-bold text-text-primary mb-4">Top Attractions</h2>
+          <AttractionPhotos names={trip.highlights} city="London" />
         </section>
 
         {/* Local tips */}
