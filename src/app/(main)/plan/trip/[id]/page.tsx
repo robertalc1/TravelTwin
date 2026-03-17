@@ -22,6 +22,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
+import AttractionPhotos from "@/components/AttractionPhotos";
 
 const timeIcons: Record<string, any> = {
   transport: Plane,
@@ -72,6 +73,7 @@ export default function TripDetailPage() {
       router.push("/plan");
     }
   }, [params, router]);
+
 
   if (!pkg) {
     return (
@@ -244,16 +246,7 @@ export default function TripDetailPage() {
             {ai?.topAttractions && ai.topAttractions.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Attractions</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {ai.topAttractions.map((name, i) => (
-                    <div key={i} className="bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default p-4 flex items-center gap-3 hover:shadow-md transition-shadow">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-500 shrink-0">
-                        <Camera className="h-4 w-4" />
-                      </div>
-                      <span className="text-sm font-medium text-secondary-500 line-clamp-2">{name}</span>
-                    </div>
-                  ))}
-                </div>
+                <AttractionPhotos names={ai.topAttractions} city={dest.city} />
               </section>
             )}
 
