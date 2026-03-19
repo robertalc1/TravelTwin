@@ -129,7 +129,7 @@ export interface TripRecommendation {
 }
 
 /* ── Normalized API types (Amadeus + static) ── */
-export type DataSource = 'live' | 'cached' | 'fallback';
+export type DataSource = 'live' | 'cached' | 'fallback' | 'aviationstack' | 'reference';
 
 export interface NormalizedFlight {
     id: string;

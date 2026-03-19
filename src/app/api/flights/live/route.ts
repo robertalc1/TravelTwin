@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { searchFlights } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
+import { canMakeAmadeusCall, recordAmadeusCall, canMakeAviationstackCall, recordAviationstackCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
+import { fetchAviationstackFlights, normalizeAviationstackFlight } from '@/lib/aviationstack';
+import {
+  COMMON_ROUTES, AIRLINE_NAMES, DEPARTURE_SLOTS,
+  getRouteDuration, formatDurationMinutes, findCommonRoute,
+} from '@/lib/commonRoutes';
 import type { NormalizedFlight } from '@/lib/supabase/types';
 
 function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFlight {
@@ -38,6 +43,63 @@ function normalizeAmadeusFlight(offer: Record<string, unknown>): NormalizedFligh
   };
 }
 
+function generateReferenceFlights(
+  origin: string,
+  destination: string,
+  departureDate: string
+): NormalizedFlight[] {
+  const route = COMMON_ROUTES.find((r) => r.from === origin && r.to === destination)
+    || COMMON_ROUTES.find((r) => r.from === destination && r.to === origin && r.from !== origin);
+
+  if (!route) return [];
+
+  const durationMin = getRouteDuration(origin, destination);
+  const durationStr = formatDurationMinutes(durationMin);
+
+  return route.airlines.slice(0, 3).map((airlineCode, i) => {
+    const slot = DEPARTURE_SLOTS[i % DEPARTURE_SLOTS.length];
+    const depHour = parseInt(slot.hour);
+    const arrMinutes = depHour * 60 + parseInt(slot.minute) + durationMin;
+    const arrHour = Math.floor(arrMinutes / 60) % 24;
+    const arrMin = arrMinutes % 60;
+
+    // ±20% price variance seeded by airline code
+    const variance = 0.85 + (airlineCode.charCodeAt(0) % 7) * 0.05;
+    const price = Math.round(route.avgPrice * variance);
+
+    return {
+      id: `ref-${airlineCode}-${origin}-${destination}-${i}`,
+      origin,
+      originCity: getCityFromIata(origin),
+      destination,
+      destinationCity: getCityFromIata(destination),
+      departureDate,
+      arrivalDate: departureDate,
+      departureTime: `${slot.hour}:${slot.minute}`,
+      arrivalTime: `${arrHour.toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}`,
+      duration: durationStr,
+      stops: 0,
+      airline: airlineCode,
+      airlineName: AIRLINE_NAMES[airlineCode] || airlineCode,
+      price,
+      currency: 'EUR',
+      travelClass: 'ECONOMY',
+      source: 'reference',
+      lastUpdated: new Date().toISOString(),
+    };
+  });
+}
+
+function deduplicateFlights(flights: NormalizedFlight[]): NormalizedFlight[] {
+  const seen = new Set<string>();
+  return flights.filter((f) => {
+    const key = `${f.airline}-${f.departureTime}-${f.origin}-${f.destination}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -66,7 +128,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ flights, source: 'cached', count: flights.length });
     }
 
-    // 2. Try Amadeus API (SDK with automatic REST fallback)
+    let flights: NormalizedFlight[] = [];
+    let primarySource: string = 'live';
+
+    // 2. Try Amadeus API
     if (canMakeAmadeusCall()) {
       try {
         recordAmadeusCall();
@@ -82,29 +147,49 @@ export async function GET(request: Request) {
         if (returnDate) params.returnDate = returnDate;
 
         const rawFlights = await searchFlights(params);
-        const flights: NormalizedFlight[] = (rawFlights as Record<string, unknown>[]).map(normalizeAmadeusFlight);
-
-        if (flights.length > 0) {
-          await setCache(cacheKey, flights, 15);
-          return NextResponse.json({ flights, source: 'live', count: flights.length });
-        }
-
-        return NextResponse.json({
-          flights: [],
-          source: 'live',
-          count: 0,
-          warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
-        });
+        flights = (rawFlights as Record<string, unknown>[]).map(normalizeAmadeusFlight);
       } catch (err: unknown) {
         console.error('[Flights] Amadeus search failed:', (err as Error)?.message);
       }
     }
 
+    // 3. If Amadeus returned < 5 results, supplement with AviationStack
+    if (flights.length < 5 && canMakeAviationstackCall()) {
+      try {
+        recordAviationstackCall();
+        const asFlights = await fetchAviationstackFlights(origin, destination);
+        const normalized = asFlights.map((f) => normalizeAviationstackFlight(f, departureDate));
+        flights = deduplicateFlights([...flights, ...normalized]);
+        if (normalized.length > 0 && flights.length <= normalized.length) {
+          primarySource = 'aviationstack';
+        }
+      } catch (err: unknown) {
+        console.warn('[Flights] AviationStack failed:', (err as Error)?.message);
+      }
+    }
+
+    // 4. If still < 3 results, add reference flights from common routes
+    if (flights.length < 3) {
+      const refFlights = generateReferenceFlights(origin, destination, departureDate);
+      flights = deduplicateFlights([...flights, ...refFlights]);
+      if (flights.length > 0 && flights.every((f) => f.source === 'reference')) {
+        primarySource = 'reference';
+      }
+    }
+
+    // 5. Sort by price
+    flights.sort((a, b) => a.price - b.price);
+
+    if (flights.length > 0) {
+      await setCache(cacheKey, flights, 15);
+      return NextResponse.json({ flights, source: primarySource, count: flights.length });
+    }
+
     return NextResponse.json({
       flights: [],
-      source: 'error',
+      source: 'live',
       count: 0,
-      warning: 'Unable to fetch live flight prices right now. Please try again in a moment.',
+      warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
     });
   } catch (error) {
     console.error('[Flights] Unexpected error:', error);

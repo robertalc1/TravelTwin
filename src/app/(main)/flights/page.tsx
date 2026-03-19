@@ -30,6 +30,7 @@ export default function FlightsPage() {
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [warning, setWarning] = useState("");
+    const [responseSource, setResponseSource] = useState<string>("");
 
     // Set default departure date to 1 week from now
     useEffect(() => {
@@ -56,6 +57,7 @@ export default function FlightsPage() {
         setHasSearched(true);
         setFlights([]);
         setWarning("");
+        setResponseSource("");
 
         try {
             const params = new URLSearchParams({
@@ -68,6 +70,7 @@ export default function FlightsPage() {
             const res = await fetch(`/api/flights/live?${params}`);
             const data = await res.json();
             setFlights(data.flights || []);
+            setResponseSource(data.source || "");
             if (data.warning) setWarning(data.warning);
         } catch {
             setWarning("Search failed. Please try again.");
@@ -180,6 +183,22 @@ export default function FlightsPage() {
             </div>
 
             <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+                {/* Test-mode notice when results come from Amadeus live/test */}
+                {hasSearched && !loading && flights.length > 0 && responseSource === 'live' && (
+                    <div className="mb-4 flex items-start gap-3 rounded-radius-md bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        Prices shown are from the Amadeus test environment and may not reflect current market prices. Reference prices are based on typical route costs.
+                    </div>
+                )}
+
+                {/* Reference data notice */}
+                {hasSearched && !loading && flights.length > 0 && responseSource === 'reference' && (
+                    <div className="mb-4 flex items-start gap-3 rounded-radius-md bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 px-4 py-3 text-sm text-purple-800 dark:text-purple-300">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        Showing estimated prices based on typical route costs. Live pricing may differ. Prices in EUR.
+                    </div>
+                )}
+
                 {/* Warning banner */}
                 {warning && (
                     <div className="mb-4 flex items-start gap-3 rounded-radius-md bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
