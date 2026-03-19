@@ -31,3 +31,17 @@ export function canMakeAmadeusCall(): boolean {
 export function recordAmadeusCall(): void {
   callTimestamps.push(Date.now());
 }
+
+// AviationStack rate limiter — 90 req/month budget (soft cap, cache is primary guard)
+let aviationstackMonthlyCount = 0;
+const MAX_AVIATIONSTACK_MONTHLY = 90;
+
+export function canMakeAviationstackCall(): boolean {
+  if (!process.env.AVIATIONSTACK_API_KEY) return false;
+  return aviationstackMonthlyCount < MAX_AVIATIONSTACK_MONTHLY;
+}
+
+export function recordAviationstackCall(): void {
+  aviationstackMonthlyCount++;
+  console.log(`[RateLimiter] AviationStack calls this session: ${aviationstackMonthlyCount}`);
+}

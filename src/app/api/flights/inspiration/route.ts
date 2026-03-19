@@ -1,9 +1,29 @@
 import { NextResponse } from 'next/server';
 import { searchFlightInspirations } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
+import { canMakeAmadeusCall, recordAmadeusCall, canMakeAviationstackCall, recordAviationstackCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
+import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import type { FlightInspiration } from '@/lib/supabase/types';
+
+function buildInspirationFromCommonRoutes(origin: string): FlightInspiration[] {
+  const routes = COMMON_ROUTES.filter((r) => r.from === origin);
+  const today = new Date();
+  const futureDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const returnDate = new Date(futureDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const toISO = (d: Date) => d.toISOString().split('T')[0];
+
+  return routes.map((route) => ({
+    destination: route.to,
+    destinationCity: getCityFromIata(route.to),
+    departureDate: toISO(futureDate),
+    returnDate: toISO(returnDate),
+    price: route.avgPrice,
+    currency: route.currency,
+    source: 'reference' as const,
+  }));
+}
 
 export async function GET(request: Request) {
   try {
@@ -24,7 +44,7 @@ export async function GET(request: Request) {
       });
     }
 
-    // 2. Try Amadeus API (SDK with automatic REST fallback)
+    // 2. Try Amadeus API
     if (canMakeAmadeusCall()) {
       try {
         recordAmadeusCall();
@@ -50,6 +70,13 @@ export async function GET(request: Request) {
       } catch (err: unknown) {
         console.warn('[Inspiration] Amadeus search failed:', (err as Error)?.message);
       }
+    }
+
+    // 3. Fall back to common routes for inspiration
+    const destinations = buildInspirationFromCommonRoutes(origin);
+    if (destinations.length > 0) {
+      await setCache(cacheKey, destinations, 60 * 24); // 24h — static data, cache aggressively
+      return NextResponse.json({ destinations, source: 'reference' });
     }
 
     return NextResponse.json({
