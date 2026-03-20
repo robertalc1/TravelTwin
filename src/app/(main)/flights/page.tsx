@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Search, ChevronDown, Loader2, Plane, Calendar, AlertCircle } from "lucide-react";
-import { FlightCard } from "@/components/features/flights/FlightCard";
+import { FlightResultCard } from "@/components/features/flights/FlightResultCard";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatDuration } from "@/lib/hotelImages";
 import type { NormalizedFlight } from "@/lib/supabase/types";
 
 const flightClassOptions = [
@@ -264,29 +263,10 @@ export default function FlightsPage() {
                         ))}
                     </div>
                 ) : flights.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {flights.map((flight, i) => (
                             <div key={`${flight.id}-${i}`} className="stagger-item">
-                                <FlightCard
-                                    airline={flight.airlineName || flight.airline}
-                                    departureTime={flight.departureTime}
-                                    arrivalTime={flight.arrivalTime}
-                                    departureCode={flight.origin}
-                                    arrivalCode={flight.destination}
-                                    departureCity={flight.originCity !== flight.origin ? flight.originCity : ""}
-                                    arrivalCity={flight.destinationCity !== flight.destination ? flight.destinationCity : ""}
-                                    duration={formatDuration(flight.duration) || flight.duration}
-                                    stops={flight.stops}
-                                    price={flight.price}
-                                    currency={flight.currency}
-                                    tripType={flight.travelClass}
-                                    source={flight.source}
-                                    lastUpdated={flight.lastUpdated}
-                                    badges={[
-                                        ...(flight.stops === 0 ? ["Direct"] : []),
-                                        ...(flight.price < 100 ? ["Great Deal"] : []),
-                                    ]}
-                                />
+                                <FlightResultCard flight={flight} />
                             </div>
                         ))}
                     </div>

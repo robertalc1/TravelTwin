@@ -34,25 +34,9 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { TripCard } from "@/components/results/TripCard";
 import { FiltersModal } from "@/components/search/FiltersModal";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatPrice, formatDuration } from "@/lib/hotelImages";
+import { getCityImageByIata } from "@/lib/cityImages";
 import type { NormalizedFlight, NormalizedHotel } from "@/lib/supabase/types";
 
-/* ── Destination images ── */
-const destinationImages: Record<string, string> = {
-  LON: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=600&h=400&fit=crop",
-  PAR: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=600&h=400&fit=crop",
-  ROM: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=600&h=400&fit=crop",
-  BCN: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=600&h=400&fit=crop",
-  AMS: "https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=600&h=400&fit=crop",
-  IST: "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=600&h=400&fit=crop",
-  ATH: "https://images.unsplash.com/photo-1555993539-1732b0258235?w=600&h=400&fit=crop",
-  MAD: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=600&h=400&fit=crop",
-  VIE: "https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=600&h=400&fit=crop",
-  PRG: "https://images.unsplash.com/photo-1541849546-216549ae216d?w=600&h=400&fit=crop",
-  LIS: "https://images.unsplash.com/photo-1585208798174-6cedd86e019a?w=600&h=400&fit=crop",
-  BER: "https://images.unsplash.com/photo-1560969184-10fe8719e047?w=600&h=400&fit=crop",
-};
-const defaultImage = "https://images.unsplash.com/photo-1488085061387-422e29b40080?w=600&h=400&fit=crop";
 
 /* ── Category tabs ── */
 const categoryTabs = [
@@ -142,7 +126,7 @@ export default function Home() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [warning, setWarning] = useState("");
-  const [searchInfo, setSearchInfo] = useState({ origin: "", destination: "" });
+  const [searchInfo, setSearchInfo] = useState({ origin: "", destination: "", departureDate: "", returnDate: "" });
 
   async function handleSearch(params: {
     originIata: string;
@@ -161,7 +145,12 @@ export default function Home() {
     setLiveFlights([]);
     setLiveHotels([]);
     setWarning("");
-    setSearchInfo({ origin: params.originDisplay, destination: params.destinationDisplay || "Anywhere" });
+    setSearchInfo({
+      origin: params.originDisplay,
+      destination: params.destinationDisplay || "Anywhere",
+      departureDate: params.departureDate,
+      returnDate: params.returnDate,
+    });
 
     const dest = params.destinationIata || "LON";
 
@@ -190,11 +179,15 @@ export default function Home() {
   // Build trip cards from live data
   const tripCards = liveFlights.slice(0, 9).map((flight, index) => {
     const hotel = liveHotels[index % Math.max(1, liveHotels.length)];
-    const nights = 5;
+    const depDate = searchInfo.departureDate || flight.departureDate;
+    const retDate = searchInfo.returnDate || flight.arrivalDate || depDate;
+    const nights = Math.max(1, Math.ceil(
+      (new Date(retDate).getTime() - new Date(depDate).getTime()) / 86400000
+    ));
     const hotelCost = hotel ? hotel.pricePerNight * nights : 0;
     const totalCost = flight.price + hotelCost;
     const originalPrice = Math.round(totalCost * 1.2);
-    const destImg = destinationImages[flight.destination] || defaultImage;
+    const destImg = getCityImageByIata(flight.destination, flight.id);
 
     return {
       id: `${flight.id}-${index}`,
@@ -203,9 +196,9 @@ export default function Home() {
       origin: flight.origin,
       originCity: flight.originCity || flight.origin,
       imageUrl: destImg,
-      days: nights + 1,
-      departureDate: flight.departureDate,
-      returnDate: flight.arrivalDate || flight.departureDate,
+      days: nights,
+      departureDate: depDate,
+      returnDate: retDate,
       originalPrice,
       discountedPrice: Math.round(totalCost),
       currency: flight.currency,
@@ -363,12 +356,14 @@ export default function Home() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.entries(destinationImages).slice(0, 6).map(([code, img], i) => {
-                  const cities: Record<string, string> = {
-                    LON: "London", PAR: "Paris", ROM: "Rome",
-                    BCN: "Barcelona", AMS: "Amsterdam", IST: "Istanbul",
-                  };
-                  // Deterministic prices to avoid hydration mismatch
+                {[
+                  { code: "LHR", city: "London" },
+                  { code: "CDG", city: "Paris" },
+                  { code: "FCO", city: "Rome" },
+                  { code: "BCN", city: "Barcelona" },
+                  { code: "AMS", city: "Amsterdam" },
+                  { code: "IST", city: "Istanbul" },
+                ].map(({ code, city }, i) => {
                   const basePrices = [480, 350, 420, 380, 310, 450];
                   const discountPrices = [299, 219, 269, 239, 199, 279];
                   return (
@@ -376,10 +371,10 @@ export default function Home() {
                       <TripCard
                         id={`sample-${code}`}
                         destination={code}
-                        destinationCity={cities[code] || code}
-                        origin="CND"
-                        originCity="Constanța"
-                        imageUrl={img}
+                        destinationCity={city}
+                        origin=""
+                        originCity="Your City"
+                        imageUrl={getCityImageByIata(code)}
                         days={5}
                         departureDate="2026-04-01"
                         returnDate="2026-04-05"
@@ -449,34 +444,28 @@ export default function Home() {
             </div>
 
             {/* Featured trip cards */}
-            {Object.entries(destinationImages).slice(6, 8).map(([code, img], i) => {
-              const cities: Record<string, string> = {
-                VIE: "Vienna", PRG: "Prague", LIS: "Lisbon",
-                BER: "Berlin", ATH: "Athens", MAD: "Madrid",
-              };
-              // Deterministic prices to avoid hydration mismatch
-              const promoOriginal = [520, 475];
-              const promoDiscount = [411, 363];
-              return (
-                <TripCard
-                  key={code}
-                  id={`promo-${code}`}
-                  destination={code}
-                  destinationCity={cities[code] || code}
-                  origin="CND"
-                  originCity="Constanța"
-                  imageUrl={img}
-                  days={4}
-                  departureDate="2026-04-10"
-                  returnDate="2026-04-14"
-                  originalPrice={promoOriginal[i]}
-                  discountedPrice={promoDiscount[i]}
-                  currency="EUR"
-                  isDirect={false}
-                  travelers={2}
-                />
-              );
-            })}
+            {[
+              { code: "VIE", city: "Vienna", orig: 520, disc: 411 },
+              { code: "PRG", city: "Prague", orig: 475, disc: 363 },
+            ].map(({ code, city, orig, disc }) => (
+              <TripCard
+                key={code}
+                id={`promo-${code}`}
+                destination={code}
+                destinationCity={city}
+                origin=""
+                originCity="Your City"
+                imageUrl={getCityImageByIata(code)}
+                days={4}
+                departureDate="2026-04-10"
+                returnDate="2026-04-14"
+                originalPrice={orig}
+                discountedPrice={disc}
+                currency="EUR"
+                isDirect={false}
+                travelers={2}
+              />
+            ))}
           </div>
         </div>
       </section>
