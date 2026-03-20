@@ -199,6 +199,87 @@ export const IATA_TO_CITY: Record<string, string> = {
   FLN: 'Florianopolis', BSB: 'Brasilia', NAT: 'Natal', AJU: 'Aracaju', CGR: 'Campo Grande',
 };
 
+// IATA → Country mapping
+export const IATA_TO_COUNTRY: Record<string, string> = {
+  // Romania
+  OTP: 'Romania', BBU: 'Romania', CLJ: 'Romania', TSR: 'Romania',
+  IAS: 'Romania', SBZ: 'Romania', CND: 'Romania', CRA: 'Romania',
+  OMR: 'Romania', SCV: 'Romania', BCM: 'Romania', TGM: 'Romania',
+  SUJ: 'Romania', ARW: 'Romania', GHV: 'Romania',
+  // UK
+  LHR: 'United Kingdom', LGW: 'United Kingdom', STN: 'United Kingdom',
+  LTN: 'United Kingdom', LCY: 'United Kingdom', MAN: 'United Kingdom',
+  EDI: 'United Kingdom', BHX: 'United Kingdom', BRS: 'United Kingdom', GLA: 'United Kingdom',
+  // France
+  CDG: 'France', ORY: 'France', NCE: 'France', LYS: 'France', MRS: 'France', TLS: 'France',
+  // Germany
+  FRA: 'Germany', MUC: 'Germany', BER: 'Germany', HAM: 'Germany',
+  DUS: 'Germany', CGN: 'Germany', STR: 'Germany',
+  // Italy
+  FCO: 'Italy', MXP: 'Italy', BGY: 'Italy', LIN: 'Italy', VCE: 'Italy',
+  NAP: 'Italy', FLR: 'Italy', BLQ: 'Italy', CTA: 'Italy',
+  // Spain
+  MAD: 'Spain', BCN: 'Spain', PMI: 'Spain', AGP: 'Spain',
+  ALC: 'Spain', VLC: 'Spain', SVQ: 'Spain', TFS: 'Spain',
+  // Netherlands
+  AMS: 'Netherlands', EIN: 'Netherlands',
+  // Belgium
+  BRU: 'Belgium', CRL: 'Belgium',
+  // Portugal
+  LIS: 'Portugal', OPO: 'Portugal', FAO: 'Portugal',
+  // Austria
+  VIE: 'Austria', SZG: 'Austria',
+  // Switzerland
+  ZRH: 'Switzerland', GVA: 'Switzerland', BSL: 'Switzerland',
+  // Greece
+  ATH: 'Greece', SKG: 'Greece', HER: 'Greece', JTR: 'Greece',
+  JMK: 'Greece', RHO: 'Greece', CFU: 'Greece',
+  // Turkey
+  IST: 'Turkey', SAW: 'Turkey', AYT: 'Turkey', ESB: 'Turkey', BJV: 'Turkey', ADB: 'Turkey',
+  // Poland
+  WAW: 'Poland', KRK: 'Poland', GDN: 'Poland', WRO: 'Poland', KTW: 'Poland', POZ: 'Poland',
+  // Czech Republic
+  PRG: 'Czech Republic', BRQ: 'Czech Republic',
+  // Hungary
+  BUD: 'Hungary', DEB: 'Hungary',
+  // Ireland
+  DUB: 'Ireland', ORK: 'Ireland',
+  // Scandinavia
+  CPH: 'Denmark', ARN: 'Sweden', OSL: 'Norway', HEL: 'Finland',
+  BGO: 'Norway', GOT: 'Sweden',
+  // Croatia
+  ZAG: 'Croatia', SPU: 'Croatia', DBV: 'Croatia',
+  // Bulgaria
+  SOF: 'Bulgaria', VAR: 'Bulgaria', BOJ: 'Bulgaria',
+  // Serbia
+  BEG: 'Serbia',
+  // Moldova
+  KIV: 'Moldova',
+  // Ukraine
+  KBP: 'Ukraine',
+  // UAE
+  DXB: 'UAE', AUH: 'UAE',
+  // Asia
+  NRT: 'Japan', HND: 'Japan', SIN: 'Singapore', BKK: 'Thailand',
+  HKG: 'Hong Kong', ICN: 'South Korea', PVG: 'China', PEK: 'China',
+  KUL: 'Malaysia', DPS: 'Indonesia', DEL: 'India', BOM: 'India',
+  // Americas
+  JFK: 'USA', EWR: 'USA', LAX: 'USA', ORD: 'USA', MIA: 'USA',
+  SFO: 'USA', YYZ: 'Canada', CUN: 'Mexico',
+  // Africa
+  CAI: 'Egypt', RAK: 'Morocco', CPT: 'South Africa',
+  JNB: 'South Africa', CMN: 'Morocco',
+  // Oceania
+  SYD: 'Australia', MEL: 'Australia', AKL: 'New Zealand',
+  // Brazil
+  GRU: 'Brazil', GIG: 'Brazil', SSA: 'Brazil', REC: 'Brazil',
+  FLN: 'Brazil', BSB: 'Brazil', NAT: 'Brazil', AJU: 'Brazil', CGR: 'Brazil',
+};
+
+export function getCountryFromIata(iataCode: string): string {
+  return IATA_TO_COUNTRY[iataCode] || '';
+}
+
 // Extract just the city name (before parenthetical state code)
 export function getCityName(fullName: string): string {
   return fullName.replace(/\s*\([^)]*\)\s*$/, '').trim();

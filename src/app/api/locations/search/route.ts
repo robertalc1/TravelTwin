@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { searchLocations } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
-import { CITY_TO_IATA, getCityName } from '@/lib/iataMapping';
+import { CITY_TO_IATA, getCityName, getCountryFromIata } from '@/lib/iataMapping';
 import type { LocationResult } from '@/lib/supabase/types';
 
 export async function GET(request: Request) {
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         iataCode: iata,
         name: getCityName(city),
         cityName: getCityName(city),
-        countryName: 'Brazil',
+        countryName: getCountryFromIata(iata),
         type: 'CITY' as const,
       }));
 
