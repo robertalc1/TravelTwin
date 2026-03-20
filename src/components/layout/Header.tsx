@@ -2,38 +2,37 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Compass, Plane, Hotel, MapIcon, LogOut, Heart, Loader2, Headphones, Menu, X, Sparkles } from "lucide-react";
+import {
+    LogOut, Heart, Loader2, Menu, X, Sparkles, Headphones, User,
+    ChevronLeft, ChevronRight, BookOpen, Gift, Globe, Tag, CalendarDays,
+    HelpCircle, ThumbsUp, Palmtree, Mountain, Compass, Leaf,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "./ThemeToggle";
 import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
-
-const navLinks = [
-    { href: "/plan", label: "Plan a Trip", icon: Sparkles, accent: true },
-    { href: "/explore", label: "Explore", icon: Compass },
-    { href: "/flights", label: "Flights", icon: Plane },
-    { href: "/hotels", label: "Hotels", icon: Hotel },
-    { href: "/trips", label: "Trips", icon: MapIcon },
-];
 
 export function Header() {
     const pathname = usePathname();
     const router = useRouter();
-    const [scrolled, setScrolled] = useState(false);
     const [loggingOut, setLoggingOut] = useState(false);
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
     const { user, loading, displayName } = useUser();
 
-    useEffect(() => {
-        const handleScroll = () => setScrolled(window.scrollY > 20);
-        window.addEventListener("scroll", handleScroll, { passive: true });
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
+    const isHome = pathname === "/";
 
-    // Close mobile menu on navigation
     useEffect(() => {
-        setMobileMenuOpen(false);
+        setMenuOpen(false);
     }, [pathname]);
+
+    // Lock body scroll when menu is open
+    useEffect(() => {
+        if (menuOpen) {
+            document.body.style.overflow = "hidden";
+        } else {
+            document.body.style.overflow = "";
+        }
+        return () => { document.body.style.overflow = ""; };
+    }, [menuOpen]);
 
     async function handleLogout() {
         setLoggingOut(true);
@@ -50,177 +49,328 @@ export function Header() {
         <>
             <header
                 className={cn(
-                    "sticky top-0 z-50 w-full transition-all duration-300 bg-white dark:bg-surface border-b",
-                    scrolled
-                        ? "shadow-sm border-neutral-200 dark:border-border-default"
-                        : "border-transparent"
+                    "w-full z-50",
+                    isHome
+                        ? "absolute top-0 left-0 right-0 bg-transparent"
+                        : "relative bg-white dark:bg-surface border-b border-neutral-200 dark:border-border-default"
                 )}
             >
-                <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between px-4 lg:px-8">
-                    {/* Logo — TravelTwin */}
-                    <Link href="/" className="flex items-center gap-0 group">
-                        <span className="font-display text-2xl font-extrabold tracking-tight text-primary-500">
-                            Travel
-                        </span>
-                        <span className="font-display text-2xl font-extrabold tracking-tight text-secondary-500">Twin</span>
-                    </Link>
+                <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
+                    <div className="flex h-14 sm:h-16 items-center justify-between">
 
-                    {/* Desktop Nav */}
-                    <nav className="hidden lg:flex items-center gap-1" aria-label="Main navigation">
-                        {navLinks.map(({ href, label, icon: Icon, accent }) => {
-                            const isActive = pathname?.startsWith(href);
-                            return (
-                                <Link
-                                    key={href}
-                                    href={href}
-                                    className={cn(
-                                        "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200",
-                                        accent && !isActive
-                                            ? "bg-primary-500 text-white hover:bg-primary-600 shadow-sm"
-                                            : isActive
-                                                ? "bg-primary-50 text-primary-600 dark:bg-primary-500/10"
-                                                : "text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-                                    )}
-                                    aria-current={isActive ? "page" : undefined}
-                                >
-                                    <Icon className="h-4 w-4" />
-                                    {label}
-                                </Link>
-                            );
-                        })}
-                    </nav>
+                        {/* Left — logo */}
+                        <Link
+                            href="/"
+                            className="flex items-center leading-none"
+                        >
+                            <span className={cn(
+                                "font-display text-xl sm:text-2xl font-extrabold tracking-tight",
+                                isHome ? "text-white" : ""
+                            )}>
+                                <span className={isHome ? "text-white" : "text-primary-500"}>TRAVEL</span>
+                                <span className={isHome ? "text-white/80" : "text-secondary-500"}>TWIN</span>
+                            </span>
+                        </Link>
 
-                    {/* Right side */}
-                    <div className="flex items-center gap-3">
-                        {/* Live Agent button */}
-                        <button className="hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 bg-neutral-100 text-text-secondary hover:bg-neutral-200 dark:bg-surface-elevated dark:hover:bg-surface">
-                            <Headphones className="h-4 w-4" />
-                            Live Agent
-                        </button>
+                        {/* Right — Plan a Trip + Live Agent + user icon + hamburger */}
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            {/* Plan a Trip — desktop only */}
+                            <Link
+                                href="/plan"
+                                className={cn(
+                                    "hidden sm:flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200",
+                                    isHome
+                                        ? "bg-primary-500 text-white hover:bg-primary-600 shadow-lg"
+                                        : "bg-primary-500 text-white hover:bg-primary-600"
+                                )}
+                            >
+                                <Sparkles className="h-4 w-4" />
+                                Plan a Trip
+                            </Link>
 
-                        <ThemeToggle />
+                            {/* Live Agent — desktop only */}
+                            <div className={cn(
+                                "hidden md:flex items-center gap-2 text-sm font-medium cursor-pointer",
+                                isHome ? "text-white/90 hover:text-white" : "text-text-secondary hover:text-text-primary"
+                            )}>
+                                <Headphones className="h-4 w-4" />
+                                Live Agent
+                            </div>
 
-                        {loading ? (
-                            <div className="h-9 w-20 rounded-full bg-neutral-100 animate-pulse" />
-                        ) : user ? (
-                            <div className="hidden sm:flex items-center gap-2">
-                                <Link
-                                    href="/favorites"
-                                    className="flex items-center justify-center h-9 w-9 rounded-full transition-colors text-text-secondary hover:bg-neutral-100 hover:text-primary-500 dark:hover:bg-surface-elevated"
-                                    title="Favorites"
-                                >
-                                    <Heart className="h-4 w-4" />
-                                </Link>
+                            {/* User icon — always visible */}
+                            {loading ? (
+                                <div className={cn(
+                                    "h-8 w-8 sm:h-9 sm:w-9 rounded-full animate-pulse",
+                                    isHome ? "bg-white/20" : "bg-neutral-100"
+                                )} />
+                            ) : user ? (
                                 <Link
                                     href="/profile"
-                                    className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition-colors bg-neutral-100 text-text-primary hover:bg-neutral-200 dark:bg-surface-elevated dark:hover:bg-surface"
+                                    className={cn(
+                                        "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
+                                        isHome
+                                            ? "bg-white/20 text-white hover:bg-white/30"
+                                            : "bg-neutral-100 text-text-primary hover:bg-neutral-200 dark:bg-surface-elevated"
+                                    )}
                                 >
                                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-white text-xs font-bold">
                                         {displayName.charAt(0).toUpperCase()}
                                     </div>
-                                    <span className="max-w-[100px] truncate">{displayName}</span>
                                 </Link>
-                                <button
-                                    onClick={handleLogout}
-                                    disabled={loggingOut}
-                                    className="flex items-center justify-center h-9 w-9 rounded-full transition-colors text-text-secondary hover:bg-neutral-100 hover:text-error dark:hover:bg-surface-elevated"
-                                    title="Sign out"
-                                >
-                                    {loggingOut ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                        <LogOut className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="hidden sm:flex items-center gap-2">
+                            ) : (
                                 <Link
                                     href="/login"
-                                    className="flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.98] bg-primary-500 text-white hover:bg-primary-600 hover:shadow-md"
+                                    className={cn(
+                                        "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
+                                        isHome
+                                            ? "bg-white/20 text-white hover:bg-white/30"
+                                            : "bg-neutral-100 text-text-primary hover:bg-neutral-200 dark:bg-surface-elevated"
+                                    )}
+                                    title="Sign In"
                                 >
-                                    Sign In
+                                    <User className="h-4 w-4" />
                                 </Link>
-                            </div>
-                        )}
+                            )}
 
-                        {/* Mobile hamburger */}
-                        <button
-                            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                            className="lg:hidden flex items-center justify-center h-9 w-9 rounded-full transition-colors text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-                            aria-label="Toggle menu"
-                        >
-                            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                        </button>
+                            {/* Hamburger */}
+                            <button
+                                onClick={() => setMenuOpen(true)}
+                                className={cn(
+                                    "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
+                                    isHome
+                                        ? "text-white/80 hover:bg-white/10 hover:text-white"
+                                        : "text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
+                                )}
+                                aria-label="Open menu"
+                            >
+                                <Menu className="h-5 w-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
 
-            {/* Mobile menu overlay */}
-            {mobileMenuOpen && (
-                <div className="fixed inset-0 top-16 z-40 bg-white dark:bg-surface overflow-y-auto lg:hidden">
-                    <nav className="p-4 space-y-1" aria-label="Mobile navigation">
-                        {navLinks.map(({ href, label, icon: Icon, accent }) => {
-                            const isActive = pathname?.startsWith(href);
-                            return (
-                                <Link
-                                    key={href}
-                                    href={href}
-                                    className={cn(
-                                        "flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-colors",
-                                        accent && !isActive
-                                            ? "bg-primary-500 text-white hover:bg-primary-600"
-                                            : isActive
-                                                ? "bg-primary-50 text-primary-600 dark:bg-primary-500/10"
-                                                : "text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-                                    )}
-                                >
-                                    <Icon className="h-5 w-5" />
-                                    {label}
-                                </Link>
-                            );
-                        })}
+            {/* ═══════ FULL-SCREEN SLIDE MENU (TRYP style) ═══════ */}
+            {/* Backdrop */}
+            <div
+                className={cn(
+                    "fixed inset-0 bg-black/40 z-[9998] transition-opacity duration-300",
+                    menuOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+                )}
+                onClick={() => setMenuOpen(false)}
+            />
 
-                        <div className="border-t border-neutral-200 dark:border-border-default my-3" />
+            {/* Slide panel */}
+            <div
+                className={cn(
+                    "fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-white dark:bg-surface z-[9999] transition-transform duration-300 ease-in-out overflow-y-auto",
+                    menuOpen ? "translate-x-0" : "translate-x-full"
+                )}
+            >
+                {/* Close / Back button */}
+                <div className="flex items-center h-14 px-4">
+                    <button
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center justify-center h-9 w-9 rounded-full hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors text-text-secondary"
+                        aria-label="Close menu"
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
+                </div>
 
-                        {!loading && user ? (
-                            <>
-                                <Link
-                                    href="/favorites"
-                                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-                                >
-                                    <Heart className="h-5 w-5" />
-                                    Favorites
-                                </Link>
+                {/* ── Join The Community Card ── */}
+                <div className="px-5 pb-6">
+                    <div className="rounded-2xl bg-neutral-50 dark:bg-surface-elevated p-5 flex items-center gap-4">
+                        <div className="flex-1 min-w-0">
+                            <h3 className="text-base font-bold text-text-primary mb-1">Join The Community!</h3>
+                            <p className="text-sm text-text-secondary leading-snug">
+                                Exclusive discounts, manage bookings and much more.
+                            </p>
+                            {user ? (
                                 <Link
                                     href="/profile"
-                                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
+                                    onClick={() => setMenuOpen(false)}
+                                    className="text-sm font-semibold text-primary-500 hover:text-primary-600 mt-1 inline-block"
                                 >
-                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500 text-white text-xs font-bold">
-                                        {displayName.charAt(0).toUpperCase()}
-                                    </div>
-                                    {displayName}
+                                    View profile
                                 </Link>
-                                <button
-                                    onClick={handleLogout}
-                                    disabled={loggingOut}
-                                    className="flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium text-error w-full text-left hover:bg-neutral-100 dark:hover:bg-surface-elevated"
+                            ) : (
+                                <Link
+                                    href="/login"
+                                    onClick={() => setMenuOpen(false)}
+                                    className="text-sm font-semibold text-primary-500 hover:text-primary-600 mt-1 inline-block"
                                 >
-                                    {loggingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
-                                    Sign Out
-                                </button>
-                            </>
-                        ) : !loading ? (
-                            <Link
-                                href="/login"
-                                className="flex items-center justify-center rounded-xl bg-primary-500 text-white px-4 py-3 text-base font-semibold hover:bg-primary-600 transition-colors"
-                            >
-                                Sign In
-                            </Link>
-                        ) : null}
-                    </nav>
+                                    Log in here
+                                </Link>
+                            )}
+                        </div>
+                        <div className="text-4xl shrink-0">🏝️</div>
+                    </div>
                 </div>
-            )}
+
+                {/* ── Divider ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+
+                {/* ── Main Navigation ── */}
+                <nav className="py-2 px-5">
+                    <MenuLink
+                        href="/trips"
+                        icon={<CalendarDays className="h-5 w-5" />}
+                        label="Manage Booking"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/plan"
+                        icon={<Sparkles className="h-5 w-5" />}
+                        label="Plan a Trip"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/favorites"
+                        icon={<Heart className="h-5 w-5" />}
+                        label="Favorites"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/explore"
+                        icon={<BookOpen className="h-5 w-5" />}
+                        label="Blog"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                </nav>
+
+                {/* ── Divider ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+
+                {/* ── Preferences ── */}
+                <nav className="py-2 px-5">
+                    <MenuLink
+                        href="#"
+                        icon={<Tag className="h-5 w-5" />}
+                        label="Currency"
+                        value="EUR"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<Globe className="h-5 w-5" />}
+                        label="Language"
+                        value="🇬🇧"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                </nav>
+
+                {/* ── Divider ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+
+                {/* ── Help Centre ── */}
+                <div className="px-5 pt-6 pb-2">
+                    <h4 className="text-lg font-bold text-text-primary mb-1">Help Centre</h4>
+                </div>
+                <nav className="px-5 pb-2">
+                    <MenuLink
+                        href="#"
+                        icon={<Compass className="h-5 w-5" />}
+                        label="About Us"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<HelpCircle className="h-5 w-5" />}
+                        label="Help Centre"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<ThumbsUp className="h-5 w-5" />}
+                        label="Feedback"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                </nav>
+
+                {/* ── Divider ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+
+                {/* ── Discover ── */}
+                <div className="px-5 pt-6 pb-2">
+                    <h4 className="text-lg font-bold text-text-primary mb-1">Discover</h4>
+                </div>
+                <nav className="px-5 pb-8">
+                    <MenuLink
+                        href="#"
+                        icon={<Leaf className="h-5 w-5" />}
+                        label="Sustainable"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<Sparkles className="h-5 w-5" />}
+                        label="Weekend"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<Mountain className="h-5 w-5" />}
+                        label="Snow"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="#"
+                        icon={<Palmtree className="h-5 w-5" />}
+                        label="Beach"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                </nav>
+
+                {/* ── Sign out (only if logged in) ── */}
+                {!loading && user && (
+                    <>
+                        <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+                        <div className="px-5 py-4">
+                            <button
+                                onClick={() => { handleLogout(); setMenuOpen(false); }}
+                                disabled={loggingOut}
+                                className="flex items-center gap-3 w-full rounded-xl px-4 py-3 text-base font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                            >
+                                {loggingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
+                                Sign Out
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
         </>
+    );
+}
+
+/* ── Reusable menu link row ── */
+function MenuLink({
+    href,
+    icon,
+    label,
+    value,
+    onClick,
+}: {
+    href: string;
+    icon: React.ReactNode;
+    label: string;
+    value?: string;
+    onClick?: () => void;
+}) {
+    return (
+        <Link
+            href={href}
+            onClick={onClick}
+            className="flex items-center gap-4 py-3.5 text-text-primary hover:text-primary-500 transition-colors group"
+        >
+            <span className="text-text-secondary group-hover:text-primary-500 transition-colors shrink-0">
+                {icon}
+            </span>
+            <span className="flex-1 text-base font-medium">{label}</span>
+            {value && (
+                <span className="text-sm text-text-secondary mr-1">{value}</span>
+            )}
+            <ChevronRight className="h-4 w-4 text-text-muted shrink-0" />
+        </Link>
     );
 }
