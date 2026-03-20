@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, Plane, Hotel, MapIcon, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-    { href: "/explore", label: "Explore", icon: Compass },
-    { href: "/flights", label: "Flights", icon: Plane },
     { href: "/plan", label: "Plan", icon: Sparkles, accent: true },
-    { href: "/hotels", label: "Hotels", icon: Hotel },
-    { href: "/trips", label: "Trips", icon: MapIcon },
 ];
 
 export function BottomNav() {

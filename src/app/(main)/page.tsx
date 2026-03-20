@@ -27,7 +27,6 @@ import {
   Palmtree,
   Mountain,
   Building2,
-  ChevronsRight,
   Gem,
   Globe2,
 } from "lucide-react";
@@ -218,8 +217,8 @@ export default function Home() {
   return (
     <>
       {/* ═══════════ 1. HERO SECTION ═══════════ */}
-      <section className="relative bg-secondary-500 pt-24 pb-32 lg:pt-28 lg:pb-40" style={{ overflow: 'visible' }}>
-        {/* Background image with gradient — clipped to section bounds */}
+      <section className="relative bg-secondary-500 pt-24 pb-24 sm:pt-28 sm:pb-28 lg:pt-36 lg:pb-36" style={{ overflow: 'visible' }}>
+        {/* Background image with gradient */}
         <div className="absolute inset-0 overflow-hidden">
           <img
             src="https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1920&h=1080&fit=crop&q=80"
@@ -230,54 +229,22 @@ export default function Home() {
               (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&h=1080&fit=crop&q=80';
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-secondary-500/70 via-secondary-500/50 to-secondary-500/80" />
+          {/* Stronger top gradient for header readability + bottom for text */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/50" />
         </div>
 
         <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8">
-          {/* Hero text */}
-          <div className="mx-auto max-w-3xl text-center mb-10 animate-fade-in-up">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm border border-white/20 px-4 py-2 text-sm font-semibold text-white mb-6">
-              <Sparkles className="h-4 w-4 text-primary-300" />
-              Powered by AI
-            </div>
-            <h1 className="text-display text-white mb-4 !text-4xl md:!text-5xl lg:!text-[56px] lg:!leading-[64px]">
-              Your AI Travel Agent
+          {/* Hero text — TRYP style */}
+          <div className="mx-auto max-w-3xl text-center mb-8 sm:mb-10 animate-fade-in-up">
+            <h1 className="font-display font-extrabold text-white mb-3 sm:mb-4 text-[32px] leading-[38px] sm:text-[44px] sm:leading-[52px] lg:text-[56px] lg:leading-[64px] tracking-tight" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
+              Travel more, for less
             </h1>
-            <p className="text-lg text-white/80 max-w-xl mx-auto mb-8">
-              Tell us what you dream of. We&apos;ll plan everything.
+            <p className="text-base sm:text-lg text-white/90 max-w-xl mx-auto font-medium" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>
+              Trains, buses, flights and stays combined with AI
             </p>
-            {/* Primary CTA */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-              <Link
-                href="/plan"
-                className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-bold text-white hover:bg-primary-600 shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-200"
-              >
-                <Sparkles className="h-5 w-5" />
-                Plan My Trip
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-              <span className="text-white/50 text-sm">or search below</span>
-            </div>
-            {/* How it works — 3 steps */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-white/70">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">1</span>
-                Answer 5 quick questions
-              </div>
-              <ChevronsRight className="h-4 w-4 text-white/30 hidden sm:block" />
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">2</span>
-                AI searches 400+ airlines
-              </div>
-              <ChevronsRight className="h-4 w-4 text-white/30 hidden sm:block" />
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20 text-xs font-bold text-white">3</span>
-                Get your full itinerary
-              </div>
-            </div>
           </div>
 
-          {/* Search Bar — z-40 to stay above sticky tabs */}
+          {/* Search Bar */}
           <div className="relative z-40 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
             <SearchBar onSearch={handleSearch} loading={searching} />
           </div>
@@ -297,7 +264,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════ 3. CATEGORY TABS ═══════════ */}
-      <section className="border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface sticky top-16 z-20">
+      <section className="border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-3">
