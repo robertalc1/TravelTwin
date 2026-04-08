@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-    LogOut, Heart, Loader2, Menu, X, Sparkles, Headphones, User,
-    ChevronLeft, ChevronRight, BookOpen, Gift, Globe, Tag, CalendarDays,
-    HelpCircle, ThumbsUp, Palmtree, Mountain, Compass, Leaf,
+    LogOut, Heart, Loader2, Menu, Sparkles, Headphones, User,
+    ChevronLeft, ChevronRight, CalendarDays, Star, BarChart2, Search, Hotel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -214,15 +213,43 @@ export function Header() {
                 {/* ── Main Navigation ── */}
                 <nav className="py-2 px-5">
                     <MenuLink
-                        href="/trips"
-                        icon={<CalendarDays className="h-5 w-5" />}
-                        label="Manage Booking"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
                         href="/plan"
                         icon={<Sparkles className="h-5 w-5" />}
                         label="Plan a Trip"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/flights"
+                        icon={<Search className="h-5 w-5" />}
+                        label="Search Flights"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/hotels"
+                        icon={<Hotel className="h-5 w-5" />}
+                        label="Search Hotels"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href="/explore"
+                        icon={<CalendarDays className="h-5 w-5" />}
+                        label="Explore Destinations"
+                        onClick={() => setMenuOpen(false)}
+                    />
+                </nav>
+
+                {/* ── Divider ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+
+                {/* ── My Account ── */}
+                <div className="px-5 pt-6 pb-2">
+                    <h4 className="text-lg font-bold text-text-primary mb-1">My Account</h4>
+                </div>
+                <nav className="px-5 pb-2">
+                    <MenuLink
+                        href="/trips"
+                        icon={<CalendarDays className="h-5 w-5" />}
+                        label="My Trips"
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
@@ -232,92 +259,21 @@ export function Header() {
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/explore"
-                        icon={<BookOpen className="h-5 w-5" />}
-                        label="Blog"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                </nav>
-
-                {/* ── Divider ── */}
-                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
-
-                {/* ── Preferences ── */}
-                <nav className="py-2 px-5">
-                    <MenuLink
-                        href="#"
-                        icon={<Tag className="h-5 w-5" />}
-                        label="Currency"
-                        value="EUR"
+                        href="/reviews"
+                        icon={<Star className="h-5 w-5" />}
+                        label="Reviews"
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="#"
-                        icon={<Globe className="h-5 w-5" />}
-                        label="Language"
-                        value="🇬🇧"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                </nav>
-
-                {/* ── Divider ── */}
-                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
-
-                {/* ── Help Centre ── */}
-                <div className="px-5 pt-6 pb-2">
-                    <h4 className="text-lg font-bold text-text-primary mb-1">Help Centre</h4>
-                </div>
-                <nav className="px-5 pb-2">
-                    <MenuLink
-                        href="#"
-                        icon={<Compass className="h-5 w-5" />}
-                        label="About Us"
+                        href="/stats"
+                        icon={<BarChart2 className="h-5 w-5" />}
+                        label="Travel Stats"
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="#"
-                        icon={<HelpCircle className="h-5 w-5" />}
-                        label="Help Centre"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href="#"
-                        icon={<ThumbsUp className="h-5 w-5" />}
-                        label="Feedback"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                </nav>
-
-                {/* ── Divider ── */}
-                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
-
-                {/* ── Discover ── */}
-                <div className="px-5 pt-6 pb-2">
-                    <h4 className="text-lg font-bold text-text-primary mb-1">Discover</h4>
-                </div>
-                <nav className="px-5 pb-8">
-                    <MenuLink
-                        href="#"
-                        icon={<Leaf className="h-5 w-5" />}
-                        label="Sustainable"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href="#"
-                        icon={<Sparkles className="h-5 w-5" />}
-                        label="Weekend"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href="#"
-                        icon={<Mountain className="h-5 w-5" />}
-                        label="Snow"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href="#"
-                        icon={<Palmtree className="h-5 w-5" />}
-                        label="Beach"
+                        href="/profile"
+                        icon={<User className="h-5 w-5" />}
+                        label="Profile"
                         onClick={() => setMenuOpen(false)}
                     />
                 </nav>

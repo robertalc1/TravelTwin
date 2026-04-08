@@ -610,7 +610,19 @@ export default function TripDetailPage() {
             {/* Top Attractions */}
             <section>
               <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Attractions</h2>
-              <AttractionPhotos names={ai?.topAttractions || attractions} city={city} />
+              <AttractionPhotos
+                names={
+                  ai?.topAttractions?.length
+                    ? ai.topAttractions.map((a: any) => typeof a === 'string' ? a : a.name)
+                    : attractions
+                }
+                city={city}
+                descriptions={
+                  ai?.topAttractions?.length && typeof ai.topAttractions[0] !== 'string'
+                    ? Object.fromEntries(ai.topAttractions.map((a: any) => [a.name, a.description]))
+                    : undefined
+                }
+              />
             </section>
 
             {/* Map */}

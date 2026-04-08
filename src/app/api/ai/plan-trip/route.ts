@@ -41,7 +41,22 @@ export interface TripPackage {
       afternoon: { activity: string; description: string; type: string };
       evening: { activity: string; description: string; type: string };
     }>;
-    topAttractions: string[];
+    topAttractions: Array<{
+      name: string;
+      description: string;
+      category: 'museum' | 'landmark' | 'park' | 'other';
+    }>;
+    topRestaurants: Array<{
+      name: string;
+      cuisine: string;
+      priceRange: '€' | '€€' | '€€€';
+      description: string;
+    }>;
+    topCafes: Array<{
+      name: string;
+      specialty: string;
+      description: string;
+    }>;
     localTips: string[];
     estimatedDailyExpenses: { food: number; transport: number; activities: number };
   } | null;
@@ -209,7 +224,23 @@ Return ONLY valid JSON (no markdown, no backticks):
       "evening": { "activity": "...", "description": "...", "type": "dining" }
     }
   ],
-  "topAttractions": ["Name 1", "Name 2", "Name 3", "Name 4", "Name 5"],
+  "topAttractions": [
+    { "name": "...", "description": "One sentence about this attraction", "category": "museum|landmark|park|other" },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." }
+  ],
+  "topRestaurants": [
+    { "name": "...", "cuisine": "...", "priceRange": "€|€€|€€€", "description": "One sentence recommendation" },
+    { "name": "...", "cuisine": "...", "priceRange": "€€", "description": "..." },
+    { "name": "...", "cuisine": "...", "priceRange": "€€€", "description": "..." }
+  ],
+  "topCafes": [
+    { "name": "...", "specialty": "...", "description": "One sentence about the vibe" },
+    { "name": "...", "specialty": "...", "description": "..." },
+    { "name": "...", "specialty": "...", "description": "..." }
+  ],
   "localTips": ["Tip 1", "Tip 2", "Tip 3"],
   "estimatedDailyExpenses": { "food": 40, "transport": 15, "activities": 25 }
 }`;
@@ -223,7 +254,7 @@ Return ONLY valid JSON (no markdown, no backticks):
             },
             body: JSON.stringify({
               model: 'claude-sonnet-4-20250514',
-              max_tokens: 1500,
+              max_tokens: 2500,
               messages: [{ role: 'user', content: prompt }],
             }),
           });
@@ -299,7 +330,23 @@ function generateFallbackContent(dest: DestinationProfile, nights: number, style
       afternoon: { activity: `Explore ${dest.city} highlights`, description: 'Visit the top sights and local neighborhoods', type: 'sightseeing' },
       evening: { activity: 'Dinner at a local restaurant', description: `Enjoy the best of ${dest.country} cuisine`, type: 'dining' },
     })),
-    topAttractions: [`${dest.city} City Center`, `Local Museum`, `Traditional Market`, `Scenic Viewpoint`, `Historic Quarter`],
+    topAttractions: [
+      { name: `${dest.city} City Center`, description: 'The vibrant heart of the city with shops, cafes, and street life', category: 'landmark' as const },
+      { name: `Local History Museum`, description: `Discover ${dest.country}'s rich cultural heritage through fascinating exhibits`, category: 'museum' as const },
+      { name: `Traditional Market`, description: 'Browse local crafts, fresh produce, and authentic souvenirs', category: 'landmark' as const },
+      { name: `Scenic Viewpoint`, description: 'Panoramic views of the city skyline and surrounding landscape', category: 'park' as const },
+      { name: `Historic Quarter`, description: 'Wander through centuries of history in the old town streets', category: 'landmark' as const },
+    ],
+    topRestaurants: [
+      { name: `${dest.city} Table`, cuisine: 'Local cuisine', priceRange: '€€' as const, description: `Classic ${dest.country} dishes in a warm, welcoming setting` },
+      { name: 'Grand Terrace Restaurant', cuisine: 'Mediterranean', priceRange: '€€€' as const, description: 'Elegant dining with panoramic city views and seasonal menus' },
+      { name: 'Street Food Corner', cuisine: 'Street food', priceRange: '€' as const, description: 'Authentic local flavors and quick bites loved by locals' },
+    ],
+    topCafes: [
+      { name: 'Morning Brew Café', specialty: 'Specialty coffee & fresh pastries', description: 'The perfect spot for a slow morning with great coffee' },
+      { name: `${dest.city} Coffee House`, specialty: 'Local blends & light lunches', description: 'A beloved local institution with a relaxed atmosphere' },
+      { name: 'Artisan Roastery', specialty: 'Single-origin pour-overs', description: 'For the true coffee connoisseur seeking the finest roasts' },
+    ],
     localTips: [`Book popular restaurants in advance`, `Use local public transport to save money`, `Visit popular attractions early morning to avoid crowds`],
     estimatedDailyExpenses: { food: 35, transport: 15, activities: 25 },
   };
