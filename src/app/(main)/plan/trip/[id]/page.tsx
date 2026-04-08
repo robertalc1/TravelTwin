@@ -16,10 +16,12 @@ import {
   Sun,
   Moon,
   Utensils,
+  UtensilsCrossed,
   Camera,
   ExternalLink,
   Lightbulb,
   DollarSign,
+  Navigation,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import AttractionPhotos from "@/components/AttractionPhotos";
@@ -246,14 +248,64 @@ export default function TripDetailPage() {
             {ai?.topAttractions && ai.topAttractions.length > 0 && (
               <section>
                 <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Attractions</h2>
-                <AttractionPhotos names={ai.topAttractions} city={dest.city} />
+                <AttractionPhotos
+                  names={ai.topAttractions.map(a => a.name)}
+                  city={dest.city}
+                  descriptions={Object.fromEntries(ai.topAttractions.map(a => [a.name, a.description]))}
+                />
               </section>
             )}
 
-            {/* Map */}
+            {/* Top Restaurants & Cafes */}
+            {(ai?.topRestaurants?.length || ai?.topCafes?.length) ? (
+              <section>
+                <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Restaurants & Cafes</h2>
+                <div className="space-y-4">
+                  {ai.topRestaurants && ai.topRestaurants.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <UtensilsCrossed className="h-4 w-4 text-primary-500" />
+                        <span className="text-sm font-bold text-text-primary uppercase tracking-wider">Restaurants</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {ai.topRestaurants.map((r, i) => (
+                          <div key={i} className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-4">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <p className="font-semibold text-secondary-500 text-sm leading-tight">{r.name}</p>
+                              <span className="text-xs font-bold text-primary-500 shrink-0">{r.priceRange}</span>
+                            </div>
+                            <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1.5">{r.cuisine}</p>
+                            <p className="text-xs text-text-secondary leading-relaxed">{r.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {ai.topCafes && ai.topCafes.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Coffee className="h-4 w-4 text-primary-500" />
+                        <span className="text-sm font-bold text-text-primary uppercase tracking-wider">Cafes</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {ai.topCafes.map((c, i) => (
+                          <div key={i} className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-4">
+                            <p className="font-semibold text-secondary-500 text-sm mb-1">{c.name}</p>
+                            <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1.5">{c.specialty}</p>
+                            <p className="text-xs text-text-secondary leading-relaxed">{c.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : null}
+
+            {/* Explore the City */}
             <section>
-              <h2 className="text-xl font-bold text-secondary-500 mb-4">Map</h2>
-              <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default h-64 md:h-80">
+              <h2 className="text-xl font-bold text-secondary-500 mb-4">Explore the City</h2>
+              <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default h-64 md:h-80 mb-4">
                 <iframe
                   src={mapUrl}
                   width="100%"
@@ -263,9 +315,39 @@ export default function TripDetailPage() {
                   loading="lazy"
                 />
               </div>
-              <p className="text-xs text-text-muted mt-2 text-center">
-                {dest.city}, {dest.country} · {dest.latitude.toFixed(4)}°N, {dest.longitude.toFixed(4)}°E
-              </p>
+              {/* Waypoints */}
+              {(ai?.topAttractions?.length || ai?.topRestaurants?.length) ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                  {ai.topAttractions?.slice(0, 3).map((a, i) => (
+                    <div key={`a-${i}`} className="flex items-center gap-3 bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 text-xs font-bold shrink-0">{i + 1}</span>
+                      <Camera className="h-3.5 w-3.5 text-primary-400 shrink-0" />
+                      <span className="text-sm font-medium text-text-primary truncate">{a.name}</span>
+                    </div>
+                  ))}
+                  {ai.topRestaurants?.slice(0, 3).map((r, i) => (
+                    <div key={`r-${i}`} className="flex items-center gap-3 bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-600 text-xs font-bold shrink-0">{i + 1}</span>
+                      <UtensilsCrossed className="h-3.5 w-3.5 text-secondary-400 shrink-0" />
+                      <span className="text-sm font-medium text-text-primary truncate">{r.name}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-text-muted">
+                  {dest.city}, {dest.country} · {dest.latitude.toFixed(4)}°N, {dest.longitude.toFixed(4)}°E
+                </p>
+                <a
+                  href={`https://www.google.com/maps/search/${encodeURIComponent(dest.city + (ai?.topAttractions?.[0]?.name ? ' ' + ai.topAttractions[0].name : ''))}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                  Open in Google Maps
+                </a>
+              </div>
             </section>
 
             {/* Local Tips */}

@@ -13,8 +13,6 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
-
 // Travel style options
 const TRAVEL_STYLES = [
   { id: "beach", emoji: "🏖", label: "Beach & Relaxation" },
@@ -89,8 +87,8 @@ export default function PlanPage() {
   const [error, setError] = useState("");
 
   const [state, setState] = useState<PlanState>({
-    originIata: "",
-    originDisplay: "",
+    originIata: "OTP",
+    originDisplay: "Bucharest",
     budget: 1500,
     currency: "EUR",
     departureDate: defaultDep,
@@ -196,7 +194,7 @@ export default function PlanPage() {
       clearInterval(progressInterval);
       setAiLoading(false);
       setError(e.message || "Something went wrong. Please try again.");
-      setStep(4); // back to last step
+      setStep(3); // back to last step
     }
   }
 
@@ -237,7 +235,7 @@ export default function PlanPage() {
     );
   }
 
-  const totalSteps = 5;
+  const totalSteps = 4;
   const progress = ((step + 1) / totalSteps) * 100;
 
   return (
@@ -259,52 +257,10 @@ export default function PlanPage() {
 
         <div className="w-full max-w-2xl relative overflow-hidden">
           <AnimatePresence custom={direction} mode="wait">
-            {/* STEP 0: Origin */}
+            {/* STEP 1 OF 4: Budget */}
             {step === 0 && (
               <motion.div
                 key="step0"
-                custom={direction}
-                variants={slideVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={{ duration: 0.35, ease: "easeInOut" }}
-                className="text-center"
-              >
-                <div className="text-5xl mb-4">🌍</div>
-                <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  Hey! I&apos;m your TravelTwin AI agent
-                </h2>
-                <p className="text-text-secondary mb-10 text-lg">
-                  Let&apos;s find your perfect trip. First, where are you flying from?
-                </p>
-                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6 text-left">
-                  <p className="text-sm font-semibold text-text-primary mb-2">Departure city</p>
-                  <LocationAutocomplete
-                    value={state.originIata}
-                    displayValue={state.originDisplay}
-                    onSelect={(iata, display) => {
-                      set("originIata", iata);
-                      set("originDisplay", display);
-                    }}
-                    placeholder="Your departure city..."
-                    icon="origin"
-                  />
-                </div>
-                <button
-                  onClick={goNext}
-                  disabled={!state.originIata}
-                  className="mt-8 inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
-                >
-                  Next <ArrowRight className="h-5 w-5" />
-                </button>
-              </motion.div>
-            )}
-
-            {/* STEP 1: Budget */}
-            {step === 1 && (
-              <motion.div
-                key="step1"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -324,8 +280,9 @@ export default function PlanPage() {
                   {/* Budget display */}
                   <div className="text-center mb-6">
                     <span className="text-5xl font-extrabold text-primary-500">
-                      {state.currency === "EUR" ? "€" : state.currency === "USD" ? "$" : state.currency === "GBP" ? "£" : ""}
+                      {state.currency === "EUR" ? "€" : state.currency === "USD" ? "$" : ""}
                       {state.budget.toLocaleString()}
+                      {state.currency === "RON" ? " RON" : ""}
                     </span>
                   </div>
 
@@ -345,7 +302,7 @@ export default function PlanPage() {
 
                   {/* Currency selector */}
                   <div className="flex justify-center gap-3">
-                    {["EUR", "USD", "GBP", "RON"].map(c => (
+                    {["EUR", "USD", "RON"].map(c => (
                       <button
                         key={c}
                         onClick={() => set("currency", c)}
@@ -358,9 +315,6 @@ export default function PlanPage() {
                 </div>
 
                 <div className="flex justify-center gap-4 mt-8">
-                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Back
-                  </button>
                   <button onClick={goNext} className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg">
                     Next <ArrowRight className="h-5 w-5" />
                   </button>
@@ -368,10 +322,10 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 2: When & How Long */}
-            {step === 2 && (
+            {/* STEP 2 OF 4: When & How Long */}
+            {step === 1 && (
               <motion.div
-                key="step2"
+                key="step1"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -457,10 +411,10 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 3: Travel Style & Climate */}
-            {step === 3 && (
+            {/* STEP 3 OF 4: Travel Style & Climate */}
+            {step === 2 && (
               <motion.div
-                key="step3"
+                key="step2"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -533,10 +487,10 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 4: Priorities */}
-            {step === 4 && (
+            {/* STEP 4 OF 4: Priorities */}
+            {step === 3 && (
               <motion.div
-                key="step4"
+                key="step3"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"

@@ -6,9 +6,10 @@ import { Camera, ExternalLink } from "lucide-react";
 interface Props {
   names: string[];
   city: string;
+  descriptions?: Record<string, string>;
 }
 
-export default function AttractionPhotos({ names, city }: Props) {
+export default function AttractionPhotos({ names, city, descriptions }: Props) {
   const [images, setImages] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
@@ -40,13 +41,17 @@ export default function AttractionPhotos({ names, city }: Props) {
                 src={imgSrc}
                 alt={name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/30 dark:to-primary-800/20">
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/30 dark:to-primary-800/20">
                 {loading ? (
                   <div className="h-6 w-6 rounded-full border-2 border-primary-300 border-t-primary-500 animate-spin" />
                 ) : (
-                  <Camera className="h-8 w-8 text-primary-400" />
+                  <>
+                    <Camera className="h-10 w-10 text-primary-300 dark:text-primary-600" strokeWidth={1.5} />
+                    <span className="text-xs text-primary-400 dark:text-primary-500 font-medium">No photo</span>
+                  </>
                 )}
               </div>
             )}
@@ -58,6 +63,14 @@ export default function AttractionPhotos({ names, city }: Props) {
               </span>
               <ExternalLink className="h-3 w-3 text-white/70 shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
+            {/* Description tooltip */}
+            {descriptions?.[name] && (
+              <div className="absolute top-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <p className="text-[10px] text-white/90 bg-black/50 rounded-lg px-2 py-1 leading-snug line-clamp-2 backdrop-blur-sm">
+                  {descriptions[name]}
+                </p>
+              </div>
+            )}
           </a>
         );
       })}
