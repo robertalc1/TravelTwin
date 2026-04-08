@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, CreditCard, User, Lock, Plane, Hotel, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import type { TripDetail } from "@/lib/tripDetail";
 
 /* ── Types ── */
 interface TravelerInfo {
@@ -38,10 +39,23 @@ function StepIndicator({ step, current }: { step: number; current: number }) {
 /* ── Booking steps ── */
 const STEPS = ["Review", "Traveler Details", "Payment", "Confirmed"];
 
+function fmtTime(iso: string) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); }
+  catch { return iso.slice(11, 16) || ''; }
+}
+
+function fmtDate(iso: string) {
+  if (!iso) return '';
+  try { return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+  catch { return iso; }
+}
+
 export default function BookingSimulatePage() {
   const [step, setStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [bookingRef] = useState(() => "TW-" + Math.random().toString(36).substring(2, 8).toUpperCase());
+  const [bookingTrip, setBookingTrip] = useState<TripDetail | null>(null);
 
   const [traveler, setTraveler] = useState<TravelerInfo>({
     firstName: "", lastName: "", email: "", phone: "", dateOfBirth: "", passportNumber: "",
@@ -50,18 +64,36 @@ export default function BookingSimulatePage() {
     cardNumber: "", expiry: "", cvc: "", cardholderName: "",
   });
 
-  // Mock trip data (in real app, read from sessionStorage)
+  useEffect(() => {
+    const stored = sessionStorage.getItem('bookingTrip');
+    if (stored) {
+      try { setBookingTrip(JSON.parse(stored)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // Derive display values from bookingTrip or use fallbacks
+  const sym = bookingTrip?.currency === 'EUR' ? '€' : bookingTrip?.currency === 'USD' ? '$' : (bookingTrip?.currency || 'EUR') + ' ';
   const tripData = {
-    destination: "London",
-    destinationCode: "LHR",
-    origin: "Bucharest",
-    dates: "Mar 22 – Mar 29, 2026",
-    nights: 7,
-    travelers: 1,
-    flight: { airline: "Blue Air", departure: "07:30", arrival: "10:45", price: 189 },
-    hotel: { name: "Premier Inn London City", stars: 3, pricePerNight: 95, total: 665 },
-    totalPrice: 854,
-    currency: "EUR",
+    destination: bookingTrip?.destinationCity || 'Destination',
+    origin: 'Bucharest',
+    dates: bookingTrip
+      ? `${fmtDate(bookingTrip.departureDate)} – ${fmtDate(bookingTrip.returnDate) || (bookingTrip.nights + ' nights')}`
+      : '',
+    nights: bookingTrip?.nights || 0,
+    flight: {
+      airline: bookingTrip?.airline || '',
+      departure: fmtTime(bookingTrip?.departureTime || ''),
+      arrival: fmtTime(bookingTrip?.arrivalTime || ''),
+      price: bookingTrip?.flightPrice || 0,
+    },
+    hotel: {
+      name: bookingTrip?.hotelName || '',
+      stars: bookingTrip?.hotelStars || 0,
+      pricePerNight: bookingTrip?.hotelPricePerNight || 0,
+      total: bookingTrip?.hotelPrice || 0,
+    },
+    totalPrice: bookingTrip?.totalPrice || 0,
+    currency: bookingTrip?.currency || 'EUR',
   };
 
   function formatCardNumber(val: string) {
@@ -79,6 +111,10 @@ export default function BookingSimulatePage() {
     setProcessing(true);
     await new Promise((r) => setTimeout(r, 3000));
     setProcessing(false);
+    // Save trip data under booking ref so share page can load it
+    if (bookingTrip) {
+      sessionStorage.setItem(`booking_${bookingRef}`, JSON.stringify(bookingTrip));
+    }
     setStep(4);
   }
 
@@ -111,7 +147,7 @@ export default function BookingSimulatePage() {
             </div>
             <div>
               <p className="font-bold text-text-primary">{tripData.origin} → {tripData.destination}</p>
-              <p className="text-sm text-text-secondary">{tripData.dates} · {tripData.nights} nights · {tripData.travelers} traveler</p>
+              <p className="text-sm text-text-secondary">{tripData.dates} · {tripData.nights} nights · 1 traveler</p>
             </div>
           </div>
 
@@ -121,18 +157,18 @@ export default function BookingSimulatePage() {
                 <Plane className="h-4 w-4" />
                 Flight ({tripData.flight.airline}) {tripData.flight.departure} → {tripData.flight.arrival}
               </div>
-              <span className="font-semibold text-text-primary">{tripData.currency} {tripData.flight.price}</span>
+              <span className="font-semibold text-text-primary">{sym}{tripData.flight.price}</span>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2 text-sm text-text-secondary">
                 <Hotel className="h-4 w-4" />
                 {tripData.hotel.name} ({tripData.hotel.stars}★) × {tripData.nights} nights
               </div>
-              <span className="font-semibold text-text-primary">{tripData.currency} {tripData.hotel.total}</span>
+              <span className="font-semibold text-text-primary">{sym}{tripData.hotel.total}</span>
             </div>
             <div className="border-t border-neutral-100 dark:border-border-default pt-3 flex justify-between items-center">
               <span className="font-bold text-text-primary">Total</span>
-              <span className="text-xl font-bold text-primary-500">{tripData.currency} {tripData.totalPrice}</span>
+              <span className="text-xl font-bold text-primary-500">{sym}{tripData.totalPrice}</span>
             </div>
           </div>
         </div>
@@ -305,7 +341,7 @@ export default function BookingSimulatePage() {
         {/* Price summary */}
         <div className="rounded-xl bg-neutral-50 dark:bg-surface-elevated border border-neutral-200 dark:border-border-default px-4 py-3 mb-6 flex justify-between items-center">
           <span className="text-sm text-text-secondary">Total due today</span>
-          <span className="text-xl font-bold text-text-primary">{tripData.currency} {tripData.totalPrice}</span>
+          <span className="text-xl font-bold text-text-primary">{sym}{tripData.totalPrice}</span>
         </div>
 
         <Button
@@ -323,7 +359,7 @@ export default function BookingSimulatePage() {
             </span>
           ) : (
             <>
-              <Lock className="mr-2 h-4 w-4" /> Pay {tripData.currency} {tripData.totalPrice}
+              <Lock className="mr-2 h-4 w-4" /> Pay {sym}{tripData.totalPrice}
             </>
           )}
         </Button>
@@ -370,7 +406,7 @@ export default function BookingSimulatePage() {
           </div>
           <div className="flex justify-between text-sm pt-3 border-t border-neutral-100 dark:border-border-default">
             <span className="font-bold text-text-primary">Total Paid</span>
-            <span className="font-bold text-primary-500">{tripData.currency} {tripData.totalPrice}</span>
+            <span className="font-bold text-primary-500">{sym}{tripData.totalPrice}</span>
           </div>
         </div>
 
