@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Plane,
   Hotel,
   ArrowLeft,
-  Clock,
   MapPin,
   Star,
-  Users,
   Calendar,
   Coffee,
   Sun,
@@ -20,11 +19,23 @@ import {
   Camera,
   ExternalLink,
   Lightbulb,
-  DollarSign,
   Navigation,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import AttractionPhotos from "@/components/AttractionPhotos";
+
+const InteractiveMap = dynamic(
+  () => import("@/components/InteractiveMap"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[500px] rounded-2xl bg-neutral-100 dark:bg-surface-elevated animate-pulse flex flex-col items-center justify-center gap-3">
+        <div className="h-8 w-8 rounded-full border-[3px] border-neutral-200 border-t-primary-500 animate-spin" />
+        <p className="text-sm text-text-muted">Loading map...</p>
+      </div>
+    ),
+  }
+);
 
 const timeIcons: Record<string, any> = {
   transport: Plane,
@@ -52,6 +63,7 @@ export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
   const [pkg, setPkg] = useState<TripPackage | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
 
   useEffect(() => {
     const id = params?.id as string;
@@ -91,7 +103,6 @@ export default function TripDetailPage() {
   const dest = pkg.destination;
   const ai = pkg.aiContent;
   const heroUrl = `https://images.unsplash.com/${dest.imageId}?w=1600&h=700&fit=crop&q=85`;
-  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${dest.longitude - 0.1},${dest.latitude - 0.1},${dest.longitude + 0.1},${dest.latitude + 0.1}&layer=mapnik&marker=${dest.latitude},${dest.longitude}`;
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
@@ -252,101 +263,141 @@ export default function TripDetailPage() {
                   names={ai.topAttractions.map(a => a.name)}
                   city={dest.city}
                   descriptions={Object.fromEntries(ai.topAttractions.map(a => [a.name, a.description]))}
+                  onSelectPlace={setSelectedPlace}
+                  selectedPlace={selectedPlace}
                 />
               </section>
             )}
 
-            {/* Top Restaurants & Cafes */}
-            {(ai?.topRestaurants?.length || ai?.topCafes?.length) ? (
-              <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Restaurants & Cafes</h2>
-                <div className="space-y-4">
-                  {ai.topRestaurants && ai.topRestaurants.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <UtensilsCrossed className="h-4 w-4 text-primary-500" />
-                        <span className="text-sm font-bold text-text-primary uppercase tracking-wider">Restaurants</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {ai.topRestaurants.map((r, i) => (
-                          <div key={i} className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-4">
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <p className="font-semibold text-secondary-500 text-sm leading-tight">{r.name}</p>
-                              <span className="text-xs font-bold text-primary-500 shrink-0">{r.priceRange}</span>
-                            </div>
-                            <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1.5">{r.cuisine}</p>
-                            <p className="text-xs text-text-secondary leading-relaxed">{r.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {ai.topCafes && ai.topCafes.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Coffee className="h-4 w-4 text-primary-500" />
-                        <span className="text-sm font-bold text-text-primary uppercase tracking-wider">Cafes</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {ai.topCafes.map((c, i) => (
-                          <div key={i} className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-4">
-                            <p className="font-semibold text-secondary-500 text-sm mb-1">{c.name}</p>
-                            <p className="text-xs text-primary-600 dark:text-primary-400 font-medium mb-1.5">{c.specialty}</p>
-                            <p className="text-xs text-text-secondary leading-relaxed">{c.description}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            ) : null}
-
-            {/* Explore the City */}
+            {/* Explore the City — Interactive Map */}
             <section>
-              <h2 className="text-xl font-bold text-secondary-500 mb-4">Explore the City</h2>
-              <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default h-64 md:h-80 mb-4">
-                <iframe
-                  src={mapUrl}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  title={`Map of ${dest.city}`}
-                  loading="lazy"
-                />
-              </div>
-              {/* Waypoints */}
-              {(ai?.topAttractions?.length || ai?.topRestaurants?.length) ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                  {ai.topAttractions?.slice(0, 3).map((a, i) => (
-                    <div key={`a-${i}`} className="flex items-center gap-3 bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 dark:bg-primary-900/30 text-primary-600 text-xs font-bold shrink-0">{i + 1}</span>
-                      <Camera className="h-3.5 w-3.5 text-primary-400 shrink-0" />
-                      <span className="text-sm font-medium text-text-primary truncate">{a.name}</span>
-                    </div>
-                  ))}
-                  {ai.topRestaurants?.slice(0, 3).map((r, i) => (
-                    <div key={`r-${i}`} className="flex items-center gap-3 bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5">
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary-100 dark:bg-secondary-900/30 text-secondary-600 text-xs font-bold shrink-0">{i + 1}</span>
-                      <UtensilsCrossed className="h-3.5 w-3.5 text-secondary-400 shrink-0" />
-                      <span className="text-sm font-medium text-text-primary truncate">{r.name}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-text-muted">
-                  {dest.city}, {dest.country} · {dest.latitude.toFixed(4)}°N, {dest.longitude.toFixed(4)}°E
-                </p>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-secondary-500">Explore the City</h2>
                 <a
                   href={`https://www.google.com/maps/search/${encodeURIComponent(dest.city + (ai?.topAttractions?.[0]?.name ? ' ' + ai.topAttractions[0].name : ''))}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
                 >
                   <Navigation className="h-3.5 w-3.5" />
                   Open in Google Maps
                 </a>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+                {/* Left — Interactive Leaflet map (60%) */}
+                <div className="lg:col-span-3 space-y-2 lg:sticky lg:top-24">
+                  <InteractiveMap
+                    centerLat={dest.latitude}
+                    centerLon={dest.longitude}
+                    cityName={dest.city}
+                    attractions={ai?.topAttractions || []}
+                    restaurants={ai?.topRestaurants || []}
+                    cafes={ai?.topCafes || []}
+                    selectedPlace={selectedPlace}
+                    onSelectPlace={setSelectedPlace}
+                  />
+                  <p className="text-xs text-text-muted text-center">
+                    {dest.city}, {dest.country} · {dest.latitude.toFixed(4)}°N, {dest.longitude.toFixed(4)}°E
+                  </p>
+                </div>
+
+                {/* Right — Scrollable place list (40%) */}
+                <div className="lg:col-span-2 max-h-[500px] overflow-y-auto space-y-4 pr-0.5">
+
+                  {/* Attractions */}
+                  {ai?.topAttractions && ai.topAttractions.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1">
+                        <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Attractions</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ai.topAttractions.map((a, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSelectedPlace(selectedPlace === a.name ? null : a.name)}
+                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
+                              selectedPlace === a.name
+                                ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200"
+                                : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50"
+                            }`}
+                          >
+                            <p className="font-semibold text-secondary-500 text-sm pr-6">{a.name}</p>
+                            <p className="text-xs text-text-muted capitalize mt-0.5">{a.category}</p>
+                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
+                              selectedPlace === a.name ? "text-primary-500 opacity-100" : "text-text-muted opacity-0 group-hover:opacity-50"
+                            }`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Restaurants */}
+                  {ai?.topRestaurants && ai.topRestaurants.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1">
+                        <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" />
+                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Restaurants</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ai.topRestaurants.map((r, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSelectedPlace(selectedPlace === r.name ? null : r.name)}
+                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
+                              selectedPlace === r.name
+                                ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200"
+                                : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between pr-6">
+                              <p className="font-semibold text-secondary-500 text-sm">{r.name}</p>
+                              <span className="text-xs font-bold text-green-600 shrink-0">{r.priceRange}</span>
+                            </div>
+                            <p className="text-xs text-text-muted mt-0.5">{r.cuisine}</p>
+                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
+                              selectedPlace === r.name ? "text-primary-500 opacity-100" : "text-text-muted opacity-0 group-hover:opacity-50"
+                            }`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cafes */}
+                  {ai?.topCafes && ai.topCafes.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1">
+                        <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" />
+                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Cafes</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {ai.topCafes.map((c, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setSelectedPlace(selectedPlace === c.name ? null : c.name)}
+                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
+                              selectedPlace === c.name
+                                ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200"
+                                : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50"
+                            }`}
+                          >
+                            <p className="font-semibold text-secondary-500 text-sm pr-6">{c.name}</p>
+                            <p className="text-xs text-text-muted mt-0.5">{c.specialty}</p>
+                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
+                              selectedPlace === c.name ? "text-primary-500 opacity-100" : "text-text-muted opacity-0 group-hover:opacity-50"
+                            }`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </section>
 

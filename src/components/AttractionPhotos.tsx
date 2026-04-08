@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Camera, ExternalLink } from "lucide-react";
+import { Camera, ExternalLink, MapPin } from "lucide-react";
 
 interface Props {
   names: string[];
   city: string;
   descriptions?: Record<string, string>;
+  onSelectPlace?: (name: string) => void;
+  selectedPlace?: string | null;
 }
 
-export default function AttractionPhotos({ names, city, descriptions }: Props) {
+export default function AttractionPhotos({ names, city, descriptions, onSelectPlace, selectedPlace }: Props) {
   const [images, setImages] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +36,12 @@ export default function AttractionPhotos({ names, city, descriptions }: Props) {
             href={`https://en.wikipedia.org/wiki/${encodeURIComponent(name)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative rounded-xl overflow-hidden aspect-[4/3] bg-neutral-200 dark:bg-surface border border-neutral-200 dark:border-border-default shadow-sm hover:shadow-lg transition-shadow"
+            onClick={() => onSelectPlace?.(name)}
+            className={`group relative rounded-xl overflow-hidden aspect-[4/3] bg-neutral-200 dark:bg-surface shadow-sm hover:shadow-lg transition-all border-2 ${
+              selectedPlace === name
+                ? "border-primary-500 ring-2 ring-primary-200"
+                : "border-neutral-200 dark:border-border-default hover:border-primary-300"
+            }`}
           >
             {imgSrc ? (
               <img
@@ -69,6 +76,14 @@ export default function AttractionPhotos({ names, city, descriptions }: Props) {
                 <p className="text-[10px] text-white/90 bg-black/50 rounded-lg px-2 py-1 leading-snug line-clamp-2 backdrop-blur-sm">
                   {descriptions[name]}
                 </p>
+              </div>
+            )}
+            {/* Show on map indicator */}
+            {onSelectPlace && (
+              <div className={`absolute top-2 right-2 transition-opacity duration-200 ${selectedPlace === name ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                <div className="bg-orange-500 rounded-full p-1 shadow-md" title="Show on map">
+                  <MapPin className="h-2.5 w-2.5 text-white" />
+                </div>
               </div>
             )}
           </a>
