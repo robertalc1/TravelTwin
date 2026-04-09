@@ -167,7 +167,10 @@ export async function POST(req: NextRequest) {
         : 0;
       const totalPrice = flightPrice + hotelPrice;
 
-      if (totalPrice > budget * 1.15) continue; // Skip if >15% over budget
+      // Skip pachete fără prețuri reale de la API
+      if (totalPrice === 0) continue;
+      // Skip pachete care depășesc bugetul cu 15%
+      if (totalPrice > budget * 1.15) continue;
 
       // Build normalized flight info
       const flight = flightData ? buildFlightInfo(flightData) : null;
