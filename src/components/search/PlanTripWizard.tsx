@@ -329,7 +329,7 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
           Step {step + 1} of {totalSteps}
         </p>
 
-        <div className="w-full max-w-2xl relative overflow-hidden">
+        <div className="w-full max-w-2xl relative">
           <AnimatePresence custom={direction} mode="wait">
             {/* ═══ STEP 1: Departing from ═══ */}
             {step === 0 && (

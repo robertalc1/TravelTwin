@@ -105,8 +105,8 @@ export function LocationAutocomplete({
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute z-[9999] mt-1 w-full rounded-radius-md border border-border-default bg-surface shadow-lg max-h-60 overflow-y-auto">
-          {results.map((loc, i) => (
+        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface shadow-xl max-h-80 overflow-y-auto">
+          {results.slice(0, 8).map((loc, i) => (
             <button
               key={`${loc.iataCode}-${i}`}
               onClick={() => handleSelect(loc)}
