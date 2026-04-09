@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, CreditCard, User, Lock, Plane, Hotel, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { TripDetail } from "@/lib/tripDetail";
@@ -52,6 +53,7 @@ function fmtDate(iso: string) {
 }
 
 export default function BookingSimulatePage() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [bookingRef] = useState(() => "TW-" + Math.random().toString(36).substring(2, 8).toUpperCase());
@@ -71,14 +73,21 @@ export default function BookingSimulatePage() {
     }
   }, []);
 
-  // Derive display values from bookingTrip or use fallbacks
+  // Derive display values from bookingTrip (a full TripDetail object) or use fallbacks
   const sym = bookingTrip?.currency === 'EUR' ? '€' : bookingTrip?.currency === 'USD' ? '$' : (bookingTrip?.currency || 'EUR') + ' ';
+  const displayDestination = bookingTrip?.destinationCity || bookingTrip?.destinationCode || 'Your Destination';
+  const displayDates = bookingTrip
+    ? bookingTrip.returnDate
+      ? `${fmtDate(bookingTrip.departureDate)} – ${fmtDate(bookingTrip.returnDate)}`
+      : bookingTrip.departureDate
+        ? `${fmtDate(bookingTrip.departureDate)} · ${bookingTrip.nights} nights`
+        : `${bookingTrip.nights} nights`
+    : '';
+  const displayRoute = `Bucharest → ${displayDestination}`;
   const tripData = {
-    destination: bookingTrip?.destinationCity || 'Destination',
+    destination: displayDestination,
     origin: 'Bucharest',
-    dates: bookingTrip
-      ? `${fmtDate(bookingTrip.departureDate)} – ${fmtDate(bookingTrip.returnDate) || (bookingTrip.nights + ' nights')}`
-      : '',
+    dates: displayDates,
     nights: bookingTrip?.nights || 0,
     flight: {
       airline: bookingTrip?.airline || '',
@@ -114,6 +123,15 @@ export default function BookingSimulatePage() {
     // Save trip data under booking ref so share page can load it
     if (bookingTrip) {
       sessionStorage.setItem(`booking_${bookingRef}`, JSON.stringify(bookingTrip));
+      // Also save under trip_{id} so /plan/trip/[id] can load it if needed
+      if (bookingTrip.id) {
+        sessionStorage.setItem(`trip_${bookingTrip.id}`, JSON.stringify({
+          destination: { iata: bookingTrip.destinationCode, city: bookingTrip.destinationCity, country: bookingTrip.destinationCountry },
+          flight: { price: bookingTrip.flightPrice, airline: bookingTrip.airline, airlineCode: bookingTrip.airlineCode, departureTime: bookingTrip.departureTime, arrivalTime: bookingTrip.arrivalTime, duration: bookingTrip.duration, stops: bookingTrip.stops },
+          hotel: { name: bookingTrip.hotelName, stars: bookingTrip.hotelStars, price: bookingTrip.hotelPrice, pricePerNight: bookingTrip.hotelPricePerNight, checkIn: bookingTrip.departureDate, checkOut: bookingTrip.returnDate },
+          totalPrice: bookingTrip.totalPrice, currency: bookingTrip.currency, nights: bookingTrip.nights, aiContent: bookingTrip.aiContent,
+        }));
+      }
     }
     setStep(4);
   }
@@ -380,7 +398,7 @@ export default function BookingSimulatePage() {
 
         <h1 className="text-3xl font-bold text-text-primary mb-2">Booking Confirmed!</h1>
         <p className="text-text-secondary mb-2">
-          Get ready for {tripData.destination}!
+          Get ready for {displayDestination}!
         </p>
         <p className="text-sm text-text-muted mb-8">
           Confirmation email sent to {traveler.email || "your email"}
@@ -393,12 +411,12 @@ export default function BookingSimulatePage() {
             <span className="font-mono font-bold text-primary-500 text-lg">{bookingRef}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">Destination</span>
-            <span className="font-medium text-text-primary">{tripData.origin} → {tripData.destination}</span>
+            <span className="text-text-secondary">Route</span>
+            <span className="font-medium text-text-primary">{displayRoute}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Dates</span>
-            <span className="font-medium text-text-primary">{tripData.dates}</span>
+            <span className="font-medium text-text-primary">{displayDates || `${tripData.nights} nights`}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-text-secondary">Passenger</span>
@@ -412,12 +430,12 @@ export default function BookingSimulatePage() {
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <Link
-            href={`/trips/share/${bookingRef}`}
+          <button
+            onClick={() => router.push(`/trips/share/${bookingRef}`)}
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-3 text-sm font-semibold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
           >
             View Itinerary
-          </Link>
+          </button>
           <Link
             href="/plan"
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 py-3 text-sm font-bold text-white hover:bg-primary-600 transition-colors"

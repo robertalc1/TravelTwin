@@ -74,28 +74,8 @@ export default function TripDetailView({
     : 0;
 
   function handleBook() {
-    sessionStorage.setItem('bookingTrip', JSON.stringify({
-      origin: 'OTP',
-      destination: trip.destinationCity,
-      dates: `${trip.departureDate} – ${trip.returnDate}`,
-      nights: trip.nights,
-      travelers: 1,
-      currency: trip.currency,
-      totalPrice: trip.totalPrice,
-      flight: {
-        airline: trip.airline,
-        airlineCode: trip.airlineCode,
-        from: 'OTP',
-        to: trip.destinationCode,
-        departureTime: trip.departureTime,
-        arrivalTime: trip.arrivalTime,
-      },
-      hotel: {
-        name: trip.hotelName,
-        stars: trip.hotelStars,
-        pricePerNight: trip.hotelPricePerNight,
-      },
-    }));
+    // Save full TripDetail object so booking/simulate can read all flat fields correctly
+    sessionStorage.setItem('bookingTrip', JSON.stringify(trip));
     router.push('/booking/simulate');
   }
 
