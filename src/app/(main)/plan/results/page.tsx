@@ -21,6 +21,7 @@ export default function PlanResultsPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<TripPackage[]>([]);
   const [params, setParams] = useState<any>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("planResults");
@@ -31,14 +32,42 @@ export default function PlanResultsPage() {
     const { packages: pkgs, params: p } = JSON.parse(stored);
     setPackages(pkgs || []);
     setParams(p);
+    setLoaded(true);
   }, [router]);
 
-  if (!packages.length) {
+  if (!loaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
           <div className="text-4xl mb-4">✈️</div>
           <p className="text-text-secondary">Loading your trips...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (packages.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="text-6xl mb-6">✈️</div>
+          <h2 className="text-2xl font-bold text-secondary-500 mb-3">
+            No flights available for these dates
+          </h2>
+          <p className="text-text-secondary mb-2 max-w-md mx-auto">
+            We searched live prices but couldn{"'"}t find available
+            flights and hotels for your selected dates and budget.
+          </p>
+          <p className="text-sm text-text-muted mb-8 max-w-sm mx-auto">
+            Try selecting dates at least 2 weeks in the future,
+            or increase your budget slightly.
+          </p>
+          <button
+            onClick={() => router.push("/plan")}
+            className="rounded-full bg-primary-500 px-8 py-3 font-semibold text-white hover:bg-primary-600 transition-all"
+          >
+            ← Try Different Dates
+          </button>
         </div>
       </div>
     );
