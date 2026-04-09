@@ -189,9 +189,32 @@ export default function TripDetailPage() {
       return;
     }
 
-    buildTripDetail(id, rawData).then((detail) => {
+    buildTripDetail(id, rawData).then(async (detail) => {
       setTripDetail(detail);
       setLoading(false);
+
+      // If no AI content, fetch itinerary so the page matches Plan My Trip results
+      if (!detail.aiContent) {
+        try {
+          const res = await fetch('/api/itinerary/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              city: detail.destinationCity,
+              country: detail.destinationCountry,
+              nights: detail.nights,
+              travelStyles: [],
+              budget: detail.totalPrice,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.itinerary) {
+              setTripDetail(prev => prev ? { ...prev, aiContent: data.itinerary } : prev);
+            }
+          }
+        } catch { /* ignore – itinerary is optional */ }
+      }
     });
   }, [params, router]);
 
