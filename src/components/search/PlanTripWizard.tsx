@@ -110,7 +110,6 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
     priorities: [],
   });
 
-  // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -139,8 +138,11 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
   function updateNights(n: number) {
     const dep = new Date(state.departureDate);
     const ret = new Date(dep.getTime() + n * 24 * 60 * 60 * 1000);
-    set("nights", n);
-    set("returnDate", ret.toISOString().split("T")[0]);
+    setState((prev) => ({
+      ...prev,
+      nights: n,
+      returnDate: ret.toISOString().split("T")[0],
+    }));
   }
 
   function toggleStyle(id: string) {
@@ -238,16 +240,16 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
       clearInterval(progressInterval);
       setAiLoading(false);
       setError(e.message || "Something went wrong. Please try again.");
-      setStep(3);
+      setStep(4);
     }
   }
 
   if (!isOpen) return null;
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   const progress = ((step + 1) / totalSteps) * 100;
 
-  // Loading overlay
+  /* ── Loading overlay ── */
   if (aiLoading) {
     return (
       <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-secondary-500 via-secondary-600 to-primary-600 flex items-center justify-center">
@@ -289,7 +291,7 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col bg-white dark:bg-background">
+    <div className="fixed inset-0 z-[9999] flex flex-col bg-neutral-50 dark:bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface shrink-0">
         <div className="flex items-center gap-3">
@@ -321,11 +323,15 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
         />
       </div>
 
-      {/* Steps content */}
+      {/* Steps */}
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 overflow-y-auto">
-        <div className="w-full max-w-2xl relative">
+        <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-8">
+          Step {step + 1} of {totalSteps}
+        </p>
+
+        <div className="w-full max-w-2xl relative overflow-hidden">
           <AnimatePresence custom={direction} mode="wait">
-            {/* ═══ STEP 1: Where from ═══ */}
+            {/* ═══ STEP 1: Departing from ═══ */}
             {step === 0 && (
               <motion.div
                 key="step0"
@@ -382,7 +388,7 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
               </motion.div>
             )}
 
-            {/* ═══ STEP 2: Budget & Dates ═══ */}
+            {/* ═══ STEP 2: Budget ═══ */}
             {step === 1 && (
               <motion.div
                 key="step1"
@@ -396,53 +402,91 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
               >
                 <div className="text-5xl mb-4">💰</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  Budget & travel dates
+                  What&apos;s your total budget?
                 </h2>
-                <p className="text-text-secondary mb-8 text-lg">
-                  Set your budget and when you want to travel
+                <p className="text-text-secondary mb-10 text-lg">
+                  Including flights and hotel for all travelers
                 </p>
-                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8 space-y-6">
-                  {/* Budget */}
-                  <div>
-                    <div className="text-center mb-4">
-                      <span className="text-4xl font-extrabold text-primary-500">
-                        {state.currency === "EUR"
-                          ? "€"
-                          : state.currency === "USD"
-                            ? "$"
-                            : ""}
-                        {state.budget.toLocaleString()}
-                        {state.currency === "RON" ? " RON" : ""}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min={200}
-                      max={10000}
-                      step={100}
-                      value={state.budget}
-                      onChange={(e) => set("budget", parseInt(e.target.value))}
-                      className="w-full accent-primary-500 mb-2"
-                    />
-                    <div className="flex justify-between text-xs text-text-muted mb-4">
-                      <span>€200</span>
-                      <span>€10,000</span>
-                    </div>
-                    <div className="flex justify-center gap-2">
-                      {["EUR", "USD", "RON"].map((c) => (
-                        <button
-                          key={c}
-                          onClick={() => set("currency", c)}
-                          className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${state.currency === c ? "bg-primary-500 text-white" : "bg-neutral-100 text-text-secondary hover:bg-neutral-200 dark:bg-surface-elevated"}`}
-                        >
-                          {c}
-                        </button>
-                      ))}
-                    </div>
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8">
+                  {/* Budget display */}
+                  <div className="text-center mb-6">
+                    <span className="text-5xl font-extrabold text-primary-500">
+                      {state.currency === "EUR"
+                        ? "€"
+                        : state.currency === "USD"
+                          ? "$"
+                          : ""}
+                      {state.budget.toLocaleString()}
+                      {state.currency === "RON" ? " RON" : ""}
+                    </span>
                   </div>
 
-                  <div className="border-t border-neutral-200 dark:border-border-default" />
+                  {/* Slider */}
+                  <input
+                    type="range"
+                    min={200}
+                    max={10000}
+                    step={100}
+                    value={state.budget}
+                    onChange={(e) => set("budget", parseInt(e.target.value))}
+                    className="w-full accent-primary-500 mb-6"
+                  />
+                  <div className="flex justify-between text-xs text-text-muted mb-8">
+                    <span>€200</span>
+                    <span>€10,000</span>
+                  </div>
 
+                  {/* Currency selector */}
+                  <div className="flex justify-center gap-3">
+                    {["EUR", "USD", "RON"].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => set("currency", c)}
+                        className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${state.currency === c ? "bg-primary-500 text-white" : "bg-neutral-100 text-text-secondary hover:bg-neutral-200 dark:bg-surface-elevated"}`}
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-8">
+                  <button
+                    onClick={goBack}
+                    className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all"
+                  >
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </button>
+                  <button
+                    onClick={goNext}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg"
+                  >
+                    Next <ArrowRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* ═══ STEP 3: When & How Long ═══ */}
+            {step === 2 && (
+              <motion.div
+                key="step2"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+                className="text-center"
+              >
+                <div className="text-5xl mb-4">📅</div>
+                <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
+                  When do you want to travel?
+                </h2>
+                <p className="text-text-secondary mb-10 text-lg">
+                  Choose your departure date and duration
+                </p>
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8 space-y-6">
                   {/* Departure date */}
                   <div className="text-left">
                     <label className="block text-sm font-semibold text-text-primary mb-2">
@@ -464,7 +508,7 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                     />
                   </div>
 
-                  {/* Nights */}
+                  {/* Nights selector */}
                   <div className="text-left">
                     <label className="block text-sm font-semibold text-text-primary mb-3">
                       Duration:{" "}
@@ -561,10 +605,10 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
               </motion.div>
             )}
 
-            {/* ═══ STEP 3: Travel Style & Climate ═══ */}
-            {step === 2 && (
+            {/* ═══ STEP 4: Travel Style & Climate ═══ */}
+            {step === 3 && (
               <motion.div
-                key="step2"
+                key="step3"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -582,7 +626,6 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                 </p>
 
                 <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6 space-y-6">
-                  {/* Travel styles grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {TRAVEL_STYLES.map((style) => {
                       const selected = state.travelStyles.includes(style.id);
@@ -590,11 +633,10 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                         <button
                           key={style.id}
                           onClick={() => toggleStyle(style.id)}
-                          className={`flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-medium transition-all border-2 ${
-                            selected
+                          className={`flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-medium transition-all border-2 ${selected
                               ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10 shadow-sm"
                               : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/5"
-                          }`}
+                            }`}
                         >
                           <span className="text-xl">{style.emoji}</span>
                           <span className="text-left text-xs leading-tight">
@@ -608,7 +650,6 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                     })}
                   </div>
 
-                  {/* Climate preference */}
                   <div className="text-left">
                     <p className="text-sm font-semibold text-text-primary mb-3">
                       Climate preference
@@ -618,11 +659,10 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                         <button
                           key={c.id}
                           onClick={() => set("climate", c.id)}
-                          className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all border-2 ${
-                            state.climate === c.id
+                          className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all border-2 ${state.climate === c.id
                               ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
                               : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
-                          }`}
+                            }`}
                         >
                           <span className="text-lg">{c.emoji}</span>
                           {c.label}
@@ -650,10 +690,10 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
               </motion.div>
             )}
 
-            {/* ═══ STEP 4: Priorities ═══ */}
-            {step === 3 && (
+            {/* ═══ STEP 5: Priorities ═══ */}
+            {step === 4 && (
               <motion.div
-                key="step3"
+                key="step4"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -686,13 +726,12 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
                         <button
                           key={p.id}
                           onClick={() => !disabled && togglePriority(p.id)}
-                          className={`flex items-center gap-3 rounded-xl px-4 py-4 text-sm font-medium transition-all border-2 text-left ${
-                            selected
+                          className={`flex items-center gap-3 rounded-xl px-4 py-4 text-sm font-medium transition-all border-2 text-left ${selected
                               ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
                               : disabled
                                 ? "border-neutral-100 bg-neutral-50 text-text-muted cursor-not-allowed opacity-50"
                                 : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/5"
-                          }`}
+                            }`}
                         >
                           <span className="text-xl">{p.emoji}</span>
                           <span className="flex-1">{p.label}</span>
