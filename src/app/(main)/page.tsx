@@ -30,12 +30,9 @@ import {
   Gem,
   Globe2,
 } from "lucide-react";
-import { SearchBar } from "@/components/search/SearchBar";
+import { PlanTripWizard } from "@/components/search/PlanTripWizard";
 import { TripCard } from "@/components/results/TripCard";
-import { FiltersModal } from "@/components/search/FiltersModal";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { getCityImageByIata } from "@/lib/cityImages";
-import type { NormalizedFlight, NormalizedHotel } from "@/lib/supabase/types";
 
 
 /* ── Category tabs ── */
@@ -90,127 +87,18 @@ const articles = [
 /* ── Affordable package categories ── */
 const packageCategories = ["Weekend", "Beach", "Single city", "Multi city", "Snow", "Bus and Train"];
 
-/* ── Results Skeleton ── */
-function ResultsSkeleton() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden">
-          <Skeleton className="h-44 rounded-none" />
-          <div className="p-4 space-y-3">
-            <Skeleton className="h-5 w-3/4" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-4 w-2/3" />
-            <div className="flex justify-between items-end pt-2">
-              <Skeleton className="h-8 w-24" />
-              <Skeleton className="h-9 w-24 rounded-lg" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ═══════════════════════════════════════
    MAIN HOME PAGE
    ═══════════════════════════════════════ */
 export default function Home() {
   const [activeTab, setActiveTab] = useState("for-you");
-  const [showFilters, setShowFilters] = useState(false);
   const [email, setEmail] = useState("");
-
-  // Live search state
-  const [liveFlights, setLiveFlights] = useState<NormalizedFlight[]>([]);
-  const [liveHotels, setLiveHotels] = useState<NormalizedHotel[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [warning, setWarning] = useState("");
-  const [searchInfo, setSearchInfo] = useState({ origin: "", destination: "", departureDate: "", returnDate: "" });
-
-  async function handleSearch(params: {
-    originIata: string;
-    originDisplay: string;
-    destinationIata: string;
-    destinationDisplay: string;
-    departureDate: string;
-    returnDate: string;
-    adults: number;
-    children: number;
-  }) {
-    if (!params.originIata) return;
-
-    setSearching(true);
-    setHasSearched(true);
-    setLiveFlights([]);
-    setLiveHotels([]);
-    setWarning("");
-    setSearchInfo({
-      origin: params.originDisplay,
-      destination: params.destinationDisplay || "Anywhere",
-      departureDate: params.departureDate,
-      returnDate: params.returnDate,
-    });
-
-    const dest = params.destinationIata || "LON";
-
-    try {
-      const [flightsRes, hotelsRes] = await Promise.all([
-        fetch(
-          `/api/flights/live?origin=${params.originIata}&destination=${dest}&departureDate=${params.departureDate}&travelClass=ECONOMY`
-        ),
-        fetch(
-          `/api/hotels/live?cityCode=${dest}&checkInDate=${params.departureDate}&checkOutDate=${params.returnDate}`
-        ),
-      ]);
-      const flightsData = await flightsRes.json();
-      const hotelsData = await hotelsRes.json();
-      setLiveFlights(flightsData.flights || []);
-      setLiveHotels(hotelsData.hotels || []);
-      const warnings = [flightsData.warning, hotelsData.warning].filter(Boolean).join(" ");
-      if (warnings) setWarning(warnings);
-    } catch {
-      setWarning("Search failed. Please try again.");
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  // Build trip cards from live data
-  const tripCards = liveFlights.slice(0, 9).map((flight, index) => {
-    const hotel = liveHotels[index % Math.max(1, liveHotels.length)];
-    const depDate = searchInfo.departureDate || flight.departureDate;
-    const retDate = searchInfo.returnDate || flight.arrivalDate || depDate;
-    const nights = Math.max(1, Math.ceil(
-      (new Date(retDate).getTime() - new Date(depDate).getTime()) / 86400000
-    ));
-    const hotelCost = hotel ? hotel.pricePerNight * nights : 0;
-    const totalCost = flight.price + hotelCost;
-    const originalPrice = Math.round(totalCost * 1.2);
-    const destImg = getCityImageByIata(flight.destination, flight.id);
-
-    return {
-      id: `${flight.id}-${index}`,
-      destination: flight.destination,
-      destinationCity: flight.destinationCity || flight.destination,
-      origin: flight.origin,
-      originCity: flight.originCity || flight.origin,
-      imageUrl: destImg,
-      days: nights,
-      departureDate: depDate,
-      returnDate: retDate,
-      originalPrice,
-      discountedPrice: Math.round(totalCost),
-      currency: flight.currency,
-      isDirect: flight.stops === 0,
-      travelers: 1,
-    };
-  });
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   return (
     <>
       {/* ═══════════ 1. HERO SECTION ═══════════ */}
-      <section className="relative bg-secondary-500 pt-24 pb-24 sm:pt-28 sm:pb-28 lg:pt-36 lg:pb-36" style={{ overflow: 'visible' }}>
+      <section className="relative bg-secondary-500 pt-24 pb-24 sm:pt-32 sm:pb-32 lg:pt-44 lg:pb-44" style={{ overflow: 'visible' }}>
         {/* Background image with gradient */}
         <div className="absolute inset-0 overflow-hidden">
           <img
@@ -222,24 +110,49 @@ export default function Home() {
               (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&h=1080&fit=crop&q=80';
             }}
           />
-          {/* Stronger top gradient for header readability + bottom for text */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/25 to-black/50" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/60" />
         </div>
 
         <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8">
-          {/* Hero text — TRYP style */}
-          <div className="mx-auto max-w-3xl text-center mb-8 sm:mb-10 animate-fade-in-up">
-            <h1 className="font-display font-extrabold text-white mb-3 sm:mb-4 text-[32px] leading-[38px] sm:text-[44px] sm:leading-[52px] lg:text-[56px] lg:leading-[64px] tracking-tight" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.3)' }}>
-              Travel more, for less
+          {/* Hero text — centered */}
+          <div className="mx-auto max-w-3xl text-center animate-fade-in-up">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 mb-6 border border-white/20">
+              <Sparkles className="h-4 w-4 text-yellow-300" />
+              <span className="text-sm font-medium text-white/90">AI-Powered Trip Planning</span>
+            </div>
+            <h1 className="font-display font-extrabold text-white mb-4 sm:mb-5 text-[32px] leading-[38px] sm:text-[48px] sm:leading-[56px] lg:text-[64px] lg:leading-[72px] tracking-tight" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.35)' }}>
+              Your dream vacation,<br />planned by AI
             </h1>
-            <p className="text-base sm:text-lg text-white/90 max-w-xl mx-auto font-medium" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>
-              Trains, buses, flights and stays combined with AI
+            <p className="text-base sm:text-lg lg:text-xl text-white/90 max-w-xl mx-auto font-medium mb-10" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>
+              Tell us where you&apos;re from, your budget, and what you love — we&apos;ll find the perfect trip and build your itinerary
             </p>
-          </div>
 
-          {/* Search Bar */}
-          <div className="relative z-40 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-            <SearchBar onSearch={handleSearch} loading={searching} />
+            {/* CTA Button */}
+            <button
+              onClick={() => setWizardOpen(true)}
+              className="group relative inline-flex items-center gap-3 rounded-full bg-primary-500 px-10 py-5 text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+              style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
+            >
+              <Plane className="h-6 w-6 transition-transform duration-300 group-hover:-rotate-12" />
+              Plan My Trip
+              <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
+
+            {/* Trust badges */}
+            <div className="flex items-center justify-center gap-6 mt-8 text-white/60 text-xs font-medium">
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Free to use
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5" />
+                AI-powered
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Globe className="h-3.5 w-3.5" />
+                400+ airlines
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -275,121 +188,54 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setShowFilters(true)}
-              className="flex items-center gap-2 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-text-secondary hover:bg-neutral-50 transition-colors shrink-0 ml-3"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-            </button>
           </div>
         </div>
       </section>
 
-      {/* ═══════════ 4. SEARCH RESULTS / TRIP CARDS ═══════════ */}
+      {/* ═══════════ 4. POPULAR TRIPS ═══════════ */}
       <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          {hasSearched && (
-            <>
-              {/* Warning */}
-              {warning && (
-                <div className="mb-6 flex items-start gap-3 rounded-xl bg-yellow-50 border border-yellow-200 px-4 py-3 text-sm text-yellow-800">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  {warning}
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h2 className="text-h2 text-secondary-500">Popular Trips</h2>
+              <p className="text-body-sm text-text-secondary mt-1">
+                Click &quot;Plan My Trip&quot; above to get personalized AI-powered recommendations
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { code: "LHR", city: "London" },
+              { code: "CDG", city: "Paris" },
+              { code: "FCO", city: "Rome" },
+              { code: "BCN", city: "Barcelona" },
+              { code: "AMS", city: "Amsterdam" },
+              { code: "IST", city: "Istanbul" },
+            ].map(({ code, city }, i) => {
+              const basePrices = [480, 350, 420, 380, 310, 450];
+              const discountPrices = [299, 219, 269, 239, 199, 279];
+              return (
+                <div key={code} className="stagger-item">
+                  <TripCard
+                    id={`sample-${code}`}
+                    destination={code}
+                    destinationCity={city}
+                    origin=""
+                    originCity="Your City"
+                    imageUrl={getCityImageByIata(code)}
+                    days={5}
+                    departureDate="2026-04-01"
+                    returnDate="2026-04-05"
+                    originalPrice={basePrices[i]}
+                    discountedPrice={discountPrices[i]}
+                    currency="EUR"
+                    isDirect={i % 2 === 0}
+                    travelers={2}
+                  />
                 </div>
-              )}
-
-              <div className="flex items-end justify-between mb-8">
-                <div>
-                  <h2 className="text-h2 text-secondary-500">
-                    {searching
-                      ? "Searching live prices..."
-                      : tripCards.length > 0
-                        ? `${tripCards.length} Trip${tripCards.length !== 1 ? "s" : ""} Found`
-                        : "No Results Found"}
-                  </h2>
-                  {!searching && searchInfo.origin && (
-                    <p className="text-body-sm text-text-secondary mt-1">
-                      {searchInfo.origin} → {searchInfo.destination}
-                    </p>
-                  )}
-                </div>
-                {!searching && tripCards.length > 0 && (
-                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <Zap className="h-3.5 w-3.5 text-primary-500" />
-                    Powered by Amadeus Live API
-                  </div>
-                )}
-              </div>
-
-              {searching ? (
-                <ResultsSkeleton />
-              ) : tripCards.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {tripCards.map((card, i) => (
-                    <div key={card.id} className="stagger-item">
-                      <TripCard {...card} />
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-16 rounded-xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default">
-                  <Compass className="h-12 w-12 text-text-muted mx-auto mb-4" />
-                  <h3 className="text-h4 text-text-primary mb-2">No results found</h3>
-                  <p className="text-body-sm text-text-muted max-w-md mx-auto">
-                    Try different cities, dates, or destinations.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Default cards when no search */}
-          {!hasSearched && (
-            <>
-              <div className="flex items-end justify-between mb-8">
-                <div>
-                  <h2 className="text-h2 text-secondary-500">Popular Trips</h2>
-                  <p className="text-body-sm text-text-secondary mt-1">
-                    Search above to find live deals from your city
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[
-                  { code: "LHR", city: "London" },
-                  { code: "CDG", city: "Paris" },
-                  { code: "FCO", city: "Rome" },
-                  { code: "BCN", city: "Barcelona" },
-                  { code: "AMS", city: "Amsterdam" },
-                  { code: "IST", city: "Istanbul" },
-                ].map(({ code, city }, i) => {
-                  const basePrices = [480, 350, 420, 380, 310, 450];
-                  const discountPrices = [299, 219, 269, 239, 199, 279];
-                  return (
-                    <div key={code} className="stagger-item">
-                      <TripCard
-                        id={`sample-${code}`}
-                        destination={code}
-                        destinationCity={city}
-                        origin=""
-                        originCity="Your City"
-                        imageUrl={getCityImageByIata(code)}
-                        days={5}
-                        departureDate="2026-04-01"
-                        returnDate="2026-04-05"
-                        originalPrice={basePrices[i]}
-                        discountedPrice={discountPrices[i]}
-                        currency="EUR"
-                        isDirect={i % 2 === 0}
-                        travelers={2}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -475,17 +321,18 @@ export default function Home() {
         <div className="bg-gradient-to-r from-primary-500 to-primary-600 py-16 px-4">
           <div className="mx-auto max-w-[1280px] text-center">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Create More Trips
+              Ready to plan your next adventure?
             </h2>
             <p className="text-white/80 text-lg mb-8 max-w-lg mx-auto">
-              Start planning your next adventure with AI-powered recommendations
+              Let our AI find the perfect trip for you — flights, hotels, and a day-by-day itinerary
             </p>
-            <Link
-              href="/trips/new"
-              className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-white text-primary-500 shadow-xl hover:scale-110 transition-transform duration-300"
+            <button
+              onClick={() => setWizardOpen(true)}
+              className="inline-flex items-center justify-center gap-2 h-14 rounded-full bg-white text-primary-500 px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-lg"
             >
-              <Plus className="h-7 w-7" />
-            </Link>
+              <Plane className="h-6 w-6" />
+              Plan My Trip
+            </button>
           </div>
         </div>
       </section>
@@ -585,14 +432,11 @@ export default function Home() {
           </div>
         </div>
       </section>
-      {/* Filters Modal */}
-      <FiltersModal
-        isOpen={showFilters}
-        onClose={() => setShowFilters(false)}
-        onApply={(filters) => {
-          console.log("Applied filters:", filters);
-          setShowFilters(false);
-        }}
+
+      {/* Plan My Trip Wizard */}
+      <PlanTripWizard
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
       />
     </>
   );
