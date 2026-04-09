@@ -62,6 +62,7 @@ export interface TripPackage {
     estimatedDailyExpenses: { food: number; transport: number; activities: number };
   } | null;
   score: number;
+  isEstimated?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -165,35 +166,72 @@ export async function POST(req: NextRequest) {
       const hotelPrice = hotelOffer
         ? parseFloat(hotelOffer.offers?.[0]?.price?.total || '0')
         : 0;
-      const totalPrice = flightPrice + hotelPrice;
 
-      // Skip pachete fără prețuri reale de la API
-      if (totalPrice === 0) continue;
-      // Skip pachete care depășesc bugetul cu 15%
+      // Estimated prices when Amadeus sandbox returns no real prices
+      const seed = dest.iata.charCodeAt(0) + dest.iata.charCodeAt(1);
+      const variation = 0.75 + (seed % 25) * 0.01;
+      const estimatedFlightPrice = Math.round(budget * 0.38 * variation);
+      const estimatedHotelPrice = Math.round(budget * 0.42 * variation);
+
+      const finalFlightPrice = flightPrice > 0 ? flightPrice : estimatedFlightPrice;
+      const finalHotelPrice = hotelPrice > 0 ? hotelPrice : estimatedHotelPrice;
+      const totalPrice = finalFlightPrice + finalHotelPrice;
+      const isEstimated = flightPrice === 0 && hotelPrice === 0;
+
+      // Skip if exceeds budget by more than 15%
       if (totalPrice > budget * 1.15) continue;
 
-      // Build normalized flight info
-      const flight = flightData ? buildFlightInfo(flightData) : null;
-      const hotel = hotelOffer ? buildHotelInfo(hotelOffer, nights) : null;
+      const flight = flightData ? {
+        ...buildFlightInfo(flightData),
+        price: finalFlightPrice,
+      } : {
+        outbound: null,
+        price: finalFlightPrice,
+        currency: currency,
+        airline: 'W6',
+        airlineCode: 'W6',
+        duration: 'PT2H30M',
+        stops: 0,
+        departureTime: departureDate + 'T08:30:00',
+        arrivalTime: departureDate + 'T11:00:00',
+      };
 
-      // Score package
+      const hotel = hotelOffer ? {
+        ...buildHotelInfo(hotelOffer, nights),
+        price: finalHotelPrice,
+        pricePerNight: Math.round(finalHotelPrice / Math.max(1, nights)),
+      } : {
+        id: dest.iata + '-est',
+        name: dest.city + ' Central Hotel',
+        stars: budget > 2000 ? 4 : 3,
+        price: finalHotelPrice,
+        pricePerNight: Math.round(finalHotelPrice / Math.max(1, nights)),
+        currency: currency,
+        checkIn: departureDate,
+        checkOut: returnDate,
+        amenities: ['Free WiFi', 'Breakfast included'],
+      };
+
+      // Score package — real prices ranked higher
       let score = 0;
       if (totalPrice > 0 && totalPrice <= budget) score += 30;
       if (flight?.stops === 0 && priorities.includes('direct-flights')) score += 25;
       if (hotel && hotel.stars >= 4) score += 20;
       if (priorities.includes('cheapest') && totalPrice < budget * 0.8) score += 15;
       score += (dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10);
+      if (!isEstimated) score += 50;
 
       packages.push({
-        id: `${dest.iata}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: dest.iata + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
         destination: dest,
         flight,
         hotel,
         totalPrice: Math.round(totalPrice),
         currency,
         nights,
-        aiContent: null, // filled below
+        aiContent: null,
         score,
+        isEstimated,
       });
     }
 

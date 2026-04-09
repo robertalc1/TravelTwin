@@ -201,6 +201,9 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
               {pkg.currency} {pkg.totalPrice.toLocaleString()}
             </span>
           </div>
+          {pkg.isEstimated && (
+            <span className="text-xs text-text-muted italic">* Estimated price</span>
+          )}
         </div>
 
         {/* Flight info */}
