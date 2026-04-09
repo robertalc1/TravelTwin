@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -85,6 +85,9 @@ export default function PlanPage() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState("");
+
+  // Clear any stale error when component mounts (e.g. navigating back from results)
+  useEffect(() => { setError(""); }, []);
 
   const [state, setState] = useState<PlanState>({
     originIata: "OTP",
