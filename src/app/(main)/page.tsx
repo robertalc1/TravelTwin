@@ -255,31 +255,7 @@ export default function Home() {
       {/* ═══════════ 6. APP PROMO SECTION ═══════════ */}
       <section className="py-12 lg:py-16 bg-neutral-50 dark:bg-surface-sunken">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Promo card */}
-            <div className="relative rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 p-8 text-white overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="relative">
-                <h3 className="text-2xl font-bold mb-2">
-                  Get discounts<br />before anyone else
-                </h3>
-                <p className="text-sm text-white/80 mb-6">
-                  Download our app for exclusive deals
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 rounded-lg bg-black px-3 py-2 text-white text-xs font-medium">
-                    App Store
-                  </div>
-                  <div className="flex items-center gap-1 rounded-lg bg-black px-3 py-2 text-white text-xs font-medium">
-                    Google Play
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 mt-4">
-                  <span className="font-bold text-xl">TravelTwin</span>
-                </div>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Featured trip cards */}
             {[
               { code: "VIE", city: "Vienna", orig: 520, disc: 411 },
