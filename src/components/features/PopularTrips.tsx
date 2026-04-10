@@ -6,6 +6,40 @@ import { TripCard } from "@/components/results/TripCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getCityImageByIata } from "@/lib/cityImages";
 
+// Specific Unsplash search queries per IATA code
+const CITY_QUERIES: Record<string, string> = {
+  LHR: "London Big Ben city landmark",
+  CDG: "Paris Eiffel Tower city",
+  FCO: "Rome Colosseum city",
+  BCN: "Barcelona Sagrada Familia city",
+  AMS: "Amsterdam canals city",
+  IST: "Istanbul Bosphorus city",
+  DXB: "Dubai skyline city",
+  PRG: "Prague castle city",
+  VIE: "Vienna Austria city",
+  LIS: "Lisbon Portugal city",
+  BER: "Berlin Brandenburg Gate city",
+  MAD: "Madrid Spain city",
+  ATH: "Athens Acropolis city",
+  BUD: "Budapest Parliament city",
+  WAW: "Warsaw Poland city",
+  MXP: "Milan Italy city",
+  MUC: "Munich Bavaria city",
+  FRA: "Frankfurt Germany city",
+  BRU: "Brussels Belgium city",
+  CPH: "Copenhagen Denmark city",
+  ARN: "Stockholm Sweden city",
+  ZRH: "Zurich Switzerland city",
+  DBV: "Dubrovnik Croatia city",
+  JTR: "Santorini Greece island",
+  DPS: "Bali Indonesia temple",
+  BKK: "Bangkok Thailand temple",
+  NRT: "Tokyo Japan city",
+  JFK: "New York City skyline",
+  SIN: "Singapore city skyline",
+  RAK: "Marrakech Morocco medina",
+};
+
 // Map city names / countries from Nominatim to nearest IATA code
 const CITY_TO_IATA: Record<string, string> = {
   București: "OTP", Bucuresti: "OTP", Bucharest: "OTP",
@@ -50,14 +84,14 @@ const CITY_TO_IATA: Record<string, string> = {
 };
 
 function detectIata(city: string, country: string): string {
-  // Try direct city match
   for (const [name, iata] of Object.entries(CITY_TO_IATA)) {
-    if (city.toLowerCase().includes(name.toLowerCase()) ||
-        name.toLowerCase().includes(city.toLowerCase())) {
+    if (
+      city.toLowerCase().includes(name.toLowerCase()) ||
+      name.toLowerCase().includes(city.toLowerCase())
+    ) {
       return iata;
     }
   }
-  // Country-level fallbacks
   const countryMap: Record<string, string> = {
     Romania: "OTP", "United Kingdom": "LHR", France: "CDG",
     Italy: "FCO", Spain: "BCN", Netherlands: "AMS",
@@ -82,22 +116,58 @@ interface TripOffer {
 export default function PopularTrips() {
   const [originIata, setOriginIata] = useState("OTP");
   const [originCity, setOriginCity] = useState("Bucharest");
-  const [locationStatus, setLocationStatus] = useState<"detecting" | "detected" | "denied" | "error">("detecting");
+  const [locationStatus, setLocationStatus] = useState<
+    "detecting" | "detected" | "denied" | "error"
+  >("detecting");
   const [offers, setOffers] = useState<TripOffer[]>([]);
   const [loadingOffers, setLoadingOffers] = useState(true);
+  // Unsplash image URLs keyed by IATA code
+  const [cityImages, setCityImages] = useState<Record<string, string>>({});
 
-  const fetchOffers = useCallback(async (iata: string) => {
-    setLoadingOffers(true);
-    try {
-      const res = await fetch(`/api/popular-trips?origin=${iata}&limit=6`);
-      const data = await res.json();
-      setOffers(data.results || []);
-    } catch {
-      setOffers([]);
-    } finally {
-      setLoadingOffers(false);
+  // Fetch Unsplash images for a list of IATA codes
+  const fetchCityImages = useCallback(async (codes: string[]) => {
+    const entries = await Promise.all(
+      codes.map(async (code) => {
+        const query = CITY_QUERIES[code] || `${code} city travel`;
+        try {
+          const res = await fetch(
+            `/api/unsplash?query=${encodeURIComponent(query)}`
+          );
+          if (!res.ok) return [code, null] as const;
+          const data = await res.json();
+          return [code, data.url || null] as const;
+        } catch {
+          return [code, null] as const;
+        }
+      })
+    );
+    const map: Record<string, string> = {};
+    for (const [code, url] of entries) {
+      if (url) map[code] = url;
     }
+    setCityImages((prev) => ({ ...prev, ...map }));
   }, []);
+
+  const fetchOffers = useCallback(
+    async (iata: string) => {
+      setLoadingOffers(true);
+      try {
+        const res = await fetch(`/api/popular-trips?origin=${iata}&limit=6`);
+        const data = await res.json();
+        const results: TripOffer[] = data.results || [];
+        setOffers(results);
+        // Kick off image fetching in parallel
+        if (results.length > 0) {
+          fetchCityImages(results.map((r) => r.code));
+        }
+      } catch {
+        setOffers([]);
+      } finally {
+        setLoadingOffers(false);
+      }
+    },
+    [fetchCityImages]
+  );
 
   const detectLocation = useCallback(() => {
     setLocationStatus("detecting");
@@ -162,7 +232,8 @@ export default function PopularTrips() {
               ) : locationStatus === "detected" ? (
                 <span className="text-xs text-text-secondary flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-primary-500" />
-                  Showing flights from <strong className="ml-1">{originCity}</strong>
+                  Showing flights from{" "}
+                  <strong className="ml-1">{originCity}</strong>
                 </span>
               ) : (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
@@ -183,7 +254,10 @@ export default function PopularTrips() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {loadingOffers
             ? Array.from({ length: skeletonCount }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
+                <div
+                  key={i}
+                  className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface"
+                >
                   <Skeleton className="aspect-[16/10] w-full rounded-none" />
                   <div className="p-4 space-y-2">
                     <Skeleton className="h-4 w-3/4" />
@@ -204,7 +278,10 @@ export default function PopularTrips() {
                     destinationCity={offer.city}
                     origin={originIata}
                     originCity={originCity}
-                    imageUrl={getCityImageByIata(offer.code)}
+                    // Use Unsplash image if available, otherwise fallback to cityImages.ts
+                    imageUrl={
+                      cityImages[offer.code] ?? getCityImageByIata(offer.code)
+                    }
                     days={5}
                     departureDate={offer.departureDate}
                     returnDate={offer.returnDate}
