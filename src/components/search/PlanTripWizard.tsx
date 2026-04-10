@@ -231,6 +231,19 @@ export function PlanTripWizard({ isOpen, onClose }: PlanTripWizardProps) {
         JSON.stringify({ packages: data.packages, params: state })
       );
 
+      // Save search to user profile (fire-and-forget, no auth required to succeed)
+      fetch("/api/searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from_city: state.originDisplay || state.originIata,
+          budget: state.budget,
+          days: state.nights,
+          flight_type: "any",
+          results_count: data.packages.length,
+        }),
+      }).catch(() => {});
+
       setTimeout(() => {
         handleClose();
         router.push("/plan/results");
