@@ -20,6 +20,7 @@ interface TripCardProps {
     isDirect?: boolean;
     travelers?: number;
     badge?: string;
+    viewDealHref?: string;
 }
 
 export function TripCard({
@@ -38,6 +39,7 @@ export function TripCard({
     isDirect = false,
     travelers = 1,
     badge,
+    viewDealHref,
 }: TripCardProps) {
     const [isFavorite, setIsFavorite] = useState(false);
     const [imageError, setImageError] = useState(false);
@@ -188,6 +190,10 @@ export function TripCard({
 
                     <button
                         onClick={() => {
+                            if (viewDealHref) {
+                                window.location.href = viewDealHref;
+                                return;
+                            }
                             try {
                                 sessionStorage.setItem(`tripView_${id}`, JSON.stringify({
                                     destination,
