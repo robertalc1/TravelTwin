@@ -229,6 +229,19 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
           <button
             onClick={() => {
               sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
+              // Save to user trips (fire-and-forget)
+              fetch("/api/trips", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  destination: pkg.destination.iata || pkg.destination.city,
+                  origin: "OTP",
+                  total_cost: pkg.totalPrice,
+                  budget: pkg.totalPrice,
+                  days: pkg.nights,
+                  status: "planning",
+                }),
+              }).catch(() => {});
               window.location.href = `/plan/trip/${pkg.id}`;
             }}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
