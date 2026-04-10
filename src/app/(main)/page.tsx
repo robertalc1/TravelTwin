@@ -355,6 +355,30 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ═══════════ 9. PROJECT DESCRIPTION CTA ═══════════ */}
+      <section className="py-12 lg:py-16 bg-primary-500">
+        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="text-white max-w-xl">
+              <h2 className="text-2xl font-bold mb-3">
+                TravelTwin — Your AI-Powered Travel Companion
+              </h2>
+              <p className="text-white/80 text-sm leading-relaxed">
+                Plan your perfect trip in minutes. Tell us your budget, style and dates — and our AI builds a personalized package with flights, hotel and a full day-by-day itinerary. Built as a Bachelor&apos;s Thesis project.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <Link
+                href="/plan"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-bold text-primary-500 hover:bg-primary-50 transition-colors shadow-lg whitespace-nowrap"
+              >
+                Plan My Trip →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Plan My Trip Wizard */}
       <PlanTripWizard
         isOpen={wizardOpen}
