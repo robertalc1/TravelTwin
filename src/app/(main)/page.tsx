@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import {
   Plane,
@@ -75,9 +74,6 @@ const featureCards = [
     description: "Best price guarantee. If you find a lower price, we'll match it. No questions asked.",
   },
 ];
-
-/* ── Affordable package categories ── */
-const packageCategories = ["Weekend", "Beach", "Single city", "Multi city", "Snow", "Bus and Train"];
 
 /* ═══════════════════════════════════════
    MAIN HOME PAGE
@@ -300,57 +296,6 @@ export default function Home() {
               <Plane className="h-6 w-6" />
               Plan My Trip
             </button>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ 8. AFFORDABLE PACKAGES ═══════════ */}
-      <section className="py-12 lg:py-16 bg-white dark:bg-surface">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-h2 text-secondary-500 mb-3">
-              Affordable travel packages
-            </h2>
-            <p className="text-body text-text-secondary max-w-2xl mx-auto">
-              Discover our ready-made travel deals on TravelTwin! Browse the latest real flights and hotel offers
-              using the biggest travel services in the world. Find the deal you
-              love, check availability, and book the trip of your dreams.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            {packageCategories.map((cat) => (
-              <button
-                key={cat}
-                className="rounded-full border border-neutral-200 px-5 py-2.5 text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 hover:bg-primary-50 transition-all duration-200"
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ 9. PROJECT DESCRIPTION CTA ═══════════ */}
-      <section className="py-12 lg:py-16 bg-primary-500">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="text-white max-w-xl">
-              <h2 className="text-2xl font-bold mb-3">
-                TravelTwin — Your AI-Powered Travel Companion
-              </h2>
-              <p className="text-white/80 text-sm leading-relaxed">
-                Plan your perfect trip in minutes. Tell us your budget, style and dates — and our AI builds a personalized package with flights, hotel and a full day-by-day itinerary. Built as a Bachelor&apos;s Thesis project.
-              </p>
-            </div>
-            <div className="shrink-0">
-              <Link
-                href="/plan"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-4 text-base font-bold text-primary-500 hover:bg-primary-50 transition-colors shadow-lg whitespace-nowrap"
-              >
-                Plan My Trip →
-              </Link>
-            </div>
           </div>
         </div>
       </section>
