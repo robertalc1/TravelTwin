@@ -32,6 +32,7 @@ import {
 import { PlanTripWizard } from "@/components/search/PlanTripWizard";
 import { TripCard } from "@/components/results/TripCard";
 import { getCityImageByIata } from "@/lib/cityImages";
+import PopularTrips from "@/components/features/PopularTrips";
 
 
 /* ── Category tabs ── */
@@ -180,51 +181,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════ 4. POPULAR TRIPS ═══════════ */}
-      <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="text-h2 text-secondary-500">Popular Trips</h2>
-              <p className="text-body-sm text-text-secondary mt-1">
-                Click &quot;Plan My Trip&quot; above to get personalized AI-powered recommendations
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { code: "LHR", city: "London" },
-              { code: "CDG", city: "Paris" },
-              { code: "FCO", city: "Rome" },
-              { code: "BCN", city: "Barcelona" },
-              { code: "AMS", city: "Amsterdam" },
-              { code: "IST", city: "Istanbul" },
-            ].map(({ code, city }, i) => {
-              const basePrices = [480, 350, 420, 380, 310, 450];
-              const discountPrices = [299, 219, 269, 239, 199, 279];
-              return (
-                <div key={code} className="stagger-item">
-                  <TripCard
-                    id={`sample-${code}`}
-                    destination={code}
-                    destinationCity={city}
-                    origin=""
-                    originCity="Your City"
-                    imageUrl={getCityImageByIata(code)}
-                    days={5}
-                    departureDate="2026-04-01"
-                    returnDate="2026-04-05"
-                    originalPrice={basePrices[i]}
-                    discountedPrice={discountPrices[i]}
-                    currency="EUR"
-                    isDirect={i % 2 === 0}
-                    travelers={2}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <PopularTrips />
 
       {/* ═══════════ 5. FEATURES SECTION ═══════════ */}
       <section className="py-12 lg:py-16 bg-white dark:bg-surface">
