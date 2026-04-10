@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { MapPin, RefreshCw } from "lucide-react";
+import { MapPin, RefreshCw, AlertCircle, Plane } from "lucide-react";
 import { TripCard } from "@/components/results/TripCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getCityImageByIata } from "@/lib/cityImages";
 
-// Specific Unsplash search queries per IATA code
+// Specific Unsplash queries per IATA code
 const CITY_QUERIES: Record<string, string> = {
   LHR: "London Big Ben city landmark",
+  LON: "London Big Ben city landmark",
   CDG: "Paris Eiffel Tower city",
   FCO: "Rome Colosseum city",
   BCN: "Barcelona Sagrada Familia city",
@@ -18,10 +19,10 @@ const CITY_QUERIES: Record<string, string> = {
   PRG: "Prague castle city",
   VIE: "Vienna Austria city",
   LIS: "Lisbon Portugal city",
-  BER: "Berlin Brandenburg Gate city",
   MAD: "Madrid Spain city",
   ATH: "Athens Acropolis city",
   BUD: "Budapest Parliament city",
+  BER: "Berlin Brandenburg Gate city",
   WAW: "Warsaw Poland city",
   MXP: "Milan Italy city",
   MUC: "Munich Bavaria city",
@@ -38,21 +39,24 @@ const CITY_QUERIES: Record<string, string> = {
   JFK: "New York City skyline",
   SIN: "Singapore city skyline",
   RAK: "Marrakech Morocco medina",
+  AYT: "Antalya Turkey coast",
+  HER: "Crete Greece island",
+  TFS: "Tenerife Spain island",
+  KRK: "Krakow Poland city",
 };
 
-// Map city names / countries from Nominatim to nearest IATA code
+// Nominatim city → IATA mapping
 const CITY_TO_IATA: Record<string, string> = {
   București: "OTP", Bucuresti: "OTP", Bucharest: "OTP",
   Constanța: "OTP", Constanta: "OTP",
   Brașov: "OTP", Brasov: "OTP",
   Ploiești: "OTP", Ploiesti: "OTP",
-  "Câmpina": "OTP",
+  Ilfov: "OTP", Giurgiu: "OTP",
   Cluj: "CLJ", "Cluj-Napoca": "CLJ",
   Timișoara: "TSR", Timisoara: "TSR",
   Iași: "IAS", Iasi: "IAS",
   Sibiu: "SBZ",
   Oradea: "OMR",
-  "Baia Mare": "BAY",
   Craiova: "CRA",
   London: "LHR",
   Paris: "CDG",
@@ -67,7 +71,7 @@ const CITY_TO_IATA: Record<string, string> = {
   Dubai: "DXB",
   Warsaw: "WAW", Warszawa: "WAW",
   Budapest: "BUD",
-  Athens: "ATH", Athen: "ATH",
+  Athens: "ATH",
   Lisbon: "LIS", Lisboa: "LIS",
   Milan: "MXP", Milano: "MXP",
   Munich: "MUC", München: "MUC",
@@ -109,22 +113,23 @@ interface TripOffer {
   originalPrice: number;
   departureDate: string;
   returnDate: string;
+  days: number;
   airline: string;
   isLive: boolean;
 }
 
+type LoadState = "idle" | "locating" | "fetching" | "done" | "error";
+
 export default function PopularTrips() {
   const [originIata, setOriginIata] = useState("OTP");
   const [originCity, setOriginCity] = useState("Bucharest");
-  const [locationStatus, setLocationStatus] = useState<
-    "detecting" | "detected" | "denied" | "error"
-  >("detecting");
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>("idle");
   const [offers, setOffers] = useState<TripOffer[]>([]);
-  const [loadingOffers, setLoadingOffers] = useState(true);
-  // Unsplash image URLs keyed by IATA code
+  const [apiError, setApiError] = useState("");
   const [cityImages, setCityImages] = useState<Record<string, string>>({});
 
-  // Fetch Unsplash images for a list of IATA codes
+  // Fetch Unsplash images in parallel for all offer codes
   const fetchCityImages = useCallback(async (codes: string[]) => {
     const entries = await Promise.all(
       codes.map(async (code) => {
@@ -135,7 +140,7 @@ export default function PopularTrips() {
           );
           if (!res.ok) return [code, null] as const;
           const data = await res.json();
-          return [code, data.url || null] as const;
+          return [code, (data.url as string) || null] as const;
         } catch {
           return [code, null] as const;
         }
@@ -150,32 +155,48 @@ export default function PopularTrips() {
 
   const fetchOffers = useCallback(
     async (iata: string) => {
-      setLoadingOffers(true);
+      setLoadState("fetching");
+      setApiError("");
       try {
         const res = await fetch(`/api/popular-trips?origin=${iata}&limit=6`);
         const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || "API error");
+
         const results: TripOffer[] = data.results || [];
         setOffers(results);
-        // Kick off image fetching in parallel
+
+        if (results.length === 0 && data.error) {
+          setApiError(data.error);
+        }
+
         if (results.length > 0) {
           fetchCityImages(results.map((r) => r.code));
         }
-      } catch {
+      } catch (err: any) {
+        setApiError(err?.message || "Could not load flight offers.");
         setOffers([]);
       } finally {
-        setLoadingOffers(false);
+        setLoadState("done");
       }
     },
     [fetchCityImages]
   );
 
-  const detectLocation = useCallback(() => {
-    setLocationStatus("detecting");
+  const detectAndFetch = useCallback(() => {
+    setLoadState("locating");
+    setOffers([]);
+    setApiError("");
+    setCityImages({});
+
     if (!navigator.geolocation) {
-      setLocationStatus("denied");
+      setLocationDenied(true);
+      setOriginCity("Bucharest");
+      setOriginIata("OTP");
       fetchOffers("OTP");
       return;
     }
+
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -195,15 +216,19 @@ export default function PopularTrips() {
           const iata = detectIata(city, country);
           setOriginCity(city);
           setOriginIata(iata);
-          setLocationStatus("detected");
+          setLocationDenied(false);
           fetchOffers(iata);
         } catch {
-          setLocationStatus("error");
+          setOriginCity("Bucharest");
+          setOriginIata("OTP");
           fetchOffers("OTP");
         }
       },
       () => {
-        setLocationStatus("denied");
+        // User denied or timeout — use OTP silently
+        setLocationDenied(true);
+        setOriginCity("Bucharest");
+        setOriginIata("OTP");
         fetchOffers("OTP");
       },
       { timeout: 8000 }
@@ -211,90 +236,146 @@ export default function PopularTrips() {
   }, [fetchOffers]);
 
   useEffect(() => {
-    detectLocation();
-  }, [detectLocation]);
+    detectAndFetch();
+  }, [detectAndFetch]);
 
-  const skeletonCount = 6;
+  const isLoading = loadState === "idle" || loadState === "locating" || loadState === "fetching";
 
   return (
     <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div className="flex items-end justify-between mb-8">
           <div>
             <h2 className="text-h2 text-secondary-500">Popular Trips</h2>
             <div className="flex items-center gap-2 mt-1 h-5">
-              {locationStatus === "detecting" ? (
+              {loadState === "locating" && (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 animate-pulse text-primary-400" />
                   Detecting your location...
                 </span>
-              ) : locationStatus === "detected" ? (
+              )}
+              {loadState === "fetching" && (
+                <span className="text-xs text-text-muted flex items-center gap-1.5">
+                  <Plane className="h-3.5 w-3.5 animate-pulse text-primary-400" />
+                  Loading live prices from {originCity}...
+                </span>
+              )}
+              {loadState === "done" && offers.length > 0 && (
                 <span className="text-xs text-text-secondary flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-primary-500" />
-                  Showing flights from{" "}
+                  Live prices from{" "}
                   <strong className="ml-1">{originCity}</strong>
+                  {locationDenied && (
+                    <button
+                      onClick={detectAndFetch}
+                      className="ml-2 flex items-center gap-1 text-primary-500 hover:text-primary-600 font-medium transition-colors"
+                    >
+                      <RefreshCw className="h-3 w-3" /> Detect location
+                    </button>
+                  )}
                 </span>
-              ) : (
+              )}
+              {loadState === "done" && offers.length === 0 && !apiError && (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
-                  <span>📍 Allow location for personalized offers</span>
-                  <button
-                    onClick={detectLocation}
-                    className="flex items-center gap-1 text-primary-500 hover:text-primary-600 font-medium transition-colors"
-                  >
-                    <RefreshCw className="h-3 w-3" /> Retry
-                  </button>
+                  <MapPin className="h-3.5 w-3.5" />
+                  From {originCity}
                 </span>
               )}
             </div>
           </div>
+
+          {loadState === "done" && (
+            <button
+              onClick={detectAndFetch}
+              className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary-500 transition-colors"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </button>
+          )}
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loadingOffers
-            ? Array.from({ length: skeletonCount }).map((_, i) => (
-                <div
-                  key={i}
-                  className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface"
-                >
-                  <Skeleton className="aspect-[16/10] w-full rounded-none" />
-                  <div className="p-4 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-1/2" />
-                    <Skeleton className="h-3 w-2/3" />
-                    <div className="flex justify-between items-end pt-2">
-                      <Skeleton className="h-7 w-24" />
-                      <Skeleton className="h-8 w-24 rounded-lg" />
-                    </div>
+        {/* ── Loading skeletons ── */}
+        {isLoading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface"
+              >
+                <Skeleton className="aspect-[16/10] w-full rounded-none" />
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-2/3" />
+                  <div className="flex justify-between items-end pt-2">
+                    <Skeleton className="h-7 w-24" />
+                    <Skeleton className="h-8 w-24 rounded-lg" />
                   </div>
                 </div>
-              ))
-            : offers.map((offer, i) => (
-                <div key={offer.code} className="stagger-item">
-                  <TripCard
-                    id={`popular-${offer.code}`}
-                    destination={offer.code}
-                    destinationCity={offer.city}
-                    origin={originIata}
-                    originCity={originCity}
-                    // Use Unsplash image if available, otherwise fallback to cityImages.ts
-                    imageUrl={
-                      cityImages[offer.code] ?? getCityImageByIata(offer.code)
-                    }
-                    days={5}
-                    departureDate={offer.departureDate}
-                    returnDate={offer.returnDate}
-                    originalPrice={offer.originalPrice}
-                    discountedPrice={offer.price}
-                    currency="EUR"
-                    isDirect={i % 2 === 0}
-                    travelers={2}
-                    viewDealHref={`/plan?from=${originIata}&to=${offer.code}&days=5&budget=${offer.price + 200}`}
-                  />
-                </div>
-              ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Error state ── */}
+        {!isLoading && apiError && offers.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <AlertCircle className="h-10 w-10 text-text-muted mb-4 opacity-50" />
+            <p className="text-text-secondary mb-4 max-w-sm">{apiError}</p>
+            <button
+              onClick={detectAndFetch}
+              className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" /> Try again
+            </button>
+          </div>
+        )}
+
+        {/* ── Empty state ── */}
+        {!isLoading && !apiError && offers.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Plane className="h-10 w-10 text-text-muted mb-4 opacity-40" />
+            <p className="text-text-secondary mb-4">
+              No flights available from {originCity} right now.
+            </p>
+            <button
+              onClick={detectAndFetch}
+              className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" /> Try again
+            </button>
+          </div>
+        )}
+
+        {/* ── Results grid ── */}
+        {!isLoading && offers.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {offers.map((offer, i) => (
+              <div key={offer.code} className="stagger-item">
+                <TripCard
+                  id={`popular-${offer.code}`}
+                  destination={offer.code}
+                  destinationCity={offer.city}
+                  origin={originIata}
+                  originCity={originCity}
+                  imageUrl={cityImages[offer.code] ?? getCityImageByIata(offer.code)}
+                  days={offer.days}
+                  departureDate={offer.departureDate}
+                  returnDate={offer.returnDate}
+                  originalPrice={offer.originalPrice}
+                  discountedPrice={offer.price}
+                  currency="EUR"
+                  isDirect={i % 2 === 0}
+                  travelers={2}
+                  viewDealHref={`/plan?from=${originIata}&to=${offer.code}&days=${offer.days}&budget=${offer.price + 200}`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
       </div>
     </section>
   );
