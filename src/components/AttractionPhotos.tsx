@@ -3,6 +3,12 @@
 import { useEffect, useState } from "react";
 import { Camera, ExternalLink, MapPin } from "lucide-react";
 
+interface PhotoResult {
+  url: string;
+  credit: string;
+  creditLink: string;
+}
+
 interface Props {
   names: string[];
   city: string;
@@ -12,7 +18,7 @@ interface Props {
 }
 
 export default function AttractionPhotos({ names, city, descriptions, onSelectPlace, selectedPlace }: Props) {
-  const [images, setImages] = useState<Record<string, string>>({});
+  const [images, setImages] = useState<Record<string, PhotoResult>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,23 +35,20 @@ export default function AttractionPhotos({ names, city, descriptions, onSelectPl
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
       {names.map((name, i) => {
-        const imgSrc = images[name];
+        const photo = images[name];
         return (
-          <a
+          <div
             key={i}
-            href={`https://en.wikipedia.org/wiki/${encodeURIComponent(name)}`}
-            target="_blank"
-            rel="noopener noreferrer"
             onClick={() => onSelectPlace?.(name)}
-            className={`group relative rounded-xl overflow-hidden aspect-[4/3] bg-neutral-200 dark:bg-surface shadow-sm hover:shadow-lg transition-all border-2 ${
+            className={`group relative rounded-xl overflow-hidden aspect-[4/3] bg-neutral-200 dark:bg-surface shadow-sm hover:shadow-lg transition-all border-2 cursor-pointer ${
               selectedPlace === name
                 ? "border-primary-500 ring-2 ring-primary-200"
                 : "border-neutral-200 dark:border-border-default hover:border-primary-300"
             }`}
           >
-            {imgSrc ? (
+            {photo?.url ? (
               <img
-                src={imgSrc}
+                src={photo.url}
                 alt={name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -62,22 +65,50 @@ export default function AttractionPhotos({ names, city, descriptions, onSelectPl
                 )}
               </div>
             )}
+
             {/* Gradient + name overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
               <span className="text-xs font-semibold text-white leading-tight line-clamp-2 flex-1">
                 {name}
               </span>
-              <ExternalLink className="h-3 w-3 text-white/70 shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <a
+                href={`https://en.wikipedia.org/wiki/${encodeURIComponent(name)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="opacity-0 group-hover:opacity-100 transition-opacity ml-1"
+              >
+                <ExternalLink className="h-3 w-3 text-white/70" />
+              </a>
             </div>
+
+            {/* Unsplash photo credit */}
+            {photo?.credit && (
+              <div className="absolute top-0 left-0 right-0">
+                <a
+                  href={photo.creditLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="block opacity-0 group-hover:opacity-100 transition-opacity px-2 pt-1 pb-0.5 bg-gradient-to-b from-black/50 to-transparent"
+                >
+                  <span className="text-[9px] text-white/80 truncate block">
+                    Photo by {photo.credit} on Unsplash
+                  </span>
+                </a>
+              </div>
+            )}
+
             {/* Description tooltip */}
             {descriptions?.[name] && (
-              <div className="absolute top-0 left-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className="absolute inset-x-0 top-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <p className="text-[10px] text-white/90 bg-black/50 rounded-lg px-2 py-1 leading-snug line-clamp-2 backdrop-blur-sm">
                   {descriptions[name]}
                 </p>
               </div>
             )}
+
             {/* Show on map indicator */}
             {onSelectPlace && (
               <div className={`absolute top-2 right-2 transition-opacity duration-200 ${selectedPlace === name ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
@@ -86,7 +117,7 @@ export default function AttractionPhotos({ names, city, descriptions, onSelectPl
                 </div>
               </div>
             )}
-          </a>
+          </div>
         );
       })}
     </div>
