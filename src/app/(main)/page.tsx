@@ -76,14 +76,6 @@ const featureCards = [
   },
 ];
 
-/* ── Travel articles ── */
-const articles = [
-  { title: "How to plan a micro-trip", image: "https://images.unsplash.com/photo-1436491865332-7a61a109db05?w=400&h=300&fit=crop", tag: "Inspiration" },
-  { title: "Best hidden beaches in Europe", image: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&h=300&fit=crop", tag: "Top Lists" },
-  { title: "Last minute deals: how to score big", image: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=400&h=300&fit=crop", tag: "Deals" },
-  { title: "Solo traveling made simple", image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=400&h=300&fit=crop", tag: "Guides" },
-];
-
 /* ── Affordable package categories ── */
 const packageCategories = ["Weekend", "Beach", "Single city", "Multi city", "Snow", "Bus and Train"];
 
@@ -92,7 +84,6 @@ const packageCategories = ["Weekend", "Beach", "Single city", "Multi city", "Sno
    ═══════════════════════════════════════ */
 export default function Home() {
   const [activeTab, setActiveTab] = useState("for-you");
-  const [email, setEmail] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
 
   return (
@@ -360,75 +351,6 @@ export default function Home() {
                 {cat}
               </button>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ 9. TRAVEL ARTICLES ═══════════ */}
-      <section className="py-12 lg:py-16 bg-neutral-50 dark:bg-surface-sunken">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <h2 className="text-h2 text-secondary-500">Latest travel articles</h2>
-            <button className="text-sm font-medium text-primary-500 hover:text-primary-600 flex items-center gap-1">
-              View all <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {articles.map((article) => (
-              <div
-                key={article.title}
-                className="group rounded-xl overflow-hidden bg-white dark:bg-surface border border-neutral-200 dark:border-border-default transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
-                    src={article.image}
-                    alt={article.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                  />
-                  <span className="absolute top-3 left-3 rounded-md bg-primary-500 px-2.5 py-1 text-xs font-bold text-white">
-                    {article.tag}
-                  </span>
-                </div>
-                <div className="p-4">
-                  <h3 className="text-sm font-bold text-secondary-500 line-clamp-2">
-                    {article.title}
-                  </h3>
-                  <div className="flex items-center gap-1 mt-3 text-primary-500 text-xs font-medium">
-                    Read more <ArrowRight className="h-3 w-3" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ 10. NEWSLETTER ═══════════ */}
-      <section className="py-12 lg:py-16 bg-primary-500">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="text-white max-w-md">
-              <h2 className="text-2xl font-bold mb-2">
-                Don&apos;t miss out — get <span className="italic">AMAZING<br />TRAVEL DEALS</span> delivered straight<br />to your inbox!
-              </h2>
-            </div>
-            <div className="flex items-center gap-3 w-full max-w-md">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email address"
-                className="flex-1 rounded-xl border-0 px-4 py-3.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-white/30"
-              />
-              <button className="rounded-xl bg-secondary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-secondary-600 transition-colors whitespace-nowrap">
-                Send me deals!
-              </button>
-            </div>
-            <p className="text-xs text-white/60 mt-2 md:mt-0">
-              By subscribing, you agree to our terms, privacy policy &amp; cookies.
-            </p>
           </div>
         </div>
       </section>
