@@ -7,7 +7,7 @@ import { getCityFromIata, getCountryFromIata } from "@/lib/iataMapping";
 import { TripDetail, resolveCoordsForCity } from "@/lib/tripDetail";
 import TripDetailView from "@/components/TripDetailView";
 
-/* ── IATA → city name map (kept for legacy tripView_ data) ── */
+/* ── IATA → city name map ── */
 const IATA_CITY: Record<string, string> = {
   LHR: 'London', LGW: 'London', STN: 'London', LTN: 'London', LCY: 'London',
   CDG: 'Paris', ORY: 'Paris', FCO: 'Rome', MXP: 'Milan', LIN: 'Milan',
@@ -157,21 +157,13 @@ export default function TripDetailPage() {
 
     let rawData: Record<string, any> | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    // 1. Try tripView_ (from homepage "View deal")
-    const tv = sessionStorage.getItem(`tripView_${id}`);
-    if (tv) {
-      rawData = normalizePkg(JSON.parse(tv));
+    // 1. Try trip_ (from plan results or homepage deals)
+    const tp = sessionStorage.getItem(`trip_${id}`);
+    if (tp) {
+      rawData = normalizePkg(JSON.parse(tp));
     }
 
-    // 2. Try trip_ (from plan results)
-    if (!rawData) {
-      const tp = sessionStorage.getItem(`trip_${id}`);
-      if (tp) {
-        rawData = normalizePkg(JSON.parse(tp));
-      }
-    }
-
-    // 3. Try planResults
+    // 2. Try planResults
     if (!rawData) {
       const pr = sessionStorage.getItem('planResults');
       if (pr) {

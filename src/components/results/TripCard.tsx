@@ -194,23 +194,6 @@ export function TripCard({
                                 window.location.href = viewDealHref;
                                 return;
                             }
-                            try {
-                                sessionStorage.setItem(`tripView_${id}`, JSON.stringify({
-                                    destination,
-                                    destinationCity,
-                                    origin,
-                                    originCity,
-                                    departureDate,
-                                    returnDate,
-                                    days,
-                                    price: discountedPrice,
-                                    originalPrice,
-                                    currency,
-                                    isDirect,
-                                    travelers,
-                                    imageUrl,
-                                }));
-                            } catch { /* ignore */ }
                             // If a full TripPackage is stored for this id (deals or planner),
                             // open the rich /plan/trip/[id] detail page
                             const hasFullPackage = typeof window !== 'undefined' &&

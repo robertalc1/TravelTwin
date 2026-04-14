@@ -76,6 +76,19 @@ export default function TripDetailView({
   function handleBook() {
     // Save full TripDetail object so booking/simulate can read all flat fields correctly
     sessionStorage.setItem('bookingTrip', JSON.stringify(trip));
+    // Save meta so booking page knows the correct back href + origin city
+    try {
+      let originCity = '';
+      const pr = sessionStorage.getItem('planResults');
+      if (pr) {
+        const parsed = JSON.parse(pr);
+        originCity = parsed.params?.originDisplay?.split(' (')[0] || parsed.params?.originIata || '';
+      }
+      sessionStorage.setItem('currentBookingMeta', JSON.stringify({
+        backHref: window.location.pathname,
+        originCity,
+      }));
+    } catch { /* ignore */ }
     router.push('/booking/simulate');
   }
 
@@ -160,7 +173,7 @@ export default function TripDetailView({
                   <div className="flex items-center gap-4">
                     <div className="text-center">
                       <p className="text-xl font-bold text-secondary-500">{formatTime(trip.departureTime)}</p>
-                      <p className="text-text-muted text-xs">OTP · Bucharest</p>
+                      <p className="text-text-muted text-xs">Departure</p>
                     </div>
                     <div className="flex-1 flex items-center gap-2">
                       <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
