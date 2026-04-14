@@ -211,7 +211,15 @@ export function TripCard({
                                     imageUrl,
                                 }));
                             } catch { /* ignore */ }
-                            window.location.href = `/trips/${id}`;
+                            // If a full TripPackage is stored for this id (deals or planner),
+                            // open the rich /plan/trip/[id] detail page
+                            const hasFullPackage = typeof window !== 'undefined' &&
+                                sessionStorage.getItem(`trip_${id}`);
+                            if (hasFullPackage || id.startsWith('deal-')) {
+                                window.location.href = `/plan/trip/${id}`;
+                            } else {
+                                window.location.href = `/trips/${id}`;
+                            }
                         }}
                         className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-600 hover:shadow-md active:scale-[0.98]"
                     >

@@ -85,7 +85,7 @@ export default function Home() {
 
   // Location-based deals
   const { airport, loading: locLoading } = useUserLocation();
-  const [deals, setDeals] = useState<any[]>([]);
+  const [dealPackages, setDealPackages] = useState<any[]>([]);
   const [dealsLoading, setDealsLoading] = useState(false);
 
   useEffect(() => {
@@ -94,8 +94,31 @@ export default function Home() {
     setDealsLoading(true);
     fetch(`/api/deals/from/${airport.iataCode}`)
       .then((r) => r.json())
-      .then((data) => { if (!cancelled) setDeals(data.deals || []); })
-      .catch(() => { if (!cancelled) setDeals([]); })
+      .then((data) => {
+        if (!cancelled) {
+          const pkgs = data.packages || [];
+          setDealPackages(pkgs);
+          // Store in planResults + individual keys so /plan/trip/[id] can open them
+          if (pkgs.length) {
+            try {
+              sessionStorage.setItem('planResults', JSON.stringify({
+                packages: pkgs,
+                params: {
+                  originIata: airport?.iataCode,
+                  originDisplay: `${airport?.cityName} (${airport?.iataCode})`,
+                  nights: pkgs[0]?.nights || 4,
+                  adults: 1,
+                  children: 0,
+                },
+              }));
+              pkgs.forEach((pkg: any) => {
+                sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
+              });
+            } catch { /* ignore storage errors */ }
+          }
+        }
+      })
+      .catch(() => { if (!cancelled) setDealPackages([]); })
       .finally(() => { if (!cancelled) setDealsLoading(false); });
     return () => { cancelled = true; };
   }, [airport?.iataCode]);
@@ -208,8 +231,8 @@ export default function Home() {
               <p className="text-body-sm text-text-secondary mt-1">
                 {locLoading || dealsLoading
                   ? "Finding the cheapest trips for you..."
-                  : deals.length > 0
-                    ? `${deals.length} ready-to-book packages, sorted by price`
+                  : dealPackages.length > 0
+                    ? `${dealPackages.length} ready-to-book packages, sorted by price`
                     : "Search above to find live deals"}
               </p>
             </div>
@@ -232,24 +255,24 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          ) : deals.length > 0 ? (
+          ) : dealPackages.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {deals.map((deal, i) => (
-                <div key={deal.id} className="stagger-item">
+              {dealPackages.map((pkg, i) => (
+                <div key={pkg.id} className="stagger-item">
                   <TripCard
-                    id={deal.id}
-                    destination={deal.destination}
-                    destinationCity={deal.destinationCity}
-                    origin={deal.origin}
-                    originCity={deal.originCity}
-                    imageUrl={deal.imageUrl}
-                    days={deal.nights}
-                    departureDate={deal.departureDate}
-                    returnDate={deal.returnDate}
-                    originalPrice={deal.originalPrice}
-                    discountedPrice={deal.totalPrice}
-                    currency={deal.currency}
-                    isDirect={deal.isDirect}
+                    id={pkg.id}
+                    destination={pkg.destination.iata}
+                    destinationCity={pkg.destination.city}
+                    origin={airport?.iataCode || ""}
+                    originCity={airport?.cityName || ""}
+                    imageUrl={getCityImageByIata(pkg.destination.iata)}
+                    days={pkg.nights}
+                    departureDate={pkg.hotel?.checkIn || ""}
+                    returnDate={pkg.hotel?.checkOut || ""}
+                    originalPrice={Math.round(pkg.totalPrice * 1.25)}
+                    discountedPrice={pkg.totalPrice}
+                    currency={pkg.currency}
+                    isDirect={pkg.flight?.stops === 0}
                     travelers={1}
                     badge={i === 0 ? "Cheapest" : undefined}
                   />
