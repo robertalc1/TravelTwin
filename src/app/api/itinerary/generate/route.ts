@@ -160,6 +160,8 @@ export async function POST(request: Request) {
         const totalFlightCost = flights.length > 0 ? flights[0].price.total : 0;
         const totalHotelCost = hotels.length > 0 ? (hotels[0].offers[0]?.price.total || 0) : 0;
 
+        packages.sort((a, b) => (a.totalPrice || 0) - (b.totalPrice || 0));
+
         const result = {
             packages: packages.slice(0, 10),
             flights: flights.slice(0, 20),

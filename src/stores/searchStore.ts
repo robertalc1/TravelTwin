@@ -52,14 +52,14 @@ const initialState = {
     returnDate: null,
     adults: 2,
     children: 0,
-    budget: 1500,
+    budget: 800,
     currency: 'EUR',
     preferences: [],
     results: null,
     loading: false,
     error: null,
     activeTab: 'for-you',
-    filters: {},
+    filters: { sortBy: 'lowest-price' as const },
 };
 
 export const useSearchStore = create<SearchState>((set, get) => ({
@@ -111,6 +111,10 @@ export const useSearchStore = create<SearchState>((set, get) => ({
             if (data.error) {
                 set({ error: data.error, loading: false });
                 return;
+            }
+
+            if (data?.packages && Array.isArray(data.packages)) {
+                data.packages.sort((a: any, b: any) => (a.totalPrice || 0) - (b.totalPrice || 0));
             }
 
             set({

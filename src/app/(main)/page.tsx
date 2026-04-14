@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plane,
   Hotel,
@@ -32,7 +32,7 @@ import {
 import { PlanTripWizard } from "@/components/search/PlanTripWizard";
 import { TripCard } from "@/components/results/TripCard";
 import { getCityImageByIata } from "@/lib/cityImages";
-import PopularTrips from "@/components/features/PopularTrips";
+import { useUserLocation } from "@/hooks/useUserLocation";
 
 
 /* ── Category tabs ── */
@@ -82,6 +82,23 @@ const featureCards = [
 export default function Home() {
   const [activeTab, setActiveTab] = useState("for-you");
   const [wizardOpen, setWizardOpen] = useState(false);
+
+  // Location-based deals
+  const { airport, loading: locLoading } = useUserLocation();
+  const [deals, setDeals] = useState<any[]>([]);
+  const [dealsLoading, setDealsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!airport?.iataCode) return;
+    let cancelled = false;
+    setDealsLoading(true);
+    fetch(`/api/deals/from/${airport.iataCode}`)
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled) setDeals(data.deals || []); })
+      .catch(() => { if (!cancelled) setDeals([]); })
+      .finally(() => { if (!cancelled) setDealsLoading(false); });
+    return () => { cancelled = true; };
+  }, [airport?.iataCode]);
 
   return (
     <>
@@ -180,8 +197,102 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════ 4. POPULAR TRIPS ═══════════ */}
-      <PopularTrips />
+      {/* ═══════════ 4. CHEAPEST DEALS (location-aware) ═══════════ */}
+      <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
+        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h2 className="text-h2 text-secondary-500">
+                Cheapest deals from {airport?.cityName || "your location"}
+              </h2>
+              <p className="text-body-sm text-text-secondary mt-1">
+                {locLoading || dealsLoading
+                  ? "Finding the cheapest trips for you..."
+                  : deals.length > 0
+                    ? `${deals.length} ready-to-book packages, sorted by price`
+                    : "Search above to find live deals"}
+              </p>
+            </div>
+          </div>
+
+          {(locLoading || dealsLoading) ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface animate-pulse">
+                  <div className="aspect-[16/10] w-full bg-neutral-200 dark:bg-neutral-700" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
+                    <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
+                    <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
+                    <div className="flex justify-between items-end pt-2">
+                      <div className="h-7 bg-neutral-200 dark:bg-neutral-700 rounded w-24" />
+                      <div className="h-8 bg-neutral-200 dark:bg-neutral-700 rounded-lg w-24" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : deals.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {deals.map((deal, i) => (
+                <div key={deal.id} className="stagger-item">
+                  <TripCard
+                    id={deal.id}
+                    destination={deal.destination}
+                    destinationCity={deal.destinationCity}
+                    origin={deal.origin}
+                    originCity={deal.originCity}
+                    imageUrl={deal.imageUrl}
+                    days={deal.nights}
+                    departureDate={deal.departureDate}
+                    returnDate={deal.returnDate}
+                    originalPrice={deal.originalPrice}
+                    discountedPrice={deal.totalPrice}
+                    currency={deal.currency}
+                    isDirect={deal.isDirect}
+                    travelers={1}
+                    badge={i === 0 ? "Cheapest" : undefined}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { code: "LHR", city: "London" },
+                { code: "CDG", city: "Paris" },
+                { code: "FCO", city: "Rome" },
+                { code: "BCN", city: "Barcelona" },
+                { code: "AMS", city: "Amsterdam" },
+                { code: "IST", city: "Istanbul" },
+              ].map(({ code, city }, i) => {
+                const basePrices = [480, 350, 420, 380, 310, 450];
+                const discountPrices = [299, 219, 269, 239, 199, 279];
+                return (
+                  <div key={code} className="stagger-item">
+                    <TripCard
+                      id={`sample-${code}`}
+                      destination={code}
+                      destinationCity={city}
+                      origin={airport?.iataCode || ""}
+                      originCity={airport?.cityName || "Your City"}
+                      imageUrl={getCityImageByIata(code)}
+                      days={5}
+                      departureDate="2026-04-01"
+                      returnDate="2026-04-05"
+                      originalPrice={basePrices[i]}
+                      discountedPrice={discountPrices[i]}
+                      currency="EUR"
+                      isDirect={i % 2 === 0}
+                      travelers={2}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ═══════════ 5. FEATURES SECTION ═══════════ */}
       <section className="py-12 lg:py-16 bg-white dark:bg-surface">
