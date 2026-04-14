@@ -92,7 +92,7 @@ export default function PlanPage() {
   const [state, setState] = useState<PlanState>({
     originIata: "OTP",
     originDisplay: "Bucharest",
-    budget: 1500,
+    budget: 800,
     currency: "EUR",
     departureDate: defaultDep,
     returnDate: defaultRet,
@@ -292,15 +292,15 @@ export default function PlanPage() {
                   {/* Slider */}
                   <input
                     type="range"
-                    min={200}
-                    max={10000}
-                    step={100}
+                    min={150}
+                    max={3000}
+                    step={50}
                     value={state.budget}
                     onChange={e => set("budget", parseInt(e.target.value))}
                     className="w-full accent-primary-500 mb-6"
                   />
                   <div className="flex justify-between text-xs text-text-muted mb-8">
-                    <span>€200</span><span>€10,000</span>
+                    <span>€150</span><span>€3,000</span>
                   </div>
 
                   {/* Currency selector */}

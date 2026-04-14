@@ -13,7 +13,7 @@ const IATA_CITY: Record<string, string> = {
   CDG: 'Paris', ORY: 'Paris', FCO: 'Rome', MXP: 'Milan', LIN: 'Milan',
   BCN: 'Barcelona', MAD: 'Madrid', AMS: 'Amsterdam', IST: 'Istanbul', SAW: 'Istanbul',
   ATH: 'Athens', VIE: 'Vienna', PRG: 'Prague', LIS: 'Lisbon', BER: 'Berlin',
-  BUD: 'Budapest', DXB: 'Dubai', OTP: 'Bucharest', CLJ: 'Bucharest',
+  BUD: 'Budapest', DXB: 'Dubai', OTP: 'Bucharest', CLJ: 'Cluj-Napoca',
   NRT: 'Tokyo', HND: 'Tokyo', JFK: 'New York', EWR: 'New York',
   WAW: 'Warsaw', KRK: 'Krakow', CPH: 'Copenhagen', SIN: 'Singapore', BKK: 'Bangkok',
   DBV: 'Dubrovnik', SPU: 'Split', ZAG: 'Zagreb', SOF: 'Sofia', BEG: 'Belgrade',
