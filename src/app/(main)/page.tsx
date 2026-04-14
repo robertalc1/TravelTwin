@@ -98,19 +98,9 @@ export default function Home() {
         if (!cancelled) {
           const pkgs = data.packages || [];
           setDealPackages(pkgs);
-          // Store in planResults + individual keys so /plan/trip/[id] can open them
+          // Store each deal individually — do NOT touch planResults (reserved for AI planner)
           if (pkgs.length) {
             try {
-              sessionStorage.setItem('planResults', JSON.stringify({
-                packages: pkgs,
-                params: {
-                  originIata: airport?.iataCode,
-                  originDisplay: `${airport?.cityName} (${airport?.iataCode})`,
-                  nights: pkgs[0]?.nights || 4,
-                  adults: 1,
-                  children: 0,
-                },
-              }));
               pkgs.forEach((pkg: any) => {
                 sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
               });

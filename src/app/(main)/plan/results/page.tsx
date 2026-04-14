@@ -26,16 +26,27 @@ export default function PlanResultsPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("planResults");
-    if (!stored) {
+    try {
+      const stored = sessionStorage.getItem("planResults");
+      if (!stored) {
+        router.push("/plan");
+        return;
+      }
+      const parsed = JSON.parse(stored);
+      // Only render this page for planner results (must have budget in params)
+      // Homepage deals don't have a budget field and should not land here
+      if (!parsed?.packages || !Array.isArray(parsed.packages) || parsed.packages.length === 0) {
+        router.push("/plan");
+        return;
+      }
+      setPackages(parsed.packages);
+      setParams(parsed.params || null);
+      setWarning(parsed.warning || null);
+      setLoaded(true);
+    } catch (e) {
+      console.error("[plan/results] Failed to load session data:", e);
       router.push("/plan");
-      return;
     }
-    const { packages: pkgs, params: p, warning: w } = JSON.parse(stored);
-    setPackages(pkgs || []);
-    setParams(p);
-    setWarning(w || null);
-    setLoaded(true);
   }, [router]);
 
   if (!loaded) {
@@ -99,9 +110,14 @@ export default function PlanResultsPage() {
           </h1>
           {params && (
             <p className="text-text-secondary">
-              From <strong>{params.originDisplay}</strong> · {params.nights} nights ·{" "}
-              {params.adults + params.children} traveler{params.adults + params.children !== 1 ? "s" : ""} ·{" "}
-              Budget: {params.currency} {params.budget.toLocaleString()}
+              From <strong>{params.originDisplay || params.originIata || "your location"}</strong>
+              {params.nights != null ? ` · ${params.nights} nights` : ""}
+              {params.adults != null
+                ? ` · ${(params.adults || 0) + (params.children || 0)} traveler${((params.adults || 0) + (params.children || 0)) !== 1 ? "s" : ""}`
+                : ""}
+              {params.budget != null && params.currency
+                ? ` · Budget: ${params.currency} ${Number(params.budget).toLocaleString()}`
+                : ""}
             </p>
           )}
         </div>
