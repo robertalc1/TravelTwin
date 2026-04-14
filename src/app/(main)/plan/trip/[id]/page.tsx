@@ -44,32 +44,44 @@ export default function TripDetailPage() {
   const router = useRouter();
   const [tripDetail, setTripDetail] = useState<TripDetail | null>(null);
 
+  const id = params?.id as string;
+  const isHomepageDeal = id?.startsWith('deal-');
+  const backHref = isHomepageDeal ? '/' : '/plan/results';
+  const backLabel = isHomepageDeal ? 'Back to home' : 'Back to results';
+
   useEffect(() => {
-    const id = params?.id as string;
     if (!id) return;
 
-    // Try session storage first
+    // 1. Try trip_${id} first (works for both homepage deals and planner packages)
     const stored = sessionStorage.getItem(`trip_${id}`);
     if (stored) {
-      const pkg = JSON.parse(stored) as TripPackage;
-      setTripDetail(packageToTripDetail(pkg));
-      return;
+      try {
+        const pkg = JSON.parse(stored) as TripPackage;
+        setTripDetail(packageToTripDetail(pkg));
+        return;
+      } catch { /* ignore parse error, fall through */ }
     }
 
-    // Fallback: look in planResults
+    // 2. Fallback: look in planResults (only populated by planner, not homepage)
     const results = sessionStorage.getItem("planResults");
     if (results) {
-      const { packages } = JSON.parse(results);
-      const found = packages?.find((p: TripPackage) => p.id === id);
-      if (found) {
-        setTripDetail(packageToTripDetail(found));
-      } else {
-        router.push("/plan/results");
-      }
-    } else {
-      router.push("/plan");
+      try {
+        const { packages } = JSON.parse(results);
+        const found = packages?.find((p: TripPackage) => p.id === id);
+        if (found) {
+          setTripDetail(packageToTripDetail(found));
+          return;
+        }
+      } catch { /* ignore parse error */ }
     }
-  }, [params, router]);
+
+    // 3. Not found — redirect based on source
+    if (id.startsWith('deal-')) {
+      router.push('/');
+    } else {
+      router.push('/plan');
+    }
+  }, [id, router]);
 
   if (!tripDetail) {
     return (
@@ -85,8 +97,8 @@ export default function TripDetailPage() {
   return (
     <TripDetailView
       trip={tripDetail}
-      backHref="/plan/results"
-      backLabel="Back to results"
+      backHref={backHref}
+      backLabel={backLabel}
     />
   );
 }
