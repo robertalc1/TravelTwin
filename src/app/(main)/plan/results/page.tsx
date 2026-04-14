@@ -14,6 +14,7 @@ import {
   Calendar,
   Sparkles,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 
@@ -21,6 +22,7 @@ export default function PlanResultsPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<TripPackage[]>([]);
   const [params, setParams] = useState<any>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -29,9 +31,10 @@ export default function PlanResultsPage() {
       router.push("/plan");
       return;
     }
-    const { packages: pkgs, params: p } = JSON.parse(stored);
+    const { packages: pkgs, params: p, warning: w } = JSON.parse(stored);
     setPackages(pkgs || []);
     setParams(p);
+    setWarning(w || null);
     setLoaded(true);
   }, [router]);
 
@@ -92,7 +95,7 @@ export default function PlanResultsPage() {
             <span className="text-sm font-semibold text-primary-500 uppercase tracking-wider">AI Recommendations</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-secondary-500 mb-2">
-            Your Top {packages.length} Personalized Trips
+            Your Personalized Trip Recommendations
           </h1>
           {params && (
             <p className="text-text-secondary">
@@ -103,8 +106,16 @@ export default function PlanResultsPage() {
           )}
         </div>
 
+        {/* Warning banner */}
+        {warning && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-5 py-4">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800">{warning}</p>
+          </div>
+        )}
+
         {/* Package cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {packages.map((pkg, i) => (
             <PackageCard key={pkg.id} pkg={pkg} index={i} />
           ))}

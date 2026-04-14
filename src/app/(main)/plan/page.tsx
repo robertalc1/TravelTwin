@@ -184,12 +184,12 @@ export default function PlanPage() {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to plan trip");
-      if (!data.packages?.length) throw new Error("No trips found for your criteria. Try adjusting your budget or dates.");
+      if (!data.packages?.length) throw new Error(data.warning || "No trips found for your criteria. Try adjusting your budget or dates.");
 
       setLoadingProgress(100);
 
       // Store results in sessionStorage
-      sessionStorage.setItem("planResults", JSON.stringify({ packages: data.packages, params: state }));
+      sessionStorage.setItem("planResults", JSON.stringify({ packages: data.packages, params: state, warning: data.warning || null }));
 
       setTimeout(() => router.push("/plan/results"), 500);
     } catch (e: any) {

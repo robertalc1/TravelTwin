@@ -5,6 +5,7 @@ import { searchFlightInspirations } from '@/lib/amadeus-client';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
 import { getCityImageByIata } from '@/lib/cityImages';
+import { estimateTripPrice } from '@/lib/pricing';
 
 const HOTEL_ESTIMATE_EUR: Record<string, number> = {
     LHR: 90, LGW: 85, STN: 75, LTN: 75, LCY: 95,
@@ -79,9 +80,18 @@ function buildCardFromInspiration(
     const dest = (insp.destination as string) || '';
     const destCity = getCityFromIata(dest) || dest;
     const priceObj = insp.price as Record<string, unknown> | undefined;
-    const flightPrice = Math.round(parseFloat((priceObj?.total as string) || '0'));
-    const hotelPrice = estimateHotel(dest, nights);
-    const total = flightPrice + hotelPrice + Math.round(DEFAULT_ACTIVITY_BUDGET * (nights / DEFAULT_NIGHTS));
+    const amadeusFlightPrice = Math.round(parseFloat((priceObj?.total as string) || '0'));
+    const estimate = estimateTripPrice(origin, dest, nights, 999999);
+
+    // Validate Amadeus price vs distance-based estimate — reject sandbox stubs
+    const realisticFlight = estimate ? estimate.flightRoundTrip : 0;
+    const flightPrice = (amadeusFlightPrice > 0 && estimate && amadeusFlightPrice >= realisticFlight * 0.4)
+        ? amadeusFlightPrice
+        : (estimate ? estimate.flightRoundTrip : amadeusFlightPrice);
+    const hotelPrice = estimate ? estimate.hotelTotal : estimateHotel(dest, nights);
+    const total = estimate
+        ? flightPrice + hotelPrice + estimate.activitiesBudget
+        : flightPrice + hotelPrice + Math.round(DEFAULT_ACTIVITY_BUDGET * (nights / DEFAULT_NIGHTS));
     const departureDate = ((insp.departureDate as string) || futureDates().departureDate) as string;
     const returnDate = ((insp.returnDate as string) || futureDates(21, nights).returnDate) as string;
 
@@ -101,7 +111,7 @@ function buildCardFromInspiration(
         nights,
         departureDate,
         returnDate,
-        isDirect: true,
+        isDirect: estimate ? estimate.stops === 0 : true,
         itinerary: buildMiniItinerary(destCity, nights),
         source: 'live',
     };
@@ -114,9 +124,11 @@ function buildCardFromCommonRoute(
     nights: number
 ): DealCard {
     const destCity = getCityFromIata(route.to) || route.to;
-    const flightPrice = route.avgPrice * 2;
-    const hotelPrice = estimateHotel(route.to, nights);
-    const total = flightPrice + hotelPrice + DEFAULT_ACTIVITY_BUDGET;
+    const estimate = estimateTripPrice(origin, route.to, nights, 999999);
+
+    const flightPrice = estimate ? estimate.flightRoundTrip : route.avgPrice * 2;
+    const hotelPrice = estimate ? estimate.hotelTotal : estimateHotel(route.to, nights);
+    const total = estimate ? estimate.total : flightPrice + hotelPrice + DEFAULT_ACTIVITY_BUDGET;
     const { departureDate, returnDate } = futureDates(21, nights);
 
     return {
@@ -135,7 +147,7 @@ function buildCardFromCommonRoute(
         nights,
         departureDate,
         returnDate,
-        isDirect: true,
+        isDirect: estimate ? estimate.stops === 0 : true,
         itinerary: buildMiniItinerary(destCity, nights),
         source: 'reference',
     };

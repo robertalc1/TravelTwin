@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { matchDestinations, DestinationProfile } from '@/lib/destinations';
 import { searchFlights, searchHotelsByCity, searchHotelOffers } from '@/lib/amadeus-client';
 import { CITY_FALLBACK_DATA } from '@/lib/cityFallbackData';
+import { estimateTripPrice, pickAirlineForRoute } from '@/lib/pricing';
 
 export interface TripPackage {
   id: string;
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
     const totalAdults = adults + children;
 
     // 1. Match candidate destinations
-    const candidates = matchDestinations(travelStyles, climate, budget, month, 8);
+    const candidates = matchDestinations(travelStyles, climate, budget, month, 20);
     if (candidates.length === 0) {
       return NextResponse.json({ error: 'No destinations matched your preferences' }, { status: 400 });
     }
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
     const hotelBudget = budget * 0.45;
 
     // 2. Search flights + hotels for each candidate in parallel (limit to 5)
-    const searchPromises = candidates.slice(0, 5).map(async (dest) => {
+    const searchPromises = candidates.map(async (dest) => {
       try {
         // Search flights
         const flightParams: Record<string, string> = {
@@ -160,69 +161,75 @@ export async function POST(req: NextRequest) {
     const packages: TripPackage[] = [];
 
     for (const { dest, flightData, hotelOffer } of searchResults) {
-      const flightPrice = flightData
+      // 1. Try real prices from Amadeus first
+      let flightPrice = flightData
         ? parseFloat(flightData.price?.total || flightData.price?.grandTotal || '0')
         : 0;
-      const hotelPrice = hotelOffer
+      let hotelPrice = hotelOffer
         ? parseFloat(hotelOffer.offers?.[0]?.price?.total || '0')
         : 0;
 
-      // Estimated prices when Amadeus sandbox returns no real prices
-      const seed = dest.iata.charCodeAt(0) + dest.iata.charCodeAt(1);
-      const variation = 0.75 + (seed % 25) * 0.01;
-      const estimatedFlightPrice = Math.round(budget * 0.38 * variation);
-      const estimatedHotelPrice = Math.round(budget * 0.42 * variation);
+      // 2. Validate Amadeus data is realistic — if it's fake/stub, replace with estimate
+      const estimate = estimateTripPrice(origin, dest.iata, nights, budget);
+      if (!estimate) continue; // unknown airport, skip
 
-      const finalFlightPrice = flightPrice > 0 ? flightPrice : estimatedFlightPrice;
-      const finalHotelPrice = hotelPrice > 0 ? hotelPrice : estimatedHotelPrice;
-      const totalPrice = finalFlightPrice + finalHotelPrice;
-      const isEstimated = flightPrice === 0 && hotelPrice === 0;
+      // If Amadeus gave us a flight price but it's suspiciously off vs the distance-based
+      // estimate (sandbox stubs), or it returned nothing, use the realistic estimate.
+      const realisticFlight = estimate.flightRoundTrip * totalAdults;
+      if (flightPrice === 0 || flightPrice < realisticFlight * 0.4) {
+        flightPrice = realisticFlight;
+      }
+      if (hotelPrice === 0 || hotelPrice < estimate.hotelTotal * 0.4) {
+        hotelPrice = estimate.hotelTotal;
+      }
 
-      // Skip if exceeds budget by more than 15%
-      if (totalPrice > budget * 1.15) continue;
+      const totalPrice = flightPrice + hotelPrice;
 
-      const flight = flightData ? {
-        ...buildFlightInfo(flightData),
-        price: finalFlightPrice,
-      } : {
-        outbound: null,
-        price: finalFlightPrice,
-        currency: currency,
-        airline: 'W6',
-        airlineCode: 'W6',
-        duration: 'PT2H30M',
-        stops: 0,
-        departureTime: departureDate + 'T08:30:00',
-        arrivalTime: departureDate + 'T11:00:00',
-      };
+      // Strict budget filter — no more "within 15% over budget" cheating
+      if (totalPrice > budget) continue;
 
-      const hotel = hotelOffer ? {
-        ...buildHotelInfo(hotelOffer, nights),
-        price: finalHotelPrice,
-        pricePerNight: Math.round(finalHotelPrice / Math.max(1, nights)),
-      } : {
-        id: dest.iata + '-est',
-        name: dest.city + ' Central Hotel',
-        stars: budget > 2000 ? 4 : 3,
-        price: finalHotelPrice,
-        pricePerNight: Math.round(finalHotelPrice / Math.max(1, nights)),
-        currency: currency,
-        checkIn: departureDate,
-        checkOut: returnDate,
-        amenities: ['Free WiFi', 'Breakfast included'],
-      };
+      // Build flight info: prefer real, fall back to estimate-based display
+      const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
+      const flight = flightData
+        ? { ...buildFlightInfo(flightData), price: flightPrice }
+        : {
+            outbound: null,
+            price: flightPrice,
+            currency,
+            airline: airlineCode,
+            airlineCode,
+            duration: estimate.durationISO,
+            stops: estimate.stops,
+            departureTime: '',
+            arrivalTime: '',
+          };
 
-      // Score package — real prices ranked higher
+      // Build hotel info: prefer real, fall back to estimate
+      const hotel = hotelOffer
+        ? { ...buildHotelInfo(hotelOffer, nights), price: Math.round(hotelPrice), pricePerNight: Math.round(hotelPrice / Math.max(1, nights)) }
+        : {
+            id: `est-${dest.iata}`,
+            name: `${dest.city} City Hotel`,
+            stars: 3,
+            price: Math.round(hotelPrice),
+            pricePerNight: Math.round(hotelPrice / nights),
+            currency,
+            checkIn: departureDate,
+            checkOut: returnDate,
+            amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
+          };
+
+      // Score packages
       let score = 0;
-      if (totalPrice > 0 && totalPrice <= budget) score += 30;
-      if (flight?.stops === 0 && priorities.includes('direct-flights')) score += 25;
-      if (hotel && hotel.stars >= 4) score += 20;
-      if (priorities.includes('cheapest') && totalPrice < budget * 0.8) score += 15;
+      if (totalPrice <= budget * 0.6) score += 40;      // way under budget = big win
+      else if (totalPrice <= budget * 0.8) score += 25;
+      else if (totalPrice <= budget) score += 10;
+      if (flight.stops === 0) score += 15;
+      if (hotel.stars >= 4) score += 10;
       score += (dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10);
-      if (!isEstimated) score += 50;
 
       packages.push({
-        id: dest.iata + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+        id: `${dest.iata}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         destination: dest,
         flight,
         hotel,
@@ -231,18 +238,32 @@ export async function POST(req: NextRequest) {
         nights,
         aiContent: null,
         score,
-        isEstimated,
       });
     }
 
-    // Sort by score and take top 3
-    packages.sort((a, b) => b.score - a.score);
-    const topPackages = packages.slice(0, 3);
+    // Sort by total price ASCENDING (cheapest first) — secondary by score
+    packages.sort((a, b) => {
+      if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
+      return b.score - a.score;
+    });
+    const topPackages = packages.slice(0, 9);
 
-    // 4. Generate AI content for top packages
+    // Warn if nothing fits the budget
+    if (topPackages.length === 0) {
+      return NextResponse.json({
+        packages: [],
+        total: 0,
+        warning: `No destinations found within €${budget}. Try increasing your budget — typical European city breaks start around €300, while long-haul trips need €1200+.`,
+      });
+    }
+
+    // 4. Generate AI content — top 3 only (cost optimization), rest use fallback
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (apiKey && topPackages.length > 0) {
-      await Promise.all(topPackages.map(async (pkg) => {
+    const needAi = topPackages.slice(0, 3);
+    const useFallback = topPackages.slice(3);
+
+    if (apiKey && needAi.length > 0) {
+      await Promise.all(needAi.map(async (pkg) => {
         try {
           const activityBudget = Math.round(budget - pkg.totalPrice);
           const prompt = `You are a travel expert. Generate a trip itinerary for this trip:
@@ -314,11 +335,9 @@ Return ONLY valid JSON (no markdown, no backticks):
         }
       }));
     } else {
-      // No API key — use fallback content for all
-      topPackages.forEach(pkg => {
-        pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles);
-      });
+      needAi.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
     }
+    useFallback.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
 
     return NextResponse.json({ packages: topPackages, total: topPackages.length });
   } catch (e: any) {

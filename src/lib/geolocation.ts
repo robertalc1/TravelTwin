@@ -46,7 +46,7 @@ export const MAJOR_AIRPORTS: Omit<NearestAirport, 'distanceKm'>[] = [
     { iataCode: 'WAW', cityName: 'Warsaw', countryName: 'Poland', latitude: 52.1657, longitude: 20.9671 },
 ];
 
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371;
     const toRad = (x: number) => (x * Math.PI) / 180;
     const dLat = toRad(lat2 - lat1);
