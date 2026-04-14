@@ -58,6 +58,7 @@ export default function BookingSimulatePage() {
   const [processing, setProcessing] = useState(false);
   const [bookingRef] = useState(() => "TW-" + Math.random().toString(36).substring(2, 8).toUpperCase());
   const [bookingTrip, setBookingTrip] = useState<TripDetail | null>(null);
+  const [bookingMeta, setBookingMeta] = useState<{ backHref: string; originCity: string }>({ backHref: '/', originCity: '' });
 
   const [traveler, setTraveler] = useState<TravelerInfo>({
     firstName: "", lastName: "", email: "", phone: "", dateOfBirth: "", passportNumber: "",
@@ -71,6 +72,10 @@ export default function BookingSimulatePage() {
     if (stored) {
       try { setBookingTrip(JSON.parse(stored)); } catch { /* ignore */ }
     }
+    try {
+      const meta = sessionStorage.getItem('currentBookingMeta');
+      if (meta) setBookingMeta(JSON.parse(meta));
+    } catch { /* ignore */ }
   }, []);
 
   // Derive display values from bookingTrip (a full TripDetail object) or use fallbacks
@@ -83,10 +88,10 @@ export default function BookingSimulatePage() {
         ? `${fmtDate(bookingTrip.departureDate)} · ${bookingTrip.nights} nights`
         : `${bookingTrip.nights} nights`
     : '';
-  const displayRoute = `Bucharest → ${displayDestination}`;
+  const displayRoute = `${bookingMeta.originCity || 'Your City'} → ${displayDestination}`;
   const tripData = {
     destination: displayDestination,
-    origin: 'Bucharest',
+    origin: bookingMeta.originCity || 'Your City',
     dates: displayDates,
     nights: bookingTrip?.nights || 0,
     flight: {
@@ -120,19 +125,16 @@ export default function BookingSimulatePage() {
     setProcessing(true);
     await new Promise((r) => setTimeout(r, 3000));
     setProcessing(false);
-    // Save trip data under booking ref so share page can load it
+    // Save trip + traveler under booking ref so share page can load it
     if (bookingTrip) {
-      sessionStorage.setItem(`booking_${bookingRef}`, JSON.stringify(bookingTrip));
-      // Also save under trip_{id} so /plan/trip/[id] can load it if needed
-      if (bookingTrip.id) {
-        sessionStorage.setItem(`trip_${bookingTrip.id}`, JSON.stringify({
-          destination: { iata: bookingTrip.destinationCode, city: bookingTrip.destinationCity, country: bookingTrip.destinationCountry },
-          flight: { price: bookingTrip.flightPrice, airline: bookingTrip.airline, airlineCode: bookingTrip.airlineCode, departureTime: bookingTrip.departureTime, arrivalTime: bookingTrip.arrivalTime, duration: bookingTrip.duration, stops: bookingTrip.stops },
-          hotel: { name: bookingTrip.hotelName, stars: bookingTrip.hotelStars, price: bookingTrip.hotelPrice, pricePerNight: bookingTrip.hotelPricePerNight, checkIn: bookingTrip.departureDate, checkOut: bookingTrip.returnDate },
-          totalPrice: bookingTrip.totalPrice, currency: bookingTrip.currency, nights: bookingTrip.nights, aiContent: bookingTrip.aiContent,
-        }));
-      }
+      sessionStorage.setItem(`booking_${bookingRef}`, JSON.stringify({
+        ...bookingTrip,
+        traveler,
+        paidAt: new Date().toISOString(),
+        origin: bookingMeta.originCity || 'Your City',
+      }));
     }
+    sessionStorage.setItem('lastBookingRef', bookingRef);
     setStep(4);
   }
 
@@ -140,7 +142,7 @@ export default function BookingSimulatePage() {
   if (step === 1) return (
     <div className="min-h-screen bg-background py-10">
       <div className="mx-auto max-w-2xl px-4">
-        <Link href="/plan" className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary mb-6">
+        <Link href={bookingMeta.backHref || '/'} className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary mb-6">
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         <h1 className="text-2xl font-bold text-text-primary mb-2">Review Your Trip</h1>
@@ -437,7 +439,7 @@ export default function BookingSimulatePage() {
             View Itinerary
           </button>
           <Link
-            href="/plan"
+            href="/"
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-4 py-3 text-sm font-bold text-white hover:bg-primary-600 transition-colors"
           >
             Plan Another Trip
