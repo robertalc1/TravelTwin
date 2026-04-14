@@ -329,38 +329,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════ 6. APP PROMO SECTION ═══════════ */}
-      <section className="py-12 lg:py-16 bg-neutral-50 dark:bg-surface-sunken">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Featured trip cards */}
-            {[
-              { code: "VIE", city: "Vienna", orig: 520, disc: 411 },
-              { code: "PRG", city: "Prague", orig: 475, disc: 363 },
-            ].map(({ code, city, orig, disc }) => (
-              <TripCard
-                key={code}
-                id={`promo-${code}`}
-                destination={code}
-                destinationCity={city}
-                origin=""
-                originCity="Your City"
-                imageUrl={getCityImageByIata(code)}
-                days={4}
-                departureDate="2026-04-10"
-                returnDate="2026-04-14"
-                originalPrice={orig}
-                discountedPrice={disc}
-                currency="EUR"
-                isDirect={false}
-                travelers={2}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════ 7. CREATE MORE TRIPS CTA ═══════════ */}
+      {/* ═══════════ 6. CREATE MORE TRIPS CTA ═══════════ */}
       <section className="relative overflow-hidden">
         <div className="bg-gradient-to-r from-primary-500 to-primary-600 py-16 px-4">
           <div className="mx-auto max-w-[1280px] text-center">
