@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { Play, Volume2, VolumeX, ExternalLink } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Volume2, VolumeX } from "lucide-react";
 
 interface NormalizedVideo {
     id: number;
@@ -23,10 +23,11 @@ interface DestinationVideosProps {
 export default function DestinationVideos({ city, country }: DestinationVideosProps) {
     const [videos, setVideos] = useState<NormalizedVideo[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeIndex, setActiveIndex] = useState<number | null>(null);
     const [muted, setMuted] = useState(true);
     const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+    const observerRef = useRef<IntersectionObserver | null>(null);
 
+    // Fetch videos from server-side endpoint
     useEffect(() => {
         if (!city) return;
         let cancelled = false;
@@ -45,30 +46,37 @@ export default function DestinationVideos({ city, country }: DestinationVideosPr
                 if (!cancelled) setLoading(false);
             });
 
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, [city, country]);
 
-    function handleHover(i: number) {
-        setActiveIndex(i);
-        const video = videoRefs.current[i];
-        if (video) {
-            video.currentTime = 0;
-            video.play().catch(() => {
-                /* autoplay may be blocked, ignore silently */
-            });
-        }
-    }
+    // IntersectionObserver: autoplay when entering viewport, pause when leaving
+    const setupObserver = useCallback(() => {
+        if (observerRef.current) observerRef.current.disconnect();
 
-    function handleLeave(i: number) {
-        const video = videoRefs.current[i];
-        if (video) {
-            video.pause();
-            video.currentTime = 0;
-        }
-        setActiveIndex(null);
-    }
+        observerRef.current = new IntersectionObserver(
+            (entries) => {
+                entries.forEach(entry => {
+                    const video = entry.target as HTMLVideoElement;
+                    if (entry.isIntersecting) {
+                        video.play().catch(() => { /* blocked by browser policy, ignore */ });
+                    } else {
+                        video.pause();
+                    }
+                });
+            },
+            { threshold: 0.4 }
+        );
+
+        videoRefs.current.forEach(v => {
+            if (v) observerRef.current!.observe(v);
+        });
+    }, []);
+
+    // Re-run observer whenever video list changes
+    useEffect(() => {
+        if (videos.length > 0) setupObserver();
+        return () => { observerRef.current?.disconnect(); };
+    }, [videos, setupObserver]);
 
     function toggleMute() {
         const newMuted = !muted;
@@ -122,11 +130,7 @@ export default function DestinationVideos({ city, country }: DestinationVideosPr
                     className="flex items-center gap-2 rounded-full bg-neutral-100 dark:bg-surface-elevated px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors"
                     aria-label={muted ? "Unmute" : "Mute"}
                 >
-                    {muted ? (
-                        <VolumeX className="h-3.5 w-3.5" />
-                    ) : (
-                        <Volume2 className="h-3.5 w-3.5" />
-                    )}
+                    {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
                     {muted ? "Muted" : "Sound on"}
                 </button>
             </div>
@@ -135,49 +139,19 @@ export default function DestinationVideos({ city, country }: DestinationVideosPr
                 {videos.map((v, i) => (
                     <div
                         key={v.id}
-                        className="relative flex-shrink-0 w-64 aspect-[9/16] rounded-2xl overflow-hidden bg-black snap-start group cursor-pointer shadow-lg hover:shadow-2xl transition-shadow"
-                        onMouseEnter={() => handleHover(i)}
-                        onMouseLeave={() => handleLeave(i)}
-                        onClick={() => {
-                            if (activeIndex === i) handleLeave(i);
-                            else handleHover(i);
-                        }}
+                        className="flex-shrink-0 w-64 aspect-[9/16] rounded-2xl overflow-hidden bg-black snap-start shadow-lg"
                     >
                         <video
                             ref={(el) => { videoRefs.current[i] = el; return undefined; }}
                             src={v.url}
                             poster={v.thumbnail}
+                            autoPlay
                             muted={muted}
                             loop
                             playsInline
-                            preload="metadata"
-                            className="absolute inset-0 w-full h-full object-cover"
+                            preload="auto"
+                            className="w-full h-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 pointer-events-none" />
-
-                        {activeIndex !== i && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="rounded-full bg-white/20 backdrop-blur-md p-4 group-hover:scale-110 transition-transform">
-                                    <Play className="h-6 w-6 text-white fill-white" />
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="absolute bottom-3 left-3 right-3 text-xs">
-                            <p className="font-semibold text-white drop-shadow truncate">
-                                {city}
-                            </p>
-                            <a
-                                href={v.pexelsUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={e => e.stopPropagation()}
-                                className="text-white/70 hover:text-white text-[10px] truncate flex items-center gap-1 mt-0.5 transition-colors"
-                            >
-                                by {v.author}
-                                <ExternalLink className="h-2.5 w-2.5" />
-                            </a>
-                        </div>
                     </div>
                 ))}
             </div>
