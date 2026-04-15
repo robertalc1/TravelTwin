@@ -40,7 +40,7 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
     const [destinationDisplay, setDestinationDisplay] = useState("");
     const [selectedRegion, setSelectedRegion] = useState("anywhere");
 
-    const [departureDate, setDepartureDate] = useState("");
+    const [departureDate, setDepartureDate] = useState(() => new Date().toISOString().split("T")[0]);
     const [returnDate, setReturnDate] = useState("");
     const [adults, setAdults] = useState(1);
     const [children, setChildren] = useState(0);

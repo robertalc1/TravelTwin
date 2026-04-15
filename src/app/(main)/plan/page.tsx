@@ -74,8 +74,9 @@ interface PlanState {
 }
 
 const today = new Date();
-const defaultDep = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-const defaultRet = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+// Default: today (user can change). Return = today + 7 nights.
+const defaultDep = today.toISOString().split("T")[0];
+const defaultRet = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
 export default function PlanPage() {
   const router = useRouter();
