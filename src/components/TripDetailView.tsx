@@ -1,18 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
   Plane, Hotel, ArrowLeft, MapPin, Star, Calendar,
-  Coffee, Sun, Moon, Utensils, UtensilsCrossed, Camera,
+  Coffee, Sun, Moon, Utensils, Camera,
   ExternalLink, Lightbulb, Navigation, Shield, DollarSign,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
+import { buildLegsFromTrip, buildStopsFromTrip } from '@/lib/itineraryHelpers';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import DestinationVideos from '@/components/DestinationVideos';
+import ItinerarySection from '@/components/itinerary/ItinerarySection';
 
 const InteractiveMap = dynamic(
   () => import('@/components/InteractiveMap'),
@@ -66,6 +68,20 @@ export default function TripDetailView({
 }: Props) {
   const router = useRouter();
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
+  const [originCity, setOriginCity] = useState('');
+  const [originCode, setOriginCode] = useState('');
+
+  // Read origin from sessionStorage (populated by AI planner)
+  useEffect(() => {
+    try {
+      const pr = sessionStorage.getItem('planResults');
+      if (pr) {
+        const parsed: { params?: { originIata?: string; originDisplay?: string } } = JSON.parse(pr);
+        setOriginCity(parsed.params?.originDisplay?.split(' (')[0] ?? '');
+        setOriginCode(parsed.params?.originIata ?? '');
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const heroUrl = resolveHeroUrl(trip);
   const ai = trip.aiContent;
@@ -155,48 +171,15 @@ export default function TripDetailView({
               />
             )}
 
-            {/* Flight card */}
-            {trip.airline && (
-              <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-4">Your Itinerary</h2>
-                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-500">
-                      <Plane className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-secondary-500">Outbound Flight</p>
-                      <p className="text-sm text-text-muted">
-                        {trip.airline} · {trip.stops === 0 ? 'Direct' : `${trip.stops} stop${trip.stops > 1 ? 's' : ''}`}
-                      </p>
-                    </div>
-                    {trip.airlineCode && (
-                      <img
-                        src={`https://pics.avs.io/100/40/${trip.airlineCode}.png`}
-                        alt={trip.airline}
-                        className="ml-auto h-8 object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-secondary-500">{formatTime(trip.departureTime)}</p>
-                      <p className="text-text-muted text-xs">Departure</p>
-                    </div>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
-                      <span className="text-xs text-text-muted whitespace-nowrap">{formatDuration(trip.duration)}</span>
-                      <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-xl font-bold text-secondary-500">{formatTime(trip.arrivalTime)}</p>
-                      <p className="text-text-muted text-xs">{trip.destinationCode} · {trip.destinationCity}</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
+            {/* Itinerary — new Kiwi-inspired design */}
+            <ItinerarySection
+              legs={buildLegsFromTrip(trip, originCity, originCode)}
+              stops={buildStopsFromTrip(
+                trip,
+                originCity,
+                buildLegsFromTrip(trip, originCity, originCode),
+              )}
+            />
 
             {/* Hotel card */}
             {trip.hotelName && (
