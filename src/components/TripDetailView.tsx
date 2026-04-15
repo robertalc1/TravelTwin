@@ -12,6 +12,7 @@ import {
 import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
 import AttractionPhotos from '@/components/AttractionPhotos';
+import DestinationVideos from '@/components/DestinationVideos';
 
 const InteractiveMap = dynamic(
   () => import('@/components/InteractiveMap'),
@@ -145,6 +146,14 @@ export default function TripDetailView({
                 <p className="mt-2 text-sm text-primary-600 dark:text-primary-400 italic">{ai.whyThisTrip}</p>
               )}
             </section>
+
+            {/* Destination Videos */}
+            {trip.destinationCity && (
+              <DestinationVideos
+                city={trip.destinationCity}
+                country={trip.destinationCountry}
+              />
+            )}
 
             {/* Flight card */}
             {trip.airline && (
