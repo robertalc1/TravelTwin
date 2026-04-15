@@ -31,10 +31,9 @@ export default function FlightsPage() {
     const [warning, setWarning] = useState("");
     const [responseSource, setResponseSource] = useState<string>("");
 
-    // Set default departure date to 1 week from now
+    // Set default departure date to today
     useEffect(() => {
         const d = new Date();
-        d.setDate(d.getDate() + 7);
         setDepartureDate(d.toISOString().split("T")[0]);
     }, []);
 
