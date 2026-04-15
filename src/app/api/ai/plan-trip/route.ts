@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchDestinations, DestinationProfile } from '@/lib/destinations';
+import { diversifyPackages } from '@/lib/diversify';
 import { searchFlights, searchHotelsByCity, searchHotelOffers } from '@/lib/amadeus-client';
 import { CITY_FALLBACK_DATA } from '@/lib/cityFallbackData';
 import { estimateTripPrice, pickAirlineForRoute } from '@/lib/pricing';
@@ -246,7 +247,11 @@ export async function POST(req: NextRequest) {
       if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
       return b.score - a.score;
     });
-    const topPackages = packages.slice(0, 9);
+
+    // Apply diversity if many packages, no artificial 9-package cap
+    const topPackages = packages.length > 12
+      ? diversifyPackages(packages, Math.min(packages.length, 24))
+      : packages;
 
     // Warn if nothing fits the budget
     if (topPackages.length === 0) {
@@ -257,10 +262,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Generate AI content — top 3 only (cost optimization), rest use fallback
+    // 4. Generate AI content — top 6 only (cost optimization), rest use fallback
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const needAi = topPackages.slice(0, 3);
-    const useFallback = topPackages.slice(3);
+    const needAi = topPackages.slice(0, 6);
+    const useFallback = topPackages.slice(6);
 
     if (apiKey && needAi.length > 0) {
       await Promise.all(needAi.map(async (pkg) => {

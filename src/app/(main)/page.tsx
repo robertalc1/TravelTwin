@@ -87,6 +87,7 @@ export default function Home() {
   const { airport, loading: locLoading } = useUserLocation();
   const [dealPackages, setDealPackages] = useState<any[]>([]);
   const [dealsLoading, setDealsLoading] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(12);
 
   useEffect(() => {
     if (!airport?.iataCode) return;
@@ -222,7 +223,7 @@ export default function Home() {
                 {locLoading || dealsLoading
                   ? "Finding the cheapest trips for you..."
                   : dealPackages.length > 0
-                    ? `${dealPackages.length} ready-to-book packages, sorted by price`
+                    ? `${dealPackages.length} ready-to-book package${dealPackages.length !== 1 ? 's' : ''}, sorted by price & variety`
                     : "Search above to find live deals"}
               </p>
             </div>
@@ -247,7 +248,7 @@ export default function Home() {
             </div>
           ) : dealPackages.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dealPackages.map((pkg, i) => (
+              {dealPackages.slice(0, visibleCount).map((pkg, i) => (
                 <div key={pkg.id} className="stagger-item">
                   <TripCard
                     id={pkg.id}
@@ -268,6 +269,16 @@ export default function Home() {
                   />
                 </div>
               ))}
+              {visibleCount < dealPackages.length && (
+                <div className="col-span-full flex justify-center mt-6">
+                  <button
+                    onClick={() => setVisibleCount(c => c + 6)}
+                    className="rounded-xl border-2 border-primary-500 bg-white px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 transition-colors"
+                  >
+                    Show {Math.min(6, dealPackages.length - visibleCount)} more deals
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -1,7 +1,8 @@
-/* GET /api/deals/from/[iata] — 6 cheapest packages from origin, returned as TripPackage[] */
+/* GET /api/deals/from/[iata] — cheapest packages from origin, returned as TripPackage[] */
 
 import { NextResponse } from 'next/server';
 import { searchFlightInspirations } from '@/lib/amadeus-client';
+import { diversifyPackages } from '@/lib/diversify';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
 import { getCityImageByIata } from '@/lib/cityImages';
@@ -204,7 +205,8 @@ export async function GET(
         console.warn('[deals] Inspiration API failed:', (e as Error).message);
     }
 
-    if (packages.length < 6) {
+    // Always supplement with COMMON_ROUTES fallbacks to ensure variety
+    {
         const seen = new Set(packages.map(p => p.destination.iata));
         const fallbacks = COMMON_ROUTES
             .filter(r => r.from === origin && !seen.has(r.to))
@@ -221,7 +223,8 @@ export async function GET(
     }
 
     packages.sort((a, b) => a.totalPrice - b.totalPrice);
-    const top = packages.slice(0, 6);
+    // Diversify so user doesn't see 18 destinations from the same region
+    const top = diversifyPackages(packages, 18); // up to 18 diverse deals (safety cap: 30)
 
     // Generate AI content — top 3 get real AI, rest use fallback (cost optimization)
     const apiKey = process.env.ANTHROPIC_API_KEY;
