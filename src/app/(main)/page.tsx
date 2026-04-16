@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { SearchProgressHeader } from "@/components/deals/SearchProgressHeader";
+import { DealCardSkeleton } from "@/components/deals/DealCardSkeleton";
+import { useSearchProgress } from "@/hooks/useSearchProgress";
 import {
   Plane,
   Hotel,
@@ -88,6 +92,9 @@ export default function Home() {
   const [dealPackages, setDealPackages] = useState<any[]>([]);
   const [dealsLoading, setDealsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
+
+  const isDealsLoading = locLoading || dealsLoading;
+  const progress = useSearchProgress({ isLoading: isDealsLoading, estimatedDuration: 4000 });
 
   useEffect(() => {
     if (!airport?.iataCode) return;
@@ -214,73 +221,63 @@ export default function Home() {
       {/* ═══════════ 4. CHEAPEST DEALS (location-aware) ═══════════ */}
       <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="text-h2 text-secondary-500">
-                Cheapest deals from {airport?.cityName || "your location"}
-              </h2>
-              <p className="text-body-sm text-text-secondary mt-1">
-                {locLoading || dealsLoading
-                  ? "Finding the cheapest trips for you..."
-                  : dealPackages.length > 0
-                    ? `${dealPackages.length} ready-to-book package${dealPackages.length !== 1 ? 's' : ''}, sorted by price & variety`
-                    : "Search above to find live deals"}
-              </p>
-            </div>
+          <SearchProgressHeader
+            isLoading={isDealsLoading}
+            progress={progress}
+            city={airport?.cityName || "your location"}
+            resultsCount={dealPackages.length}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <AnimatePresence mode="popLayout">
+              {isDealsLoading ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <DealCardSkeleton key={`skel-${i}`} delay={i * 0.06} />
+                ))
+              ) : dealPackages.length > 0 ? (
+                dealPackages.slice(0, visibleCount).map((pkg, i) => (
+                  <motion.div
+                    key={pkg.id}
+                    layout
+                    initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.35, delay: i * 0.07, ease: 'easeOut' }}
+                  >
+                    <TripCard
+                      id={pkg.id}
+                      destination={pkg.destination.iata}
+                      destinationCity={pkg.destination.city}
+                      origin={airport?.iataCode || ""}
+                      originCity={airport?.cityName || ""}
+                      imageUrl={getCityImageByIata(pkg.destination.iata)}
+                      days={pkg.nights}
+                      departureDate={pkg.hotel?.checkIn || ""}
+                      returnDate={pkg.hotel?.checkOut || ""}
+                      originalPrice={Math.round(pkg.totalPrice * 1.25)}
+                      discountedPrice={pkg.totalPrice}
+                      currency={pkg.currency}
+                      isDirect={pkg.flight?.stops === 0}
+                      travelers={1}
+                      badge={i === 0 ? "Cheapest" : undefined}
+                    />
+                  </motion.div>
+                ))
+              ) : null}
+            </AnimatePresence>
           </div>
 
-          {(locLoading || dealsLoading) ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="rounded-xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface animate-pulse">
-                  <div className="aspect-[16/10] w-full bg-neutral-200 dark:bg-neutral-700" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
-                    <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
-                    <div className="h-3 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
-                    <div className="flex justify-between items-end pt-2">
-                      <div className="h-7 bg-neutral-200 dark:bg-neutral-700 rounded w-24" />
-                      <div className="h-8 bg-neutral-200 dark:bg-neutral-700 rounded-lg w-24" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {!isDealsLoading && visibleCount < dealPackages.length && (
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={() => setVisibleCount(c => c + 6)}
+                className="rounded-xl border-2 border-primary-500 bg-white px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 transition-colors"
+              >
+                Show {Math.min(6, dealPackages.length - visibleCount)} more deals
+              </button>
             </div>
-          ) : dealPackages.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {dealPackages.slice(0, visibleCount).map((pkg, i) => (
-                <div key={pkg.id} className="stagger-item">
-                  <TripCard
-                    id={pkg.id}
-                    destination={pkg.destination.iata}
-                    destinationCity={pkg.destination.city}
-                    origin={airport?.iataCode || ""}
-                    originCity={airport?.cityName || ""}
-                    imageUrl={getCityImageByIata(pkg.destination.iata)}
-                    days={pkg.nights}
-                    departureDate={pkg.hotel?.checkIn || ""}
-                    returnDate={pkg.hotel?.checkOut || ""}
-                    originalPrice={Math.round(pkg.totalPrice * 1.25)}
-                    discountedPrice={pkg.totalPrice}
-                    currency={pkg.currency}
-                    isDirect={pkg.flight?.stops === 0}
-                    travelers={1}
-                    badge={i === 0 ? "Cheapest" : undefined}
-                  />
-                </div>
-              ))}
-              {visibleCount < dealPackages.length && (
-                <div className="col-span-full flex justify-center mt-6">
-                  <button
-                    onClick={() => setVisibleCount(c => c + 6)}
-                    className="rounded-xl border-2 border-primary-500 bg-white px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 transition-colors"
-                  >
-                    Show {Math.min(6, dealPackages.length - visibleCount)} more deals
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
+          )}
+
+          {!isDealsLoading && dealPackages.length === 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[
                 { code: "LHR", city: "London" },
