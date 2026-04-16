@@ -12,7 +12,6 @@ import {
   MapPin,
   ArrowRight,
   Sparkles,
-  Globe,
   Shield,
   Headphones,
   Star,
@@ -24,9 +23,7 @@ import {
   Send,
   Compass,
   Bookmark,
-  CheckCircle2,
   AlertCircle,
-  Zap,
   Palmtree,
   Mountain,
   Building2,
@@ -164,21 +161,6 @@ export default function Home() {
               <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
             </button>
 
-            {/* Trust badges */}
-            <div className="flex items-center justify-center gap-6 mt-8 text-white/60 text-xs font-medium">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Free to use
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Zap className="h-3.5 w-3.5" />
-                AI-powered
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5" />
-                400+ airlines
-              </span>
-            </div>
           </div>
         </div>
       </section>
