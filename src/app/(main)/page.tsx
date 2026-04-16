@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchProgressHeader } from "@/components/deals/SearchProgressHeader";
 import { DealCardSkeleton } from "@/components/deals/DealCardSkeleton";
 import { useSearchProgress } from "@/hooks/useSearchProgress";
+import { FiltersModal } from "@/components/search/FiltersModal";
+import { ActiveFiltersChips } from "@/components/filters/ActiveFiltersChips";
+import { useFiltersStore } from "@/stores/filtersStore";
+import { enrichDeals } from "@/lib/dealEnrichment";
+import { filterDeals } from "@/lib/filterDeals";
+import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import {
   Plane,
   Hotel,
@@ -81,17 +87,53 @@ const featureCards = [
    MAIN HOME PAGE
    ═══════════════════════════════════════ */
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("for-you");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  // Filter store (category + modal filters)
+  const {
+    activeCategory,
+    setActiveCategory,
+    resetFilters,
+    getActiveFiltersCount,
+    sortBy,
+    durationGroups,
+    maxStops,
+    transport,
+    placesToAvoid,
+    travelStyles,
+    tripType,
+  } = useFiltersStore();
+  const activeFiltersCount = getActiveFiltersCount();
 
   // Location-based deals
   const { airport, loading: locLoading } = useUserLocation();
-  const [dealPackages, setDealPackages] = useState<any[]>([]);
+  const [dealPackages, setDealPackages] = useState<TripPackage[]>([]);
   const [dealsLoading, setDealsLoading] = useState(false);
   const [visibleCount, setVisibleCount] = useState(12);
 
   const isDealsLoading = locLoading || dealsLoading;
   const progress = useSearchProgress({ isLoading: isDealsLoading, estimatedDuration: 4000 });
+
+  // Enrich raw packages with category tags (memoised — only recalcs when packages change)
+  const enrichedDeals = useMemo(() => enrichDeals(dealPackages), [dealPackages]);
+
+  // Apply all active filters (memoised — instant, client-side)
+  const filteredDeals = useMemo(
+    () =>
+      filterDeals(enrichedDeals, {
+        activeCategory,
+        sortBy,
+        durationGroups,
+        maxStops,
+        transport,
+        placesToAvoid,
+        travelStyles,
+        tripType,
+      }),
+    [enrichedDeals, activeCategory, sortBy, durationGroups, maxStops,
+     transport, placesToAvoid, travelStyles, tripType]
+  );
 
   useEffect(() => {
     if (!airport?.iataCode) return;
@@ -177,24 +219,58 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══════════ 3. CATEGORY TABS ═══════════ */}
-      <section className="border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
+      {/* ═══════════ 3. CATEGORY TABS + FILTERS BUTTON ═══════════ */}
+      <section className="sticky top-[var(--header-height,64px)] z-20 border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-3">
+          <div className="flex items-center gap-2">
+            {/* Scrollable tab strip */}
+            <div className="flex flex-1 items-center overflow-x-auto no-scrollbar">
               {categoryTabs.map(({ id, label, icon: Icon }) => (
                 <button
                   key={id}
-                  onClick={() => setActiveTab(id)}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${activeTab === id
-                    ? "bg-primary-500 text-white shadow-sm"
-                    : "text-text-secondary hover:bg-neutral-100 hover:text-text-primary"
-                    }`}
+                  role="tab"
+                  aria-selected={activeCategory === id}
+                  onClick={() => {
+                    setActiveCategory(id);
+                    setVisibleCount(12);
+                  }}
+                  className={`relative flex flex-shrink-0 items-center gap-2 whitespace-nowrap px-4 py-3.5 text-sm font-medium transition-colors duration-200 ${
+                    activeCategory === id
+                      ? "text-primary-500"
+                      : "text-text-secondary hover:text-text-primary dark:hover:text-white"
+                  }`}
                 >
                   <Icon className="h-4 w-4" />
                   {label}
+                  {activeCategory === id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500"
+                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    />
+                  )}
                 </button>
               ))}
+            </div>
+
+            {/* Filters button */}
+            <div className="flex-shrink-0 border-l border-neutral-200 dark:border-border-default pl-3">
+              <button
+                onClick={() => setIsFiltersOpen(true)}
+                className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
+                  activeFiltersCount > 0
+                    ? "border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400"
+                    : "border-neutral-200 dark:border-neutral-700 text-text-secondary dark:text-neutral-400 hover:border-neutral-400 dark:hover:border-neutral-600"
+                }`}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[11px] font-bold text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -207,8 +283,32 @@ export default function Home() {
             isLoading={isDealsLoading}
             progress={progress}
             city={airport?.cityName || "your location"}
-            resultsCount={dealPackages.length}
+            resultsCount={filteredDeals.length}
+            totalCount={enrichedDeals.length > filteredDeals.length ? enrichedDeals.length : undefined}
           />
+
+          {/* Active filter chips */}
+          {!isDealsLoading && enrichedDeals.length > 0 && (
+            <ActiveFiltersChips />
+          )}
+
+          {/* Empty state when filters return 0 results but data exists */}
+          {!isDealsLoading && enrichedDeals.length > 0 && filteredDeals.length === 0 && (
+            <div className="flex flex-col items-center py-16 text-center">
+              <p className="text-lg font-semibold text-text-primary dark:text-white mb-2">
+                No deals match your filters
+              </p>
+              <p className="text-sm text-text-secondary mb-6">
+                Try adjusting your filters or resetting them.
+              </p>
+              <button
+                onClick={() => { resetFilters(); setVisibleCount(12); }}
+                className="rounded-xl border-2 border-primary-500 px-6 py-2.5 font-semibold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+              >
+                Reset filters
+              </button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <AnimatePresence mode="popLayout">
@@ -216,8 +316,8 @@ export default function Home() {
                 Array.from({ length: 6 }).map((_, i) => (
                   <DealCardSkeleton key={`skel-${i}`} delay={i * 0.06} />
                 ))
-              ) : dealPackages.length > 0 ? (
-                dealPackages.slice(0, visibleCount).map((pkg, i) => (
+              ) : filteredDeals.length > 0 ? (
+                filteredDeals.slice(0, visibleCount).map((pkg, i) => (
                   <motion.div
                     key={pkg.id}
                     layout
@@ -248,13 +348,13 @@ export default function Home() {
             </AnimatePresence>
           </div>
 
-          {!isDealsLoading && visibleCount < dealPackages.length && (
+          {!isDealsLoading && visibleCount < filteredDeals.length && (
             <div className="flex justify-center mt-6">
               <button
                 onClick={() => setVisibleCount(c => c + 6)}
-                className="rounded-xl border-2 border-primary-500 bg-white px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 transition-colors"
+                className="rounded-xl border-2 border-primary-500 bg-white dark:bg-transparent px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
               >
-                Show {Math.min(6, dealPackages.length - visibleCount)} more deals
+                Show {Math.min(6, filteredDeals.length - visibleCount)} more deals
               </button>
             </div>
           )}
@@ -344,6 +444,13 @@ export default function Home() {
       <PlanTripWizard
         isOpen={wizardOpen}
         onClose={() => setWizardOpen(false)}
+      />
+
+      {/* Filters Modal */}
+      <FiltersModal
+        isOpen={isFiltersOpen}
+        onClose={() => setIsFiltersOpen(false)}
+        onApply={() => setVisibleCount(12)}
       />
     </>
   );

@@ -9,9 +9,10 @@ type Props = {
   progress: number
   city: string
   resultsCount?: number
+  totalCount?: number
 }
 
-export function SearchProgressHeader({ isLoading, progress, city, resultsCount }: Props) {
+export function SearchProgressHeader({ isLoading, progress, city, resultsCount, totalCount }: Props) {
   const message = useSearchMessages(isLoading)
 
   return (
@@ -76,7 +77,9 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount }
             transition={{ duration: 0.3 }}
             className="text-body-sm text-text-secondary mt-1"
           >
-            {resultsCount} ready-to-book package{resultsCount !== 1 ? 's' : ''}, sorted by price & variety
+            {totalCount !== undefined && totalCount > (resultsCount ?? 0)
+              ? `Showing ${resultsCount} of ${totalCount} deals`
+              : `${resultsCount} ready-to-book package${resultsCount !== 1 ? 's' : ''}, sorted by price & variety`}
           </motion.p>
         ) : null}
       </AnimatePresence>
