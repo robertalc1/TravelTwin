@@ -412,6 +412,16 @@ body {
   }
 }
 
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes count-up {
   from {
     opacity: 0;
@@ -470,6 +480,35 @@ body {
 
 .animate-count-up {
   animation: count-up 0.6s ease-out forwards;
+}
+
+/* Shimmer sweep — overlay translateX approach for skeleton cards */
+.shimmer-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.6),
+    transparent
+  );
+  animation: shimmer-sweep 1.8s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.dark .shimmer-card::after {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08),
+    transparent
+  );
 }
 
 /* Card stagger animation */
