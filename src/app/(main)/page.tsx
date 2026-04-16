@@ -220,7 +220,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════ 3. CATEGORY TABS + FILTERS BUTTON ═══════════ */}
-      <section className="sticky top-[var(--header-height,64px)] z-20 border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
+      <section className="border-b border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
           <div className="flex items-center gap-2">
             {/* Scrollable tab strip */}
