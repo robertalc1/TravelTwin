@@ -1,94 +1,114 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import {
-    detectUserLocation,
-    findNearestAirport,
-    type UserLocation,
-    type NearestAirport,
-} from '@/lib/geolocation';
+import type { GeoResponse } from '@/app/api/geolocation/route';
 
-const CACHE_KEY = 'traveltwin_user_location_v1';
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_KEY = 'traveltwin_geo_v2';
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 min client-side
 
-interface CachedLocation {
-    location: UserLocation;
-    airport: NearestAirport;
-    timestamp: number;
+interface CachedEntry {
+  data: GeoResponse;
+  timestamp: number;
 }
 
-interface UseUserLocationResult {
-    location: UserLocation | null;
-    airport: NearestAirport | null;
-    loading: boolean;
-    error: string | null;
-    refresh: () => void;
+export interface UserLocationResult {
+  latitude: number | null;
+  longitude: number | null;
+  city: string;
+  country: string;
+  iataCode: string;
+  airportCity: string;
+  distanceKm: number;
+  source: 'ip' | 'fallback' | 'cached';
+  isLoading: boolean;
+  /** Backward-compat shape for consumers that use airport.iataCode */
+  airport: { iataCode: string; cityName: string; countryName: string; distanceKm: number } | null;
+  /** Alias for isLoading (backward compat) */
+  loading: boolean;
 }
 
-export function useUserLocation(): UseUserLocationResult {
-    const [location, setLocation] = useState<UserLocation | null>(null);
-    const [airport, setAirport] = useState<NearestAirport | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [tick, setTick] = useState(0);
+const FALLBACK_DATA: GeoResponse = {
+  latitude: 44.4268,
+  longitude: 26.1025,
+  city: 'Bucharest',
+  country: 'Romania',
+  iataCode: 'OTP',
+  airportCity: 'Bucharest',
+  distanceKm: 0,
+  source: 'fallback',
+};
 
-    useEffect(() => {
-        let cancelled = false;
+export function useUserLocation(): UserLocationResult {
+  const [data, setData] = useState<GeoResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-        async function run() {
-            setLoading(true);
-            setError(null);
+  useEffect(() => {
+    const controller = new AbortController();
 
-            try {
-                const raw = sessionStorage.getItem(CACHE_KEY);
-                if (raw) {
-                    const cached: CachedLocation = JSON.parse(raw);
-                    if (Date.now() - cached.timestamp < CACHE_TTL_MS) {
-                        if (!cancelled) {
-                            setLocation(cached.location);
-                            setAirport(cached.airport);
-                            setLoading(false);
-                        }
-                        return;
-                    }
-                }
-            } catch { /* ignore */ }
-
-            try {
-                const loc = await detectUserLocation();
-                const ap = findNearestAirport(loc.latitude, loc.longitude);
-                if (cancelled) return;
-                setLocation(loc);
-                setAirport(ap);
-                try {
-                    sessionStorage.setItem(
-                        CACHE_KEY,
-                        JSON.stringify({ location: loc, airport: ap, timestamp: Date.now() })
-                    );
-                } catch { /* ignore */ }
-            } catch (e) {
-                if (!cancelled) setError((e as Error).message || 'Location detection failed');
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
+    async function detect() {
+      // 1. Check client-side sessionStorage cache (30 min TTL)
+      try {
+        const raw = sessionStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const entry: CachedEntry = JSON.parse(raw);
+          if (Date.now() - entry.timestamp < CACHE_TTL_MS) {
+            const cached = { ...entry.data, source: 'cached' as const };
+            setData(cached);
+            setIsLoading(false);
+            console.log(
+              `[Location] Cached: ${cached.city}, ${cached.country} → ${cached.iataCode}`
+            );
+            return;
+          }
         }
+      } catch { /* sessionStorage unavailable */ }
 
-        run();
-        return () => {
-            cancelled = true;
-        };
-    }, [tick]);
+      // 2. Fetch from server-side IP detection endpoint
+      try {
+        const res = await fetch('/api/geolocation', { signal: controller.signal });
+        if (!res.ok) throw new Error(`Geolocation API ${res.status}`);
+        const json: GeoResponse = await res.json();
+        setData(json);
+        console.log(
+          `[Location] IP: ${json.city}, ${json.country} → ${json.iataCode} (${json.distanceKm} km)`
+        );
+        // Persist for subsequent page visits
+        try {
+          const entry: CachedEntry = { data: json, timestamp: Date.now() };
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify(entry));
+        } catch { /* ignore write errors */ }
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+        // Network failure → static fallback
+        console.warn('[Location] Falling back to OTP/Bucharest');
+        setData(FALLBACK_DATA);
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
-    return {
-        location,
-        airport,
-        loading,
-        error,
-        refresh: () => {
-            try {
-                sessionStorage.removeItem(CACHE_KEY);
-            } catch { /* ignore */ }
-            setTick((t) => t + 1);
-        },
-    };
+    detect();
+    return () => controller.abort();
+  }, []);
+
+  const resolved = data ?? FALLBACK_DATA;
+
+  return {
+    latitude: data?.latitude ?? null,
+    longitude: data?.longitude ?? null,
+    city: resolved.city,
+    country: resolved.country,
+    iataCode: resolved.iataCode,
+    airportCity: resolved.airportCity,
+    distanceKm: resolved.distanceKm,
+    source: resolved.source,
+    isLoading,
+    airport: {
+      iataCode: resolved.iataCode,
+      cityName: resolved.airportCity,
+      countryName: resolved.country,
+      distanceKm: resolved.distanceKm,
+    },
+    loading: isLoading,
+  };
 }
