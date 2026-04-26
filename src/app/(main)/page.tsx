@@ -135,6 +135,18 @@ export default function Home() {
      transport, placesToAvoid, travelStyles, tripType]
   );
 
+  // Shuffle on mount / when new data arrives; skip when user has an explicit sort active
+  const displayDeals = useMemo(() => {
+    if (sortBy !== null) return filteredDeals;
+    const shuffled = [...filteredDeals];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredDeals, sortBy]);
+
   useEffect(() => {
     if (!airport?.iataCode) return;
     let cancelled = false;
@@ -283,8 +295,8 @@ export default function Home() {
             isLoading={isDealsLoading}
             progress={progress}
             city={airport?.cityName || "your location"}
-            resultsCount={filteredDeals.length}
-            totalCount={enrichedDeals.length > filteredDeals.length ? enrichedDeals.length : undefined}
+            resultsCount={displayDeals.length}
+            totalCount={enrichedDeals.length > displayDeals.length ? enrichedDeals.length : undefined}
           />
 
           {/* Active filter chips */}
@@ -293,7 +305,7 @@ export default function Home() {
           )}
 
           {/* Empty state when filters return 0 results but data exists */}
-          {!isDealsLoading && enrichedDeals.length > 0 && filteredDeals.length === 0 && (
+          {!isDealsLoading && enrichedDeals.length > 0 && displayDeals.length === 0 && (
             <div className="flex flex-col items-center py-16 text-center">
               <p className="text-lg font-semibold text-text-primary dark:text-white mb-2">
                 No deals match your filters
@@ -316,8 +328,8 @@ export default function Home() {
                 Array.from({ length: 6 }).map((_, i) => (
                   <DealCardSkeleton key={`skel-${i}`} delay={i * 0.06} />
                 ))
-              ) : filteredDeals.length > 0 ? (
-                filteredDeals.slice(0, visibleCount).map((pkg, i) => (
+              ) : displayDeals.length > 0 ? (
+                displayDeals.slice(0, visibleCount).map((pkg, i) => (
                   <motion.div
                     key={pkg.id}
                     layout
@@ -348,13 +360,13 @@ export default function Home() {
             </AnimatePresence>
           </div>
 
-          {!isDealsLoading && visibleCount < filteredDeals.length && (
+          {!isDealsLoading && visibleCount < displayDeals.length && (
             <div className="flex justify-center mt-6">
               <button
                 onClick={() => setVisibleCount(c => c + 6)}
                 className="rounded-xl border-2 border-primary-500 bg-white dark:bg-transparent px-8 py-3 font-semibold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
               >
-                Show {Math.min(6, filteredDeals.length - visibleCount)} more deals
+                Show {Math.min(6, displayDeals.length - visibleCount)} more deals
               </button>
             </div>
           )}
