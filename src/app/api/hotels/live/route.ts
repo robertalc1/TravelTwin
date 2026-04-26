@@ -99,7 +99,7 @@ export async function GET(request: Request) {
           );
 
           if (hotels.length > 0) {
-            await setCache(cacheKey, hotels, 30);
+            await setCache(cacheKey, hotels, 60);
             return NextResponse.json({ hotels, source: 'live', count: hotels.length });
           }
         }

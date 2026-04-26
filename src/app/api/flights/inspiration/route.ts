@@ -64,7 +64,7 @@ export async function GET(request: Request) {
         });
 
         if (destinations.length > 0) {
-          await setCache(cacheKey, destinations, 15);
+          await setCache(cacheKey, destinations, 60);
           return NextResponse.json({ destinations, source: 'live' });
         }
       } catch (err: unknown) {

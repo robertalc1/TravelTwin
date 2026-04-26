@@ -181,7 +181,7 @@ export async function GET(request: Request) {
     flights.sort((a, b) => a.price - b.price);
 
     if (flights.length > 0) {
-      await setCache(cacheKey, flights, 15);
+      await setCache(cacheKey, flights, 30);
       return NextResponse.json({ flights, source: primarySource, count: flights.length });
     }
 
