@@ -186,8 +186,8 @@ export async function POST(request: Request) {
             },
         };
 
-        // Cache for 30 minutes
-        await setCache(cacheKey, result, 30);
+        // Cache for 60 minutes
+        await setCache(cacheKey, result, 60);
 
         return NextResponse.json(result);
     } catch (error) {
