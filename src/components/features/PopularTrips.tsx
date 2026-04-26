@@ -5,6 +5,7 @@ import { MapPin, RefreshCw, AlertCircle, Plane } from "lucide-react";
 import { TripCard } from "@/components/results/TripCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { getCityImageByIata } from "@/lib/cityImages";
+import { useUserLocation } from "@/hooks/useUserLocation";
 
 // Specific Unsplash queries per IATA code
 const CITY_QUERIES: Record<string, string> = {
@@ -45,67 +46,6 @@ const CITY_QUERIES: Record<string, string> = {
   KRK: "Krakow Poland city",
 };
 
-// Nominatim city → IATA mapping
-const CITY_TO_IATA: Record<string, string> = {
-  București: "OTP", Bucuresti: "OTP", Bucharest: "OTP",
-  Constanța: "OTP", Constanta: "OTP",
-  Brașov: "OTP", Brasov: "OTP",
-  Ploiești: "OTP", Ploiesti: "OTP",
-  Ilfov: "OTP", Giurgiu: "OTP",
-  Cluj: "CLJ", "Cluj-Napoca": "CLJ",
-  Timișoara: "TSR", Timisoara: "TSR",
-  Iași: "IAS", Iasi: "IAS",
-  Sibiu: "SBZ",
-  Oradea: "OMR",
-  Craiova: "CRA",
-  London: "LHR",
-  Paris: "CDG",
-  Rome: "FCO", Roma: "FCO",
-  Barcelona: "BCN",
-  Amsterdam: "AMS",
-  Berlin: "BER",
-  Madrid: "MAD",
-  Vienna: "VIE", Wien: "VIE",
-  Prague: "PRG", Praha: "PRG",
-  Istanbul: "IST",
-  Dubai: "DXB",
-  Warsaw: "WAW", Warszawa: "WAW",
-  Budapest: "BUD",
-  Athens: "ATH",
-  Lisbon: "LIS", Lisboa: "LIS",
-  Milan: "MXP", Milano: "MXP",
-  Munich: "MUC", München: "MUC",
-  Frankfurt: "FRA",
-  Brussels: "BRU", Bruxelles: "BRU",
-  Zurich: "ZRH", Zürich: "ZRH",
-  Copenhagen: "CPH", København: "CPH",
-  Stockholm: "ARN",
-  Oslo: "OSL",
-  Helsinki: "HEL",
-  Dubrovnik: "DBV",
-  Split: "SPU",
-  Zagreb: "ZAG",
-};
-
-function detectIata(city: string, country: string): string {
-  for (const [name, iata] of Object.entries(CITY_TO_IATA)) {
-    if (
-      city.toLowerCase().includes(name.toLowerCase()) ||
-      name.toLowerCase().includes(city.toLowerCase())
-    ) {
-      return iata;
-    }
-  }
-  const countryMap: Record<string, string> = {
-    Romania: "OTP", "United Kingdom": "LHR", France: "CDG",
-    Italy: "FCO", Spain: "BCN", Netherlands: "AMS",
-    Germany: "FRA", Austria: "VIE", "Czech Republic": "PRG",
-    Turkey: "IST", Portugal: "LIS", Greece: "ATH",
-    Hungary: "BUD", Poland: "WAW",
-  };
-  return countryMap[country] || "OTP";
-}
-
 interface TripOffer {
   code: string;
   city: string;
@@ -118,16 +58,16 @@ interface TripOffer {
   isLive: boolean;
 }
 
-type LoadState = "idle" | "locating" | "fetching" | "done" | "error";
+type FetchState = "idle" | "fetching" | "done" | "error";
 
 export default function PopularTrips() {
-  const [originIata, setOriginIata] = useState("OTP");
-  const [originCity, setOriginCity] = useState("Bucharest");
-  const [locationDenied, setLocationDenied] = useState(false);
-  const [loadState, setLoadState] = useState<LoadState>("idle");
+  const location = useUserLocation();
+
+  const [fetchState, setFetchState] = useState<FetchState>("idle");
   const [offers, setOffers] = useState<TripOffer[]>([]);
   const [apiError, setApiError] = useState("");
   const [cityImages, setCityImages] = useState<Record<string, string>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Fetch Unsplash images in parallel for all offer codes
   const fetchCityImages = useCallback(async (codes: string[]) => {
@@ -155,91 +95,45 @@ export default function PopularTrips() {
 
   const fetchOffers = useCallback(
     async (iata: string) => {
-      setLoadState("fetching");
+      setFetchState("fetching");
       setApiError("");
+      setCityImages({});
       try {
         const res = await fetch(`/api/popular-trips?origin=${iata}&limit=6`);
         const data = await res.json();
-
         if (!res.ok) throw new Error(data.error || "API error");
-
         const results: TripOffer[] = data.results || [];
         setOffers(results);
-
         if (results.length === 0 && data.error) {
           setApiError(data.error);
         }
-
         if (results.length > 0) {
           fetchCityImages(results.map((r) => r.code));
         }
-      } catch (err: any) {
-        setApiError(err?.message || "Could not load flight offers.");
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Could not load flight offers.";
+        setApiError(msg);
         setOffers([]);
       } finally {
-        setLoadState("done");
+        setFetchState("done");
       }
     },
     [fetchCityImages]
   );
 
-  const detectAndFetch = useCallback(() => {
-    setLoadState("locating");
-    setOffers([]);
-    setApiError("");
-    setCityImages({});
-
-    if (!navigator.geolocation) {
-      setLocationDenied(true);
-      setOriginCity("Bucharest");
-      setOriginIata("OTP");
-      fetchOffers("OTP");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          const { latitude, longitude } = pos.coords;
-          const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
-            { headers: { "Accept-Language": "en" } }
-          );
-          const data = await res.json();
-          const city =
-            data.address?.city ||
-            data.address?.town ||
-            data.address?.village ||
-            data.address?.county ||
-            "Bucharest";
-          const country = data.address?.country || "";
-          const iata = detectIata(city, country);
-          setOriginCity(city);
-          setOriginIata(iata);
-          setLocationDenied(false);
-          fetchOffers(iata);
-        } catch {
-          setOriginCity("Bucharest");
-          setOriginIata("OTP");
-          fetchOffers("OTP");
-        }
-      },
-      () => {
-        // User denied or timeout — use OTP silently
-        setLocationDenied(true);
-        setOriginCity("Bucharest");
-        setOriginIata("OTP");
-        fetchOffers("OTP");
-      },
-      { timeout: 8000 }
-    );
-  }, [fetchOffers]);
-
+  // Fetch offers whenever IP-based IATA is resolved or user manually refreshes
   useEffect(() => {
-    detectAndFetch();
-  }, [detectAndFetch]);
+    if (location.isLoading) return;
+    fetchOffers(location.iataCode);
+  }, [location.isLoading, location.iataCode, refreshTick, fetchOffers]);
 
-  const isLoading = loadState === "idle" || loadState === "locating" || loadState === "fetching";
+  const handleRefresh = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+  }, []);
+
+  const isLoading = location.isLoading || fetchState === "idle" || fetchState === "fetching";
+  const originCity = location.airportCity || location.city || "Bucharest";
+  const originIata = location.iataCode;
 
   return (
     <section className="py-10 lg:py-14 bg-neutral-50 dark:bg-surface-sunken">
@@ -250,34 +144,26 @@ export default function PopularTrips() {
           <div>
             <h2 className="text-h2 text-secondary-500">Popular Trips</h2>
             <div className="flex items-center gap-2 mt-1 h-5">
-              {loadState === "locating" && (
+              {location.isLoading && (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 animate-pulse text-primary-400" />
                   Detecting your location...
                 </span>
               )}
-              {loadState === "fetching" && (
+              {!location.isLoading && fetchState === "fetching" && (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
                   <Plane className="h-3.5 w-3.5 animate-pulse text-primary-400" />
                   Loading live prices from {originCity}...
                 </span>
               )}
-              {loadState === "done" && offers.length > 0 && (
+              {!isLoading && offers.length > 0 && (
                 <span className="text-xs text-text-secondary flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5 text-primary-500" />
                   Live prices from{" "}
                   <strong className="ml-1">{originCity}</strong>
-                  {locationDenied && (
-                    <button
-                      onClick={detectAndFetch}
-                      className="ml-2 flex items-center gap-1 text-primary-500 hover:text-primary-600 font-medium transition-colors"
-                    >
-                      <RefreshCw className="h-3 w-3" /> Detect location
-                    </button>
-                  )}
                 </span>
               )}
-              {loadState === "done" && offers.length === 0 && !apiError && (
+              {!isLoading && offers.length === 0 && !apiError && (
                 <span className="text-xs text-text-muted flex items-center gap-1.5">
                   <MapPin className="h-3.5 w-3.5" />
                   From {originCity}
@@ -286,9 +172,9 @@ export default function PopularTrips() {
             </div>
           </div>
 
-          {loadState === "done" && (
+          {fetchState === "done" && (
             <button
-              onClick={detectAndFetch}
+              onClick={handleRefresh}
               className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary-500 transition-colors"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Refresh
@@ -325,7 +211,7 @@ export default function PopularTrips() {
             <AlertCircle className="h-10 w-10 text-text-muted mb-4 opacity-50" />
             <p className="text-text-secondary mb-4 max-w-sm">{apiError}</p>
             <button
-              onClick={detectAndFetch}
+              onClick={handleRefresh}
               className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
             >
               <RefreshCw className="h-4 w-4" /> Try again
@@ -341,7 +227,7 @@ export default function PopularTrips() {
               No flights available from {originCity} right now.
             </p>
             <button
-              onClick={detectAndFetch}
+              onClick={handleRefresh}
               className="flex items-center gap-2 rounded-xl bg-primary-500 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
             >
               <RefreshCw className="h-4 w-4" /> Try again
