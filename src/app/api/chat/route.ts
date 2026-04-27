@@ -1,11 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchFlights, searchHotelsByCity, searchHotelOffers, searchFlightInspirations } from '@/lib/amadeus-client';
-import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
-import { COMMON_ROUTES } from '@/lib/commonRoutes';
 
-type ConversationMessage = {
-  role: 'user' | 'assistant';
-  content: string;
+export type ChatFlight = {
+  id: string;
+  airline: string;
+  airlineCode: string;
+  price: number;
+  currency: string;
+  departureTime: string;
+  arrivalTime: string;
+  duration: string;
+  stops: number;
+  origin: string;
+  destination: string;
+  originCity: string;
+  destinationCity: string;
+  departureDate: string;
+};
+
+export type ChatHotel = {
+  id: string;
+  name: string;
+  stars: number;
+  pricePerNight: number;
+  totalPrice: number;
+  currency: string;
+  city: string;
+  nights: number;
+  checkIn: string;
+  checkOut: string;
+  roomType: string;
 };
 
 export type ChatDeal = {
@@ -14,386 +37,335 @@ export type ChatDeal = {
   city: string;
   country: string;
   days: number;
+  badge?: string;
+  isDirect: boolean;
   departureDate: string;
   returnDate: string;
-  origin: string;
   originCity: string;
   price: number;
   originalPrice: number;
   currency: string;
-  isDirect: boolean;
-  badge?: string;
 };
 
-export type ChatFlight = {
-  id: string;
-  airline: string;
-  airlineCode: string;
-  origin: string;
-  originCity: string;
-  destination: string;
-  destinationCity: string;
-  departureTime: string;
-  arrivalTime: string;
-  duration: string;
-  stops: number;
-  price: number;
-  currency: string;
-  departureDate: string;
-};
+const SYSTEM_PROMPT = `You are TravelTwin AI — a friendly, knowledgeable travel assistant embedded in a travel planning platform. You help users plan trips, find flights, discover hotels, and explore destinations.
 
-export type ChatHotel = {
-  id: string;
-  name: string;
-  city: string;
-  stars: number;
-  pricePerNight: number;
-  totalPrice: number;
-  currency: string;
-  checkIn: string;
-  checkOut: string;
-  nights: number;
-};
+YOUR CAPABILITIES:
+1. RECOMMEND destinations based on preferences (budget, climate, interests)
+2. ANSWER questions about any destination (weather, visa, best time, costs)
+3. GENERATE day-by-day itineraries with activities and budget estimates
+4. SEARCH live flights and hotels using real Amadeus data (use the tools)
 
-export type ChatResponseData = {
-  deals?: ChatDeal[];
-  flights?: ChatFlight[];
-  hotels?: ChatHotel[];
-};
+PERSONALITY:
+- Friendly, enthusiastic about travel, but concise
+- Use emojis sparingly (1-2 per message max)
+- Give specific, actionable advice
+- Answer in the SAME LANGUAGE the user writes in
+- Keep responses concise (max 200 words unless generating itinerary)
 
-function daysBetween(d1: string, d2: string): number {
-  if (!d1 || !d2) return 5;
-  const a = new Date(d1);
-  const b = new Date(d2);
-  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 5;
-  return Math.max(1, Math.round(Math.abs(b.getTime() - a.getTime()) / 86400000));
-}
+TOOL USAGE:
+- When user asks about flights FROM city TO city, use searchFlights
+- When user asks about hotels IN city, use searchHotels
+- When user wants inspiration/deals, use searchInspiration
+- If a tool returns no results, suggest alternative dates or airports
+- Never invent prices — only show real data from tools
 
-function futureDate(daysFromNow: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + daysFromNow);
-  return d.toISOString().split('T')[0];
-}
+IMPORTANT:
+- You have access to REAL flight and hotel data via Amadeus API
+- When presenting flight results, format them clearly with airline, price, times, and stops
+- When presenting hotel results, format with name, stars, and price per night
+- After showing results, suggest next steps (book, see more, search hotels too)`;
 
-const TOOLS = [
-  {
-    name: 'searchDeals',
-    description:
-      'Search cheapest flight deals and travel inspiration from a given city. Use when the user asks for cheap trips, destination ideas, where to go, or travel suggestions.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        origin: { type: 'string', description: 'IATA airport code for the departure city (e.g., OTP, LHR, CDG)' },
+const TOOL_DECLARATIONS = {
+  functionDeclarations: [
+    {
+      name: 'searchFlights',
+      description:
+        'Search for real-time flight offers between two airports. Use when the user asks about flights, prices, or travel between cities.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          origin: { type: 'STRING', description: 'Origin airport IATA code (e.g., OTP, CDG, LHR)' },
+          destination: { type: 'STRING', description: 'Destination airport IATA code (e.g., BCN, IST, DXB)' },
+          departureDate: { type: 'STRING', description: 'Departure date in YYYY-MM-DD format' },
+          returnDate: { type: 'STRING', description: 'Optional return date in YYYY-MM-DD format' },
+        },
+        required: ['origin', 'destination', 'departureDate'],
       },
-      required: ['origin'],
     },
-  },
-  {
-    name: 'searchFlights',
-    description: 'Search for flights on a specific route and date.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        from: { type: 'string', description: 'IATA departure airport code' },
-        to: { type: 'string', description: 'IATA destination airport code' },
-        departureDate: { type: 'string', description: 'Departure date YYYY-MM-DD' },
-        returnDate: { type: 'string', description: 'Return date YYYY-MM-DD (optional, for round trip)' },
+    {
+      name: 'searchHotels',
+      description:
+        'Search for hotel availability and prices in a city. Use when the user asks about accommodation or hotels.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          cityCode: { type: 'STRING', description: 'City IATA code (e.g., BCN, IST, CDG)' },
+          checkInDate: { type: 'STRING', description: 'Check-in date YYYY-MM-DD' },
+          checkOutDate: { type: 'STRING', description: 'Check-out date YYYY-MM-DD' },
+        },
+        required: ['cityCode', 'checkInDate', 'checkOutDate'],
       },
-      required: ['from', 'to', 'departureDate'],
     },
-  },
-  {
-    name: 'searchHotels',
-    description: 'Search for hotels in a destination city.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        cityCode: { type: 'string', description: 'IATA city/airport code (e.g., CDG, LHR, IST)' },
-        checkIn: { type: 'string', description: 'Check-in date YYYY-MM-DD' },
-        checkOut: { type: 'string', description: 'Check-out date YYYY-MM-DD' },
+    {
+      name: 'searchInspiration',
+      description:
+        'Find the cheapest flight deals from a specific airport. Use when the user wants travel inspiration or cheap deals without a specific destination.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          origin: { type: 'STRING', description: 'Origin airport IATA code (e.g., OTP, LHR, CDG)' },
+        },
+        required: ['origin'],
       },
-      required: ['cityCode', 'checkIn', 'checkOut'],
     },
-  },
-];
+  ],
+};
 
-async function runSearchDeals(origin: string): Promise<{ text: string; deals: ChatDeal[] }> {
-  const depart = futureDate(30);
-  const ret = futureDate(37);
+type ToolArgs = Record<string, unknown>;
 
-  // Try Amadeus inspiration
+async function executeTool(
+  name: string,
+  args: ToolArgs,
+  baseUrl: string
+): Promise<Record<string, unknown>> {
   try {
-    const raw = await searchFlightInspirations(origin);
-    if (raw.length > 0) {
-      const deals: ChatDeal[] = raw.slice(0, 4).map((d: Record<string, unknown>, i: number) => {
-        const priceObj = d.price as Record<string, string> | undefined;
-        const price = priceObj ? parseFloat(priceObj.total || '0') : 0;
-        return {
-          id: `chat-deal-${Date.now()}-${i}`,
-          destination: d.destination as string,
-          city: getCityFromIata(d.destination as string) || (d.destination as string),
-          country: getCountryFromIata(d.destination as string) || '',
-          days: daysBetween(d.departureDate as string, d.returnDate as string),
-          departureDate: (d.departureDate as string) || depart,
-          returnDate: (d.returnDate as string) || ret,
-          origin,
-          originCity: getCityFromIata(origin) || origin,
-          price,
-          originalPrice: Math.round(price * 1.25),
-          currency: 'EUR',
-          isDirect: false,
-          badge: i === 0 ? 'Cheapest' : undefined,
-        };
-      });
-      return { text: JSON.stringify({ found: deals.length }), deals };
+    switch (name) {
+      case 'searchFlights': {
+        const params = new URLSearchParams({
+          origin: String(args.origin || ''),
+          destination: String(args.destination || ''),
+          departureDate: String(args.departureDate || ''),
+          ...(args.returnDate ? { returnDate: String(args.returnDate) } : {}),
+        });
+        const res = await fetch(`${baseUrl}/api/flights/live?${params}`);
+        const data = await res.json();
+
+        if (!data.flights?.length) {
+          return {
+            noResults: true,
+            message: `No flights found ${args.origin} → ${args.destination} on ${args.departureDate}`,
+          };
+        }
+
+        const flights: ChatFlight[] = data.flights
+          .slice(0, 5)
+          .map((f: Record<string, unknown>, i: number) => ({
+            id: `flight-${i}-${String(f.airline || '')}-${String(f.departureTime || '')}`,
+            airline: String(f.airlineName || f.airline || ''),
+            airlineCode: String(f.airline || ''),
+            price: (f.price as number) || 0,
+            currency: String(f.currency || 'EUR'),
+            departureTime: String(f.departureTime || ''),
+            arrivalTime: String(f.arrivalTime || ''),
+            duration: String(f.duration || ''),
+            stops: (f.stops as number) || 0,
+            origin: String(f.origin || ''),
+            destination: String(f.destination || ''),
+            originCity: String(f.originCity || f.origin || ''),
+            destinationCity: String(f.destinationCity || f.destination || ''),
+            departureDate: String(f.departureDate || args.departureDate || ''),
+          }));
+
+        return { flights, total: data.flights.length };
+      }
+
+      case 'searchHotels': {
+        const params = new URLSearchParams({
+          cityCode: String(args.cityCode || ''),
+          checkInDate: String(args.checkInDate || ''),
+          checkOutDate: String(args.checkOutDate || ''),
+        });
+        const res = await fetch(`${baseUrl}/api/hotels/live?${params}`);
+        const data = await res.json();
+
+        if (!data.hotels?.length) {
+          return { noResults: true, message: `No hotels found in ${args.cityCode}` };
+        }
+
+        const checkIn = String(args.checkInDate || '');
+        const checkOut = String(args.checkOutDate || '');
+        const nights = Math.max(
+          1,
+          checkIn && checkOut
+            ? Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000)
+            : 1
+        );
+
+        const hotels: ChatHotel[] = data.hotels
+          .slice(0, 5)
+          .map((h: Record<string, unknown>, i: number) => ({
+            id: `hotel-${i}-${String(h.name || '').replace(/\s+/g, '-').toLowerCase()}`,
+            name: String(h.name || 'Hotel'),
+            stars: (h.rating as number) || (h.stars as number) || 3,
+            pricePerNight: (h.pricePerNight as number) || 0,
+            totalPrice: (h.totalPrice as number) || 0,
+            currency: String(h.currency || 'EUR'),
+            city: String(h.cityName || args.cityCode || ''),
+            nights,
+            checkIn,
+            checkOut,
+            roomType: String(h.roomType || 'Standard Room'),
+          }));
+
+        return { hotels, total: data.hotels.length };
+      }
+
+      case 'searchInspiration': {
+        const res = await fetch(
+          `${baseUrl}/api/flights/inspiration?origin=${encodeURIComponent(String(args.origin || ''))}`
+        );
+        const data = await res.json();
+
+        const deals: ChatDeal[] = (data.destinations || [])
+          .slice(0, 6)
+          .map((d: Record<string, unknown>, i: number) => {
+            const depDate = String(d.departureDate || '');
+            const retDate = String(d.returnDate || '');
+            const days =
+              depDate && retDate
+                ? Math.max(1, Math.ceil((new Date(retDate).getTime() - new Date(depDate).getTime()) / 86400000))
+                : 7;
+            const price = (d.price as number) || 0;
+            return {
+              id: `deal-${i}-${String(d.destination || '')}`,
+              destination: String(d.destination || ''),
+              city: String(d.destinationCity || d.destination || ''),
+              country: '',
+              days,
+              badge: price < 100 ? 'Hot Deal' : undefined,
+              isDirect: false,
+              departureDate: depDate,
+              returnDate: retDate,
+              originCity: String(args.origin || ''),
+              price,
+              originalPrice: price,
+              currency: String(d.currency || 'EUR'),
+            };
+          });
+
+        return { deals, total: deals.length };
+      }
+
+      default:
+        return { error: 'Unknown tool' };
     }
-  } catch { /* fall through to common routes */ }
-
-  // Common routes fallback
-  const routes = COMMON_ROUTES.filter(r => r.from === origin).slice(0, 4);
-  const deals: ChatDeal[] = routes.map((r, i) => ({
-    id: `chat-deal-${Date.now()}-${i}`,
-    destination: r.to,
-    city: getCityFromIata(r.to) || r.to,
-    country: getCountryFromIata(r.to) || '',
-    days: 5,
-    departureDate: depart,
-    returnDate: ret,
-    origin,
-    originCity: getCityFromIata(origin) || origin,
-    price: r.avgPrice,
-    originalPrice: Math.round(r.avgPrice * 1.25),
-    currency: r.currency,
-    isDirect: false,
-    badge: i === 0 ? 'Cheapest' : undefined,
-  }));
-
-  return { text: JSON.stringify({ found: deals.length }), deals };
-}
-
-async function runSearchFlights(
-  from: string,
-  to: string,
-  departureDate: string,
-  returnDate?: string
-): Promise<{ text: string; flights: ChatFlight[] }> {
-  const params: Record<string, string> = {
-    originLocationCode: from,
-    destinationLocationCode: to,
-    departureDate,
-    adults: '1',
-    max: '5',
-    currencyCode: 'EUR',
-  };
-  if (returnDate) params.returnDate = returnDate;
-
-  try {
-    const raw = await searchFlights(params);
-    const flights: ChatFlight[] = raw.slice(0, 3).map((f: Record<string, unknown>, i: number) => {
-      const itinerary = (f.itineraries as Array<Record<string, unknown>>)?.[0];
-      const segments = (itinerary?.segments as Array<Record<string, unknown>>) || [];
-      const first = segments[0] || {};
-      const last = segments[segments.length - 1] || first;
-      const dep = first.departure as Record<string, string> | undefined;
-      const arr = last.arrival as Record<string, string> | undefined;
-      const price = f.price as Record<string, unknown>;
-      return {
-        id: `chat-flight-${Date.now()}-${i}`,
-        airline: (first.carrierCode as string) || '',
-        airlineCode: (first.carrierCode as string) || '',
-        origin: from,
-        originCity: getCityFromIata(from) || from,
-        destination: to,
-        destinationCity: getCityFromIata(to) || to,
-        departureTime: dep?.at?.split('T')[1]?.substring(0, 5) || '',
-        arrivalTime: arr?.at?.split('T')[1]?.substring(0, 5) || '',
-        duration: (itinerary?.duration as string) || '',
-        stops: Math.max(0, segments.length - 1),
-        price: parseFloat(price?.total as string) || 0,
-        currency: (price?.currency as string) || 'EUR',
-        departureDate,
-      };
-    });
-    return { text: JSON.stringify({ found: flights.length }), flights };
-  } catch {
-    return { text: '{"found":0}', flights: [] };
+  } catch (err) {
+    console.error(`[Chat Tool] ${name} failed:`, err);
+    return { error: `Failed to execute ${name}` };
   }
 }
 
-async function runSearchHotels(
-  cityCode: string,
-  checkIn: string,
-  checkOut: string
-): Promise<{ text: string; hotels: ChatHotel[] }> {
-  const nights = daysBetween(checkIn, checkOut);
+type GeminiPart = {
+  text?: string;
+  functionCall?: { name: string; args: ToolArgs };
+  functionResponse?: { name: string; response: Record<string, unknown> };
+};
 
-  try {
-    const hotelList = await searchHotelsByCity(cityCode);
-    const ids = (hotelList as Array<Record<string, unknown>>)
-      .slice(0, 10)
-      .map(h => h.hotelId as string)
-      .filter(Boolean);
+type GeminiContent = {
+  role: string;
+  parts: GeminiPart[];
+};
 
-    if (ids.length === 0) return { text: '{"found":0}', hotels: [] };
+async function callGemini(apiKey: string, contents: GeminiContent[]) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents,
+        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        tools: [TOOL_DECLARATIONS],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+      }),
+    }
+  );
 
-    const offers = await searchHotelOffers(ids, checkIn, checkOut, '1');
-    const hotels: ChatHotel[] = (offers as Array<Record<string, unknown>>).slice(0, 3).map((o, i) => {
-      const hotel = o.hotel as Record<string, unknown>;
-      const offerList = (o.offers as Array<Record<string, unknown>>) || [];
-      const offer = offerList[0] || {};
-      const price = offer.price as Record<string, unknown>;
-      const totalPrice = parseFloat(price?.total as string) || 0;
-      const pricePerNight = totalPrice > 0 && nights > 0 ? Math.round(totalPrice / nights) : 0;
-      return {
-        id: `chat-hotel-${Date.now()}-${i}`,
-        name: (hotel?.name as string) || 'Hotel',
-        city: getCityFromIata(cityCode) || cityCode,
-        stars: parseInt(hotel?.rating as string) || 3,
-        pricePerNight,
-        totalPrice: Math.round(totalPrice),
-        currency: (price?.currency as string) || 'EUR',
-        checkIn,
-        checkOut,
-        nights,
-      };
-    });
-    return { text: JSON.stringify({ found: hotels.length }), hotels };
-  } catch {
-    return { text: '{"found":0}', hotels: [] };
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error('[Gemini API Error]', res.status, errorText);
+    throw new Error(`Gemini API error: ${res.status}`);
   }
+
+  return res.json();
 }
-
-const SYSTEM_PROMPT = `You are TravelTwin AI, an enthusiastic travel assistant with access to real-time flight and hotel data.
-
-When users ask about destinations, cheap deals, or where to go → call searchDeals with their departure city IATA code.
-When users ask about a specific route → call searchFlights.
-When users ask about hotels in a city → call searchHotels.
-
-After getting tool results, write a BRIEF 1-2 sentence response summarizing what you found. The data will be displayed as visual cards, so keep text SHORT and friendly. Mention the best price or highlight. Be enthusiastic!
-
-If no tools are needed, answer helpfully in 2-3 sentences.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const messages: ConversationMessage[] = body.messages || [];
-    const origin = ((body.origin as string) || 'OTP').toUpperCase();
+    const { messages } = await req.json();
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({
-        content:
-          "I'm TravelTwin AI! Ask me about flights, hotels, or where to travel next. (AI features need ANTHROPIC_API_KEY configured.)",
-        data: null,
-      });
+      return NextResponse.json(
+        { message: 'AI chat is not configured. Please add GEMINI_API_KEY to your environment.' },
+        { status: 500 }
+      );
     }
 
-    // First Claude call
-    const firstRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        tools: TOOLS,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-      }),
-    });
-
-    if (!firstRes.ok) throw new Error(`Anthropic ${firstRes.status}`);
-    const firstData = await firstRes.json();
-
-    // No tool use — return text directly
-    if (firstData.stop_reason !== 'tool_use') {
-      const text =
-        (firstData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === 'text')
-          ?.text || '';
-      return NextResponse.json({ content: text, data: null });
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json({ error: 'Messages array required' }, { status: 400 });
     }
 
-    // Execute all tools
-    const combinedData: ChatResponseData = {};
-    const toolResults: Array<{ type: string; tool_use_id: string; content: string }> = [];
+    const baseUrl = req.nextUrl.origin;
 
-    for (const block of firstData.content as Array<{
-      type: string;
-      id: string;
-      name: string;
-      input: Record<string, unknown>;
-    }>) {
-      if (block.type !== 'tool_use') continue;
+    const geminiContents: GeminiContent[] = messages.map(
+      (m: { role: string; content: string }) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }],
+      })
+    );
 
-      let resultText = '{}';
+    let geminiResponse = await callGemini(apiKey, geminiContents);
 
-      if (block.name === 'searchDeals') {
-        const o = (block.input.origin as string) || origin;
-        const { text, deals } = await runSearchDeals(o);
-        resultText = text;
-        if (deals.length > 0) combinedData.deals = deals;
-      } else if (block.name === 'searchFlights') {
-        const { from, to, departureDate, returnDate } = block.input as {
-          from: string;
-          to: string;
-          departureDate: string;
-          returnDate?: string;
-        };
-        const { text, flights } = await runSearchFlights(from, to, departureDate, returnDate);
-        resultText = text;
-        if (flights.length > 0) combinedData.flights = flights;
-      } else if (block.name === 'searchHotels') {
-        const { cityCode, checkIn, checkOut } = block.input as {
-          cityCode: string;
-          checkIn: string;
-          checkOut: string;
-        };
-        const { text, hotels } = await runSearchHotels(cityCode, checkIn, checkOut);
-        resultText = text;
-        if (hotels.length > 0) combinedData.hotels = hotels;
-      }
+    let iterations = 0;
+    const structuredData: {
+      flights?: ChatFlight[];
+      hotels?: ChatHotel[];
+      deals?: ChatDeal[];
+    } = {};
 
-      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: resultText });
+    while (iterations < 3) {
+      const candidate = geminiResponse.candidates?.[0];
+      if (!candidate) break;
+
+      const parts: GeminiPart[] = candidate.content?.parts || [];
+      const functionCallPart = parts.find((p: GeminiPart) => p.functionCall);
+
+      if (!functionCallPart?.functionCall) break;
+
+      const { name, args } = functionCallPart.functionCall;
+      console.log(`[Chat] Executing tool: ${name}`, args);
+
+      const toolResult = await executeTool(name, args, baseUrl);
+
+      if (toolResult.flights) structuredData.flights = toolResult.flights as ChatFlight[];
+      if (toolResult.hotels) structuredData.hotels = toolResult.hotels as ChatHotel[];
+      if (toolResult.deals) structuredData.deals = toolResult.deals as ChatDeal[];
+
+      geminiContents.push(
+        { role: 'model', parts: [{ functionCall: functionCallPart.functionCall }] },
+        { role: 'user', parts: [{ functionResponse: { name, response: toolResult } }] }
+      );
+
+      geminiResponse = await callGemini(apiKey, geminiContents);
+      iterations++;
     }
 
-    // Second Claude call with tool results
-    const secondRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 512,
-        system: SYSTEM_PROMPT,
-        tools: TOOLS,
-        messages: [
-          ...messages.map(m => ({ role: m.role, content: m.content })),
-          { role: 'assistant', content: firstData.content },
-          { role: 'user', content: toolResults },
-        ],
-      }),
-    });
-
-    const secondData = await secondRes.json();
-    const content =
-      (secondData.content as Array<{ type: string; text?: string }>)?.find(b => b.type === 'text')
-        ?.text || '';
+    const finalText =
+      geminiResponse.candidates?.[0]?.content?.parts
+        ?.filter((p: GeminiPart) => p.text)
+        ?.map((p: GeminiPart) => p.text)
+        ?.join('\n') || 'Sorry, I could not generate a response.';
 
     return NextResponse.json({
-      content,
-      data: Object.keys(combinedData).length > 0 ? combinedData : null,
+      message: finalText,
+      data: Object.keys(structuredData).length > 0 ? structuredData : undefined,
     });
   } catch (error) {
-    console.error('[Chat API]', error);
-    return NextResponse.json({
-      content: "Sorry, I couldn't process that request. Please try again.",
-      data: null,
-    });
+    console.error('[Chat] Error:', error);
+    return NextResponse.json(
+      { message: 'Sorry, I had trouble processing that. Please try again! ✈️' },
+      { status: 200 }
+    );
   }
 }
