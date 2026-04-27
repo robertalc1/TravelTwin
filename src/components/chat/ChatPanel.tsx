@@ -84,7 +84,7 @@ export function ChatPanel() {
           {
             id: `ai-${Date.now()}`,
             role: "assistant",
-            content: data.content || "",
+            content: data.message || data.content || "",
             data: data.data || null,
           },
         ]);
