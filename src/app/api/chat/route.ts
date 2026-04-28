@@ -282,9 +282,10 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
   );
 
   if (!res.ok) {
-    const errorText = await res.text();
-    console.error('[Gemini API Error]', res.status, errorText);
-    throw new Error(`Gemini API error: ${res.status}`);
+    const errorBody = await res.text();
+    console.error('[Gemini API Error] Status:', res.status);
+    console.error('[Gemini API Error] Body:', errorBody);
+    throw new Error(`Gemini API error ${res.status}: ${errorBody}`);
   }
 
   return res.json();
@@ -292,6 +293,8 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[Chat] API Key exists:', !!process.env.GEMINI_API_KEY);
+    console.log('[Chat] API Key prefix:', process.env.GEMINI_API_KEY?.slice(0, 10));
     const { messages } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
@@ -362,7 +365,9 @@ export async function POST(req: NextRequest) {
       data: Object.keys(structuredData).length > 0 ? structuredData : undefined,
     });
   } catch (error) {
-    console.error('[Chat] Error:', error);
+    console.error('[Chat] Full error:', error);
+    console.error('[Chat] Error message:', (error as Error)?.message);
+    console.error('[Chat] Error stack:', (error as Error)?.stack);
     return NextResponse.json(
       { message: 'Sorry, I had trouble processing that. Please try again! ✈️' },
       { status: 200 }
