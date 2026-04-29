@@ -14,15 +14,29 @@ type Provider = "google" | "facebook";
  * Supabase → Authentication → URL Configuration → Redirect URLs.
  * We send users to production by default. Add localhost there too if you
  * want to test the flow locally.
+ *
+ * Per-provider scope notes:
+ *  - Google: Supabase already requests `openid email profile` by default.
+ *  - Facebook: must declare scopes explicitly or the IdP rejects with
+ *    "Invalid Scopes". `public_profile` returns id+name+picture; `email`
+ *    is needed for Supabase to populate user.email.
  */
 const PROD_CALLBACK = "https://travel-twin.vercel.app/auth/callback";
+
+const PROVIDER_SCOPES: Partial<Record<Provider, string>> = {
+  facebook: "email,public_profile",
+};
 
 async function startOAuth(provider: Provider): Promise<{ error: string | null }> {
   try {
     const supabase = createClient();
+    const scopes = PROVIDER_SCOPES[provider];
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: PROD_CALLBACK },
+      options: {
+        redirectTo: PROD_CALLBACK,
+        ...(scopes ? { scopes } : {}),
+      },
     });
     return { error: error?.message ?? null };
   } catch (e) {
