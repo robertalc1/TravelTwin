@@ -6,10 +6,15 @@ import { Loader2 } from "lucide-react";
 import { useAuthModalStore } from "@/stores/authModalStore";
 
 /**
- * /login is now a fallback that hands off to the global AuthModal.
- * Direct visits, OAuth error redirects, and external links all funnel here:
- * we open the modal in "login" view and bounce to home so the user keeps
- * the page they were on (or the home page if no referrer).
+ * /login is a no-flash fallback that hands off to the global AuthModal.
+ *
+ * Direct visits (typed URL, old bookmarks, OAuth error redirects) land here.
+ * We open the modal in "login" view, store the optional `?redirectTo=` so
+ * the modal can navigate there after success, then replace the URL with `/`.
+ *
+ * IMPORTANT: we always replace with `/`, never with `next`. Otherwise an
+ * unauthenticated request to a protected path would re-trigger the auth
+ * middleware and bounce back here in an infinite loop.
  */
 function LoginRedirect() {
   const router = useRouter();
@@ -17,9 +22,9 @@ function LoginRedirect() {
   const open = useAuthModalStore((s) => s.open);
 
   useEffect(() => {
-    const next = searchParams.get("redirectTo") ?? "/";
+    const next = searchParams.get("redirectTo") ?? undefined;
     open("login", next);
-    router.replace(next === "/login" ? "/" : next);
+    router.replace("/");
   }, [open, router, searchParams]);
 
   return (

@@ -22,3 +22,6 @@ export const useAuthModalStore = create<AuthModalStore>((set, get) => ({
   toggle: () => set({ view: get().view === "login" ? "register" : "login" }),
   setView: (view) => set({ view }),
 }));
+
+/** Shorter alias — same hook, more idiomatic at call sites. */
+export const useAuthModal = useAuthModalStore;
