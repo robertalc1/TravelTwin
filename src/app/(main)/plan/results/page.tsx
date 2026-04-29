@@ -18,6 +18,9 @@ import {
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import { handleDestinationImageError, handleAirlineLogoError } from "@/lib/imageFallback";
+import { CarbonFootprintBadge } from "@/components/CarbonTracker/CarbonFootprintBadge";
+import { calculateCO2 } from "@/lib/carbon";
+import { useCurrency } from "@/hooks/useCurrency";
 
 interface PlanParams {
   originIata?: string;
@@ -179,6 +182,7 @@ export default function PlanResultsPage() {
 function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
   const dest = pkg.destination;
   const heroUrl = `https://images.unsplash.com/${dest.imageId}?w=800&h=500&fit=crop&q=80`;
+  const { format } = useCurrency();
 
   const highlights: string[] = [];
   if (pkg.flight?.stops === 0) highlights.push("✈️ Direct flight");
@@ -186,6 +190,16 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
   if (pkg.destination.tags.includes("beach")) highlights.push("🏖 Beach destination");
   if (pkg.destination.tags.includes("culture")) highlights.push("🏛 Cultural hotspot");
   if (pkg.destination.tags.includes("food")) highlights.push("🍕 Food paradise");
+
+  // Approximate CO₂ from flight duration (750 km/h cruise) when we don't have origin coords.
+  const flightMinutes = (() => {
+    const iso = pkg.flight?.duration ?? "";
+    const h = parseInt(iso.match(/(\d+)H/)?.[1] ?? "0", 10);
+    const m = parseInt(iso.match(/(\d+)M/)?.[1] ?? "0", 10);
+    return h * 60 + m;
+  })();
+  const approxKm = flightMinutes > 0 ? Math.round((flightMinutes / 60) * 750) : 1500;
+  const carbon = calculateCO2(approxKm, 1, true);
 
   return (
     <motion.div
@@ -227,7 +241,7 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
 
         {/* Highlights */}
         {highlights.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-3">
             {highlights.slice(0, 3).map(h => (
               <span key={h} className="text-xs bg-primary-50 dark:bg-primary-500/10 text-primary-600 rounded-full px-3 py-1">
                 {h}
@@ -235,6 +249,11 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
             ))}
           </div>
         )}
+
+        {/* Carbon badge */}
+        <div className="mb-4">
+          <CarbonFootprintBadge carbon={carbon} />
+        </div>
 
         {/* Price breakdown */}
         <div className="bg-neutral-50 dark:bg-surface-elevated rounded-xl p-4 mb-4 space-y-2">
@@ -244,7 +263,7 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
                 <Plane className="h-4 w-4" /> Flight
               </span>
               <span className="font-semibold">
-                {pkg.currency} {pkg.flight.price.toLocaleString()}
+                {format(pkg.flight.price, pkg.currency)}
               </span>
             </div>
           )}
@@ -254,14 +273,14 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
                 <Hotel className="h-4 w-4" /> Hotel ({pkg.nights} nights)
               </span>
               <span className="font-semibold">
-                {pkg.currency} {pkg.hotel.price.toLocaleString()}
+                {format(pkg.hotel.price, pkg.currency)}
               </span>
             </div>
           )}
           <div className="border-t border-neutral-200 dark:border-border-default pt-2 flex items-center justify-between">
             <span className="font-bold text-secondary-500">Total</span>
             <span className="font-extrabold text-xl text-primary-500">
-              {pkg.currency} {pkg.totalPrice.toLocaleString()}
+              {format(pkg.totalPrice, pkg.currency)}
             </span>
           </div>
           {pkg.isEstimated && (

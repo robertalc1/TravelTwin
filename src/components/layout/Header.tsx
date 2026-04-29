@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
+import { CurrencySelector } from "@/components/CurrencySelector";
 
 export function Header() {
     const pathname = usePathname();
@@ -94,6 +95,11 @@ export function Header() {
                             )}>
                                 <Headphones className="h-4 w-4" />
                                 Live Agent
+                            </div>
+
+                            {/* Currency selector — visible on tablet+ */}
+                            <div className="hidden sm:block">
+                                <CurrencySelector />
                             </div>
 
                             {/* User icon — always visible */}
