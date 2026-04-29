@@ -8,7 +8,17 @@
       "WebSearch",
       "Bash(npm install:*)",
       "Bash(npm list:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(xargs wc:*)",
+      "Bash(find:*)",
+      "Bash(grep -h \"export async function\" src/app/api/**/*.ts)",
+      "Bash(git commit:*)",
+      "Bash(xargs grep *)",
+      "Bash(tsc --noEmit)",
+      "WebFetch(domain:www.tryp.com)"
     ]
   }
 }

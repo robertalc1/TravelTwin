@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, CreditCard, User, Lock, Plane, Hotel, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { DemoBanner } from "@/components/booking/DemoBanner";
 import type { TripDetail } from "@/lib/tripDetail";
 
 /* ── Types ── */
@@ -121,7 +122,17 @@ export default function BookingSimulatePage() {
     return digits;
   }
 
+  const TEST_CARD = "4242 4242 4242 4242";
+  const isTestCard = (raw: string) => raw.replace(/\s/g, "") === TEST_CARD.replace(/\s/g, "");
+
   async function handlePay() {
+    if (!isTestCard(payment.cardNumber)) {
+      alert(
+        `Demo mode — please use the test card ${TEST_CARD}.\n\n` +
+        `Real card numbers are NEVER accepted in this simulator.`
+      );
+      return;
+    }
     setProcessing(true);
     await new Promise((r) => setTimeout(r, 3000));
     setProcessing(false);
@@ -158,6 +169,8 @@ export default function BookingSimulatePage() {
             </div>
           ))}
         </div>
+
+        <DemoBanner />
 
         {/* Trip summary card */}
         <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-6 mb-6 space-y-4">
@@ -220,6 +233,8 @@ export default function BookingSimulatePage() {
           ))}
         </div>
 
+        <DemoBanner />
+
         <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <User className="h-5 w-5 text-primary-500" />
@@ -279,6 +294,8 @@ export default function BookingSimulatePage() {
           ))}
         </div>
 
+        <DemoBanner />
+
         <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -295,12 +312,15 @@ export default function BookingSimulatePage() {
               <label className="block text-sm font-medium text-text-secondary mb-1">Card Number</label>
               <input
                 type="text"
-                placeholder="1234 5678 9012 3456"
+                placeholder={TEST_CARD}
                 value={payment.cardNumber}
                 onChange={(e) => setPayment((p) => ({ ...p, cardNumber: formatCardNumber(e.target.value) }))}
                 maxLength={19}
                 className="w-full rounded-lg border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-mono"
               />
+              <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                Demo only — use the test card {TEST_CARD}.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -391,6 +411,7 @@ export default function BookingSimulatePage() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center py-10 px-4">
       <div className="max-w-lg w-full text-center">
+        <DemoBanner />
         {/* Animated checkmark */}
         <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 shadow-lg">

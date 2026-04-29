@@ -17,26 +17,39 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
+import { handleDestinationImageError, handleAirlineLogoError } from "@/lib/imageFallback";
+
+interface PlanParams {
+  originIata?: string;
+  originDisplay?: string;
+  nights?: number;
+  adults?: number;
+  children?: number;
+  budget?: number;
+  currency?: string;
+}
 
 export default function PlanResultsPage() {
   const router = useRouter();
   const [packages, setPackages] = useState<TripPackage[]>([]);
-  const [params, setParams] = useState<any>(null);
+  const [params, setParams] = useState<PlanParams | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     try {
       const stored = sessionStorage.getItem("planResults");
       if (!stored) {
-        router.push("/plan");
+        // Don't bounce silently — let the user see why they're empty.
+        setMissing(true);
+        setLoaded(true);
         return;
       }
       const parsed = JSON.parse(stored);
-      // Only render this page for planner results (must have budget in params)
-      // Homepage deals don't have a budget field and should not land here
       if (!parsed?.packages || !Array.isArray(parsed.packages) || parsed.packages.length === 0) {
-        router.push("/plan");
+        setMissing(true);
+        setLoaded(true);
         return;
       }
       setPackages(parsed.packages);
@@ -45,9 +58,31 @@ export default function PlanResultsPage() {
       setLoaded(true);
     } catch (e) {
       console.error("[plan/results] Failed to load session data:", e);
-      router.push("/plan");
+      setMissing(true);
+      setLoaded(true);
     }
   }, [router]);
+
+  if (missing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background px-4">
+        <div className="max-w-md text-center">
+          <div className="text-5xl mb-4">🔄</div>
+          <h2 className="text-2xl font-bold text-secondary-500 mb-2">No results to show</h2>
+          <p className="text-text-secondary mb-6">
+            Your plan results were lost on refresh. Sign in to keep them across
+            sessions, or run the planner again.
+          </p>
+          <button
+            onClick={() => router.push("/plan")}
+            className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-all"
+          >
+            Plan a new trip
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!loaded) {
     return (
@@ -166,6 +201,7 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
           alt={`${dest.city}, ${dest.country}`}
           className="w-full h-full object-cover"
           loading="lazy"
+          onError={handleDestinationImageError}
         />
         {index === 0 && (
           <span className="absolute top-3 left-3 rounded-full bg-primary-500 px-3 py-1 text-xs font-bold text-white shadow-md">
@@ -246,6 +282,7 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
                 src={`https://pics.avs.io/80/30/${pkg.flight.airline}.png`}
                 alt={pkg.flight.airline}
                 className="h-5 object-contain"
+                onError={handleAirlineLogoError}
               />
             )}
           </div>
