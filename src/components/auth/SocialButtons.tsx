@@ -8,16 +8,21 @@ type Provider = "google" | "facebook";
 
 /**
  * Trigger the Supabase OAuth dance for a given provider.
- * The provider's app credentials are managed in Supabase Dashboard, not in code.
+ * The provider's app credentials live in the Supabase Dashboard, not in code.
+ *
+ * `redirectTo` must match one of the URLs whitelisted in
+ * Supabase → Authentication → URL Configuration → Redirect URLs.
+ * We send users to production by default. Add localhost there too if you
+ * want to test the flow locally.
  */
+const PROD_CALLBACK = "https://travel-twin.vercel.app/auth/callback";
+
 async function startOAuth(provider: Provider): Promise<{ error: string | null }> {
   try {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
+      options: { redirectTo: PROD_CALLBACK },
     });
     return { error: error?.message ?? null };
   } catch (e) {
@@ -44,11 +49,18 @@ function FacebookLogo() {
   );
 }
 
-export function SocialButtons({ disabled = false }: { disabled?: boolean }) {
+/**
+ * Social login row. The buttons stay clickable regardless of any sibling
+ * email/password form state — the only "busy" gate is internal, just to
+ * suppress double-clicks during the brief moment between click and the
+ * browser navigating to the OAuth provider.
+ */
+export function SocialButtons() {
   const [busy, setBusy] = useState<Provider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handle(provider: Provider) {
+    if (busy) return;
     setError(null);
     setBusy(provider);
     const { error: oauthErr } = await startOAuth(provider);
@@ -64,8 +76,8 @@ export function SocialButtons({ disabled = false }: { disabled?: boolean }) {
       <button
         type="button"
         onClick={() => handle("google")}
-        disabled={disabled || busy !== null}
-        className="flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-4 py-3 text-sm font-medium text-neutral-800 dark:text-text-primary hover:bg-neutral-50 dark:hover:bg-surface transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-busy={busy === "google"}
+        className="flex w-full items-center justify-center gap-3 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-4 py-3 text-sm font-medium text-neutral-800 dark:text-text-primary hover:bg-neutral-50 dark:hover:bg-surface transition-colors"
       >
         {busy === "google" ? (
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -78,8 +90,8 @@ export function SocialButtons({ disabled = false }: { disabled?: boolean }) {
       <button
         type="button"
         onClick={() => handle("facebook")}
-        disabled={disabled || busy !== null}
-        className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#1877F2] px-4 py-3 text-sm font-semibold text-white hover:bg-[#1568d8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-busy={busy === "facebook"}
+        className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#1877F2] px-4 py-3 text-sm font-semibold text-white hover:bg-[#1568d8] transition-colors"
       >
         {busy === "facebook" ? (
           <Loader2 className="h-5 w-5 animate-spin" />

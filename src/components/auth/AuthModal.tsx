@@ -258,7 +258,7 @@ export function AuthModal() {
               </div>
 
               {/* Social */}
-              <SocialButtons disabled={submitting} />
+              <SocialButtons />
 
               {/* Toggle */}
               <p className="mt-6 text-center text-sm text-text-secondary">
