@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Check, CreditCard, User, Lock, Plane, Hotel, Shield } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DemoBanner } from "@/components/booking/DemoBanner";
+import { createClient } from "@/lib/supabase/client";
+import { useToastStore } from "@/stores/toastStore";
 import type { TripDetail } from "@/lib/tripDetail";
 
 /* ── Types ── */
@@ -146,6 +148,48 @@ export default function BookingSimulatePage() {
       }));
     }
     sessionStorage.setItem('lastBookingRef', bookingRef);
+
+    // Persist to Supabase saved_trips for the user (fire-and-forget — guest
+    // bookings still work via sessionStorage above).
+    if (bookingTrip) {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase.from("saved_trips").insert({
+            user_id: user.id,
+            destination: bookingTrip.destinationCity || bookingTrip.destinationCode || "Unknown",
+            origin: bookingMeta.originCity || "Your City",
+            outbound_flight: {
+              booking_ref: bookingRef,
+              airline: bookingTrip.airline,
+              airlineCode: bookingTrip.airlineCode,
+              departureTime: bookingTrip.departureTime,
+              arrivalTime: bookingTrip.arrivalTime,
+              duration: bookingTrip.duration,
+              stops: bookingTrip.stops,
+              price: bookingTrip.flightPrice,
+            },
+            hotel: {
+              name: bookingTrip.hotelName,
+              stars: bookingTrip.hotelStars,
+              pricePerNight: bookingTrip.hotelPricePerNight,
+              checkIn: bookingTrip.hotelCheckIn,
+              checkOut: bookingTrip.hotelCheckOut,
+            },
+            total_cost: bookingTrip.totalPrice,
+            budget: bookingTrip.totalPrice,
+            days: bookingTrip.nights,
+            status: "booked",
+          });
+          useToastStore.getState().show(`Booking saved: ${bookingRef}`, "success");
+        }
+      } catch (err) {
+        console.error("[booking/save]", err);
+        // Non-fatal — sessionStorage copy still works for share link.
+      }
+    }
+
     setStep(4);
   }
 

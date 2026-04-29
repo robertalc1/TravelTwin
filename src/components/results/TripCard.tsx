@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, Plane } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { useAuthModal } from "@/stores/authModalStore";
+import { Plane } from "lucide-react";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 
 interface TripCardProps {
     id: string;
@@ -42,10 +41,7 @@ export function TripCard({
     badge,
     viewDealHref,
 }: TripCardProps) {
-    const [isFavorite, setIsFavorite] = useState(false);
     const [imageError, setImageError] = useState(false);
-    const [favLoading, setFavLoading] = useState(false);
-    const openAuthModal = useAuthModal((s) => s.open);
 
     const formatDate = (dateStr: string) => {
         try {
@@ -73,51 +69,6 @@ export function TripCard({
 
     const fallbackImage = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&h=600&fit=crop`;
 
-    async function handleFavorite(e: React.MouseEvent) {
-        e.preventDefault();
-        if (favLoading) return;
-
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (!user) {
-            openAuthModal("login");
-            return;
-        }
-
-        setFavLoading(true);
-        const newFav = !isFavorite;
-        setIsFavorite(newFav);
-
-        try {
-            if (newFav) {
-                await fetch("/api/favorites", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        city_name: destinationCity,
-                        city_data: {
-                            iata: destination,
-                            price: discountedPrice,
-                            currency,
-                            days,
-                        },
-                    }),
-                });
-            } else {
-                await fetch(
-                    `/api/favorites?city_name=${encodeURIComponent(destinationCity)}`,
-                    { method: "DELETE" }
-                );
-            }
-        } catch {
-            // Revert optimistic update on error
-            setIsFavorite(!newFav);
-        } finally {
-            setFavLoading(false);
-        }
-    }
-
     return (
         <div className="group rounded-xl overflow-hidden bg-white dark:bg-surface border border-neutral-200 dark:border-border-default transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             {/* Image */}
@@ -144,18 +95,14 @@ export function TripCard({
                 )}
 
                 {/* Favorite */}
-                <button
-                    onClick={handleFavorite}
-                    disabled={favLoading}
-                    aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-                    className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 backdrop-blur-sm transition-all duration-200 hover:bg-white hover:scale-110 disabled:opacity-70"
-                >
-                    <Heart
-                        className={`h-4 w-4 transition-colors ${
-                            isFavorite ? "fill-red-500 text-red-500" : "text-neutral-600"
-                        }`}
+                <div className="absolute top-3 right-3">
+                    <FavoriteButton
+                        cityName={destinationCity}
+                        metadata={{ iata: destination, price: discountedPrice, currency, days }}
+                        size="sm"
+                        filled
                     />
-                </button>
+                </div>
             </div>
 
             {/* Content */}
