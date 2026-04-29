@@ -12,7 +12,17 @@ import {
   Star,
   CheckCircle2,
   Loader2,
+  MapPin,
 } from "lucide-react";
+import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
+
+const ORIGIN_SUGGESTIONS: Array<{ iata: string; label: string }> = [
+  { iata: "OTP", label: "Bucharest (OTP)" },
+  { iata: "CLJ", label: "Cluj-Napoca (CLJ)" },
+  { iata: "TSR", label: "Timișoara (TSR)" },
+  { iata: "CND", label: "Constanța (CND)" },
+  { iata: "IAS", label: "Iași (IAS)" },
+];
 // Travel style options
 const TRAVEL_STYLES = [
   { id: "beach", emoji: "🏖", label: "Beach & Relaxation" },
@@ -91,8 +101,8 @@ export default function PlanPage() {
   useEffect(() => { setError(""); }, []);
 
   const [state, setState] = useState<PlanState>({
-    originIata: "OTP",
-    originDisplay: "Bucharest",
+    originIata: "",
+    originDisplay: "",
     budget: 800,
     currency: "EUR",
     departureDate: defaultDep,
@@ -198,7 +208,7 @@ export default function PlanPage() {
       clearInterval(progressInterval);
       setAiLoading(false);
       setError(e.message || "Something went wrong. Please try again.");
-      setStep(3); // back to last step
+      setStep(4); // back to last step
     }
   }
 
@@ -239,7 +249,7 @@ export default function PlanPage() {
     );
   }
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   const progress = ((step + 1) / totalSteps) * 100;
 
   return (
@@ -261,10 +271,79 @@ export default function PlanPage() {
 
         <div className="w-full max-w-2xl relative overflow-hidden">
           <AnimatePresence custom={direction} mode="wait">
-            {/* STEP 1 OF 4: Budget */}
+            {/* STEP 1 OF 5: Origin */}
             {step === 0 && (
               <motion.div
-                key="step0"
+                key="step-origin"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+                className="text-center"
+              >
+                <div className="text-5xl mb-4">📍</div>
+                <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
+                  Where are you starting from?
+                </h2>
+                <p className="text-text-secondary mb-10 text-lg">
+                  Type your departure city or airport
+                </p>
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6">
+                  <LocationAutocomplete
+                    value={state.originIata}
+                    displayValue={state.originDisplay}
+                    onSelect={(iata, display) => {
+                      set("originIata", iata);
+                      set("originDisplay", display);
+                    }}
+                    placeholder="Search city or airport..."
+                    icon="origin"
+                  />
+
+                  <div className="mt-6">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3 text-left">
+                      Popular in Romania
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {ORIGIN_SUGGESTIONS.map((s) => (
+                        <button
+                          key={s.iata}
+                          onClick={() => {
+                            set("originIata", s.iata);
+                            set("originDisplay", s.label);
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all border ${
+                            state.originIata === s.iata
+                              ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
+                              : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
+                          }`}
+                        >
+                          <MapPin className="h-3.5 w-3.5" />
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-center gap-4 mt-8">
+                  <button
+                    onClick={goNext}
+                    disabled={!state.originIata}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+                  >
+                    Next <ArrowRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 2 OF 5: Budget */}
+            {step === 1 && (
+              <motion.div
+                key="step-budget"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -294,14 +373,31 @@ export default function PlanPage() {
                   <input
                     type="range"
                     min={150}
-                    max={3000}
+                    max={8000}
                     step={50}
                     value={state.budget}
                     onChange={e => set("budget", parseInt(e.target.value))}
-                    className="w-full accent-primary-500 mb-6"
+                    className="w-full accent-primary-500 mb-4"
                   />
-                  <div className="flex justify-between text-xs text-text-muted mb-8">
-                    <span>€150</span><span>€3,000</span>
+                  <div className="flex justify-between text-xs text-text-muted mb-6">
+                    <span>€150</span><span>€8,000</span>
+                  </div>
+
+                  {/* Quick presets */}
+                  <div className="flex flex-wrap justify-center gap-2 mb-6">
+                    {[150, 500, 1000, 2000, 3000, 5000, 8000].map((preset) => (
+                      <button
+                        key={preset}
+                        onClick={() => set("budget", preset)}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all border ${
+                          state.budget === preset
+                            ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
+                            : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
+                        }`}
+                      >
+                        €{preset.toLocaleString()}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Currency selector */}
@@ -319,6 +415,9 @@ export default function PlanPage() {
                 </div>
 
                 <div className="flex justify-center gap-4 mt-8">
+                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
+                    <ArrowLeft className="h-4 w-4" /> Back
+                  </button>
                   <button onClick={goNext} className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg">
                     Next <ArrowRight className="h-5 w-5" />
                   </button>
@@ -326,8 +425,8 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 2 OF 4: When & How Long */}
-            {step === 1 && (
+            {/* STEP 3 OF 5: When & How Long */}
+            {step === 2 && (
               <motion.div
                 key="step1"
                 custom={direction}
@@ -415,8 +514,8 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 3 OF 4: Travel Style & Climate */}
-            {step === 2 && (
+            {/* STEP 4 OF 5: Travel Style & Climate */}
+            {step === 3 && (
               <motion.div
                 key="step2"
                 custom={direction}
@@ -491,10 +590,10 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 4 OF 4: Priorities */}
-            {step === 3 && (
+            {/* STEP 5 OF 5: Priorities */}
+            {step === 4 && (
               <motion.div
-                key="step3"
+                key="step4"
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"

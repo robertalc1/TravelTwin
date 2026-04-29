@@ -47,22 +47,65 @@ const selectedIcon = L.divIcon({
 });
 
 // ─── Geocoding ────────────────────────────────────────────────────────────────
-async function geocodeWithDelay(
-  name: string,
-  city: string,
-  index: number,
-): Promise<{ lat: number; lon: number } | null> {
-  await new Promise((r) => setTimeout(r, index * 300));
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(name + ' ' + city)}&format=json&limit=1`,
-      { headers: { 'User-Agent': 'TravelTwin/1.0' } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data[0]) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
-  } catch { /* ignore */ }
+// In-memory cache keyed by "{name}|{city}". Survives navigation within session.
+const geocodeCache = new Map<string, { lat: number; lon: number } | null>();
+
+async function fetchWithRetry(url: string, retries = 3): Promise<Response | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': 'TravelTwin/1.0' } });
+      if (res.ok) return res;
+      if (res.status >= 400 && res.status < 500) return null;
+    } catch { /* network error — retry */ }
+    await new Promise((r) => setTimeout(r, 250 * 2 ** i));
+  }
   return null;
+}
+
+async function geocode(name: string, city: string): Promise<{ lat: number; lon: number } | null> {
+  const key = `${name}|${city}`.toLowerCase();
+  if (geocodeCache.has(key)) return geocodeCache.get(key) ?? null;
+
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+    name + ' ' + city,
+  )}&format=json&limit=1`;
+  const res = await fetchWithRetry(url);
+  if (!res) {
+    geocodeCache.set(key, null);
+    return null;
+  }
+  try {
+    const data = await res.json();
+    if (data[0]) {
+      const out = { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      geocodeCache.set(key, out);
+      return out;
+    }
+  } catch { /* malformed JSON */ }
+  geocodeCache.set(key, null);
+  return null;
+}
+
+/**
+ * Geocode a list of places in parallel batches. Nominatim allows ~1 req/sec
+ * but tolerates short bursts; we batch by `concurrency` and pause between
+ * batches to stay polite while finishing in seconds, not minutes.
+ */
+async function batchGeocode(
+  places: Array<{ name: string; city: string }>,
+  concurrency = 4,
+  pauseMs = 250,
+): Promise<Array<{ lat: number; lon: number } | null>> {
+  const out: Array<{ lat: number; lon: number } | null> = new Array(places.length).fill(null);
+  for (let i = 0; i < places.length; i += concurrency) {
+    const slice = places.slice(i, i + concurrency);
+    const results = await Promise.allSettled(slice.map((p) => geocode(p.name, p.city)));
+    results.forEach((r, idx) => {
+      out[i + idx] = r.status === 'fulfilled' ? r.value : null;
+    });
+    if (i + concurrency < places.length) await new Promise((r) => setTimeout(r, pauseMs));
+  }
+  return out;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -145,19 +188,20 @@ export default function InteractiveMap({
     }
 
     const geocodeAll = async () => {
-      const results: Record<string, GeoLocation> = {};
-      await Promise.all(
-        allPlaces.map(async (place, i) => {
-          const coords = await geocodeWithDelay(place.name, cityName, i);
-          results[place.name] = coords
-            ? { ...coords, type: place.type }
-            : {
-                lat: centerLat + (Math.random() - 0.5) * 0.02,
-                lon: centerLon + (Math.random() - 0.5) * 0.02,
-                type: place.type,
-              };
-        }),
+      const coords = await batchGeocode(
+        allPlaces.map((p) => ({ name: p.name, city: cityName })),
       );
+      const results: Record<string, GeoLocation> = {};
+      coords.forEach((c, i) => {
+        const place = allPlaces[i];
+        results[place.name] = c
+          ? { ...c, type: place.type }
+          : {
+              lat: centerLat + (Math.random() - 0.5) * 0.02,
+              lon: centerLon + (Math.random() - 0.5) * 0.02,
+              type: place.type,
+            };
+      });
       setLocations(results);
       setLoading(false);
     };
