@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Heart, Star } from "lucide-react";
+import { FooterAuthLinks } from "./FooterAuthLinks";
 
 export function Footer() {
   return (
@@ -55,8 +56,7 @@ export function Footer() {
             <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-4">More</h3>
             <ul className="space-y-2.5">
               <li><Link href="/stats" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Travel Stats</Link></li>
-              <li><Link href="/login" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Sign In</Link></li>
-              <li><Link href="/register" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Create Account</Link></li>
+              <FooterAuthLinks />
             </ul>
           </div>
         </div>

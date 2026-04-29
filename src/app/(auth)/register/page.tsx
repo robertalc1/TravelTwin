@@ -6,8 +6,8 @@ import { Loader2 } from "lucide-react";
 import { useAuthModalStore } from "@/stores/authModalStore";
 
 /**
- * /register is a fallback that hands off to the global AuthModal in
- * "register" view, then bounces back to the page the user was on.
+ * /register is a no-flash fallback that hands off to the AuthModal.
+ * See /login for the rationale on always replacing with `/`.
  */
 function RegisterRedirect() {
   const router = useRouter();
@@ -15,9 +15,9 @@ function RegisterRedirect() {
   const open = useAuthModalStore((s) => s.open);
 
   useEffect(() => {
-    const next = searchParams.get("redirectTo") ?? "/";
+    const next = searchParams.get("redirectTo") ?? undefined;
     open("register", next);
-    router.replace(next === "/register" ? "/" : next);
+    router.replace("/");
   }, [open, router, searchParams]);
 
   return (

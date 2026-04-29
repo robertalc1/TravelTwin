@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Heart, Plane } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuthModal } from "@/stores/authModalStore";
 
 interface TripCardProps {
     id: string;
@@ -44,6 +45,7 @@ export function TripCard({
     const [isFavorite, setIsFavorite] = useState(false);
     const [imageError, setImageError] = useState(false);
     const [favLoading, setFavLoading] = useState(false);
+    const openAuthModal = useAuthModal((s) => s.open);
 
     const formatDate = (dateStr: string) => {
         try {
@@ -79,7 +81,7 @@ export function TripCard({
         const { data: { user } } = await supabase.auth.getUser();
 
         if (!user) {
-            window.location.href = "/login";
+            openAuthModal("login");
             return;
         }
 

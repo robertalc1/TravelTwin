@@ -24,6 +24,7 @@ import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/providers/AuthProvider";
+import { useAuthModal } from "@/stores/authModalStore";
 import { formatPrice } from "@/lib/hotelImages";
 import type { FlightInspiration } from "@/lib/supabase/types";
 
@@ -273,6 +274,7 @@ function DestinationCard({
 
 export default function ExplorePage() {
     const { user } = useAuth();
+    const openAuthModal = useAuthModal((s) => s.open);
 
     // Inspiration state
     const [inspirationOrigin, setInspirationOrigin] = useState("");
@@ -361,7 +363,7 @@ export default function ExplorePage() {
         cityData: CityData
     ) {
         e.stopPropagation();
-        if (!user) { window.location.href = "/login"; return; }
+        if (!user) { openAuthModal("login"); return; }
         setTogglingFav(cityName);
         try {
             if (favoritedCities.has(cityName)) {

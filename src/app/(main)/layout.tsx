@@ -3,6 +3,7 @@ import { Footer } from "@/components/layout/Footer";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { AuthModal } from "@/components/auth/AuthModal";
+import { AuthModalUrlSync } from "@/components/auth/AuthModalUrlSync";
 
 export default function MainLayout({
     children,
@@ -21,6 +22,7 @@ export default function MainLayout({
             <div className="h-16 lg:hidden" />
             <ChatPanel />
             <AuthModal />
+            <AuthModalUrlSync />
         </div>
     );
 }
