@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { useAuthModalStore } from "@/stores/authModalStore";
+import { AvatarMenu } from "./AvatarMenu";
 
 export function Header() {
     const pathname = usePathname();
@@ -111,19 +112,11 @@ export function Header() {
                                     isHome ? "bg-white/20" : "bg-neutral-100"
                                 )} />
                             ) : user ? (
-                                <Link
-                                    href="/profile"
-                                    className={cn(
-                                        "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
-                                        isHome
-                                            ? "bg-white/20 text-white hover:bg-white/30"
-                                            : "bg-neutral-100 text-text-primary hover:bg-neutral-200 dark:bg-surface-elevated"
-                                    )}
-                                >
-                                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-500 text-white text-xs font-bold">
-                                        {displayName.charAt(0).toUpperCase()}
-                                    </div>
-                                </Link>
+                                <AvatarMenu
+                                    email={user.email ?? ""}
+                                    displayName={displayName}
+                                    variant={isHome ? "transparent" : "solid"}
+                                />
                             ) : (
                                 <button
                                     type="button"

@@ -4,6 +4,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { AuthModalUrlSync } from "@/components/auth/AuthModalUrlSync";
+import { Toaster } from "@/components/ui/Toaster";
 
 export default function MainLayout({
     children,
@@ -23,6 +24,7 @@ export default function MainLayout({
             <ChatPanel />
             <AuthModal />
             <AuthModalUrlSync />
+            <Toaster />
         </div>
     );
 }
