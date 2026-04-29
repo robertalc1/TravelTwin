@@ -1,4 +1,5 @@
 import { Compass } from "lucide-react";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 export default function AuthLayout({
     children,
@@ -26,12 +27,15 @@ export default function AuthLayout({
                 </div>
             </div>
 
-            {/* Right — Form Area */}
+            {/* Right — Form Area (now used only for the redirect spinner) */}
             <div className="flex w-full lg:w-1/2 items-center justify-center px-6 py-12">
                 <div className="w-full max-w-md">
                     {children}
                 </div>
             </div>
+
+            {/* Modal renders on top so the OAuth flow works directly here too. */}
+            <AuthModal />
         </div>
     );
 }
