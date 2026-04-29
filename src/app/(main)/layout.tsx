@@ -2,6 +2,7 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 export default function MainLayout({
     children,
@@ -19,6 +20,7 @@ export default function MainLayout({
             {/* Spacer for mobile bottom nav */}
             <div className="h-16 lg:hidden" />
             <ChatPanel />
+            <AuthModal />
         </div>
     );
 }

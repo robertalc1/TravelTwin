@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
 import { CurrencySelector } from "@/components/CurrencySelector";
+import { useAuthModalStore } from "@/stores/authModalStore";
 
 export function Header() {
     const pathname = usePathname();
@@ -17,6 +18,7 @@ export function Header() {
     const [loggingOut, setLoggingOut] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const { user, loading, displayName } = useUser();
+    const openAuthModal = useAuthModalStore((s) => s.open);
 
     const isHome = pathname === "/";
 
@@ -123,18 +125,20 @@ export function Header() {
                                     </div>
                                 </Link>
                             ) : (
-                                <Link
-                                    href="/login"
+                                <button
+                                    type="button"
+                                    onClick={() => openAuthModal("login")}
                                     className={cn(
-                                        "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
+                                        "inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 h-8 sm:h-9 text-sm font-semibold transition-colors",
                                         isHome
-                                            ? "bg-white/20 text-white hover:bg-white/30"
-                                            : "bg-neutral-100 text-text-primary hover:bg-neutral-200 dark:bg-surface-elevated"
+                                            ? "bg-white text-secondary-500 hover:bg-white/90"
+                                            : "bg-primary-500 text-white hover:bg-primary-600"
                                     )}
-                                    title="Sign In"
+                                    title="Log in"
                                 >
                                     <User className="h-4 w-4" />
-                                </Link>
+                                    <span>Log In</span>
+                                </button>
                             )}
 
                             {/* Hamburger */}
@@ -200,13 +204,16 @@ export function Header() {
                                     View profile
                                 </Link>
                             ) : (
-                                <Link
-                                    href="/login"
-                                    onClick={() => setMenuOpen(false)}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        openAuthModal("login");
+                                    }}
                                     className="text-sm font-semibold text-primary-500 hover:text-primary-600 mt-1 inline-block"
                                 >
                                     Log in here
-                                </Link>
+                                </button>
                             )}
                         </div>
                         <div className="text-4xl shrink-0">🏝️</div>
