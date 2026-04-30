@@ -403,6 +403,56 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ═══════════ 4.5 COMPLETE YOUR JOURNEY ═══════════ */}
+      <section className="py-12 lg:py-16">
+        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
+          <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
+            Complete Your Journey
+          </h2>
+          <p className="text-text-muted mb-8">
+            Flights, hotels and transfers — all in one place
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a
+              href="/flights"
+              className="group bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <span className="text-3xl">✈️</span>
+              <h3 className="font-semibold text-text-primary mt-3 mb-1">Flights</h3>
+              <p className="text-text-muted text-sm mb-4">Live prices from 500+ airlines</p>
+              <span className="text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:underline">
+                Search flights →
+              </span>
+            </a>
+
+            <a
+              href="/hotels"
+              className="group bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-2xl p-6 border border-orange-200 dark:border-orange-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <span className="text-3xl">🏨</span>
+              <h3 className="font-semibold text-text-primary mt-3 mb-1">Hotels</h3>
+              <p className="text-text-muted text-sm mb-4">Best rates, free cancellation</p>
+              <span className="text-primary-500 text-sm font-medium group-hover:underline">
+                Find hotels →
+              </span>
+            </a>
+
+            <a
+              href="/transfers"
+              className="group bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl p-6 border border-green-200 dark:border-green-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <span className="text-3xl">🚗</span>
+              <h3 className="font-semibold text-text-primary mt-3 mb-1">Transfers</h3>
+              <p className="text-text-muted text-sm mb-4">Airport pickups, private cars</p>
+              <span className="text-green-600 dark:text-green-400 text-sm font-medium group-hover:underline">
+                Book transfer →
+              </span>
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════ 5. FEATURES SECTION ═══════════ */}
       <section className="py-12 lg:py-16 bg-white dark:bg-surface">
         <div className="mx-auto max-w-[1280px] px-4 lg:px-8">

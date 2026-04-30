@@ -20,6 +20,10 @@ import { calculateCO2 } from '@/lib/carbon';
 import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
 import { VisaRequirementsCard } from '@/components/VisaChecker/VisaRequirementsCard';
 import { useUser } from '@/hooks/useUser';
+import HotelsTab from '@/components/TripDetail/HotelsTab';
+import TransfersTab from '@/components/TripDetail/TransfersTab';
+import type { HotelOfferData } from '@/components/Hotels/HotelCard';
+import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
 
 /**
  * Convert ISO 8601 duration like "PT2H30M" to total minutes.
@@ -97,6 +101,9 @@ export default function TripDetailView({
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const [originCity, setOriginCity] = useState('');
   const [originCode, setOriginCode] = useState('');
+  const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'transfers'>('hotels');
+  const [extraHotel, setExtraHotel] = useState<HotelOfferData | null>(null);
+  const [extraTransfer, setExtraTransfer] = useState<TransferOffer | null>(null);
 
   // Read origin from sessionStorage (populated by AI planner)
   useEffect(() => {
@@ -249,6 +256,65 @@ export default function TripDetailView({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* More options: Hotels / Transfers */}
+            {trip.destinationCode && trip.hotelCheckIn && trip.hotelCheckOut && (
+              <section>
+                <h2 className="text-xl font-bold text-secondary-500 mb-4">More options</h2>
+                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+                  <div className="flex border-b border-neutral-100 dark:border-border-default">
+                    <button
+                      type="button"
+                      onClick={() => setMoreOptionsTab('hotels')}
+                      className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
+                        moreOptionsTab === 'hotels'
+                          ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      🏨 Hotels in {trip.destinationCity}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMoreOptionsTab('transfers')}
+                      className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
+                        moreOptionsTab === 'transfers'
+                          ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
+                          : 'text-text-secondary hover:text-text-primary'
+                      }`}
+                    >
+                      🚗 Airport Transfers
+                    </button>
+                  </div>
+                  <div className="p-4 sm:p-5">
+                    {moreOptionsTab === 'hotels' ? (
+                      <HotelsTab
+                        destinationCityCode={trip.destinationCode}
+                        checkInDate={trip.hotelCheckIn}
+                        checkOutDate={trip.hotelCheckOut}
+                        adults={1}
+                        onHotelSelect={setExtraHotel}
+                        selectedHotel={extraHotel}
+                      />
+                    ) : (
+                      <TransfersTab
+                        startLocationCode={trip.destinationCode}
+                        endLatitude={trip.destinationLat}
+                        endLongitude={trip.destinationLon}
+                        endCityName={trip.destinationCity}
+                        startDateTime={
+                          trip.arrivalTime ||
+                          (trip.hotelCheckIn ? `${trip.hotelCheckIn}T12:00:00` : new Date().toISOString().slice(0, 19))
+                        }
+                        adults={1}
+                        onTransferSelect={setExtraTransfer}
+                        selectedTransferId={extraTransfer?.id}
+                      />
+                    )}
+                  </div>
+                </div>
+              </section>
             )}
 
             {/* Day-by-Day Plan */}
