@@ -2,14 +2,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import TransferCard from '@/components/Transfers/TransferCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import { useTripPricing } from '@/stores/tripPricingStore';
+import { useToastStore } from '@/stores/toastStore';
+import { getAirportCoord } from '@/lib/airportCoordinates';
 
 interface TransfersTabProps {
-  startLocationCode: string;        // arrival airport IATA
+  startLocationCode: string;
   endLatitude: number;
   endLongitude: number;
   endCityName: string;
   endCountryCode?: string;
-  startDateTime: string;            // ISO "2026-06-01T10:00:00"
+  startDateTime: string;
   adults: number;
   onTransferSelect: (offer: TransferOffer) => void;
   selectedTransferId?: string;
@@ -29,6 +32,15 @@ export default function TransfersTab({
   const [offers, setOffers] = useState<TransferOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<string>('');
+
+  const selectTransferInStore = useTripPricing((s) => s.selectTransfer);
+  const showToast = useToastStore((s) => s.show);
+  const selectedTransferStore = useTripPricing((s) => s.selectedTransfer);
+
+  const airport = getAirportCoord(startLocationCode);
+  const originLat = airport?.lat;
+  const originLng = airport?.lng;
+  const originName = airport ? `${airport.name} (${startLocationCode})` : `${startLocationCode} Airport`;
 
   const fetchOffers = useCallback(async () => {
     setLoading(true);
@@ -59,6 +71,14 @@ export default function TransfersTab({
       fetchOffers();
     }
   }, [startLocationCode, endLatitude, endLongitude, startDateTime, fetchOffers]);
+
+  const handleSelect = (offer: TransferOffer) => {
+    const price = parseFloat(offer.quotation.monetaryAmount);
+    selectTransferInStore(offer, price);
+    onTransferSelect(offer);
+    const sym = offer.quotation.currencyCode === 'EUR' ? '€' : offer.quotation.currencyCode === 'USD' ? '$' : `${offer.quotation.currencyCode} `;
+    showToast(`Transfer added · ${sym}${Math.round(price)}`, 'success');
+  };
 
   if (loading) {
     return (
@@ -110,8 +130,14 @@ export default function TransfersTab({
           <TransferCard
             key={offer.id}
             offer={offer}
-            onSelect={onTransferSelect}
-            isSelected={selectedTransferId === offer.id}
+            onSelect={handleSelect}
+            isSelected={selectedTransferId === offer.id || selectedTransferStore?.id === offer.id}
+            originName={originName}
+            originLat={originLat}
+            originLng={originLng}
+            destinationName={endCityName}
+            destinationLat={endLatitude}
+            destinationLng={endLongitude}
           />
         ))}
       </div>

@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 import {
   Plane, Hotel, ArrowLeft, MapPin, Star, Calendar,
   Coffee, Sun, Moon, Utensils, Camera,
-  ExternalLink, Lightbulb, Navigation, Shield, DollarSign,
+  Lightbulb, Navigation, DollarSign,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
@@ -22,8 +22,10 @@ import { VisaRequirementsCard } from '@/components/VisaChecker/VisaRequirementsC
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
+import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import { useTripPricing } from '@/stores/tripPricingStore';
 
 /**
  * Convert ISO 8601 duration like "PT2H30M" to total minutes.
@@ -104,6 +106,16 @@ export default function TripDetailView({
   const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'transfers'>('hotels');
   const [extraHotel, setExtraHotel] = useState<HotelOfferData | null>(null);
   const [extraTransfer, setExtraTransfer] = useState<TransferOffer | null>(null);
+
+  const initTripPricing = useTripPricing((s) => s.initTrip);
+  const pricingTotal = useTripPricing((s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice);
+
+  // Seed flight price into the dynamic pricing store on trip mount.
+  useEffect(() => {
+    if (trip?.id) {
+      initTripPricing(trip.id, trip.flightPrice || 0, trip.currency || 'EUR');
+    }
+  }, [trip.id, trip.flightPrice, trip.currency, initTripPricing]);
 
   // Read origin from sessionStorage (populated by AI planner)
   useEffect(() => {
@@ -622,35 +634,11 @@ export default function TripDetailView({
                 </div>
               </div>
             ) : (
-              /* Booking card */
-              <div className="sticky top-24 bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-6 shadow-md space-y-5">
-                <h3 className="font-bold text-lg text-secondary-500">Price Summary</h3>
+              /* Booking sidebar — dynamic PriceBreakdown + meta */
+              <div className="sticky top-24 space-y-4">
+                <PriceBreakdown onBook={handleBook} nights={trip.nights} />
 
-                <div className="text-center py-4 bg-primary-50 dark:bg-primary-500/10 rounded-xl">
-                  <p className="text-xs text-text-muted mb-1">Total price</p>
-                  <p className="text-4xl font-extrabold text-primary-500">
-                    {sym}{trip.totalPrice.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-text-muted mt-1">{trip.nights} nights · flight + hotel</p>
-                </div>
-
-                <div className="space-y-3 text-sm">
-                  {trip.flightPrice > 0 && (
-                    <div className="flex justify-between">
-                      <span className="flex items-center gap-2 text-text-secondary">
-                        <Plane className="h-4 w-4" /> Roundtrip flight
-                      </span>
-                      <span className="font-semibold">{sym}{Math.round(trip.flightPrice).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {trip.hotelPrice > 0 && (
-                    <div className="flex justify-between">
-                      <span className="flex items-center gap-2 text-text-secondary">
-                        <Hotel className="h-4 w-4" /> Hotel ({trip.nights} nights)
-                      </span>
-                      <span className="font-semibold">{sym}{Math.round(trip.hotelPrice).toLocaleString()}</span>
-                    </div>
-                  )}
+                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 shadow-sm space-y-3 text-sm">
                   <div className="flex justify-between">
                     <span className="flex items-center gap-2 text-text-secondary">
                       <Calendar className="h-4 w-4" /> Duration
@@ -663,10 +651,16 @@ export default function TripDetailView({
                     </span>
                     <span className="font-semibold">{trip.destinationCity}</span>
                   </div>
+                  {pricingTotal > 0 && trip.totalPrice > 0 && (
+                    <div className="flex justify-between text-xs pt-2 border-t border-neutral-100 dark:border-border-default">
+                      <span className="text-text-muted">Original package</span>
+                      <span className="text-text-muted">{sym}{trip.totalPrice.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 {ai?.estimatedDailyExpenses && (
-                  <div className="bg-neutral-50 dark:bg-surface-elevated rounded-xl p-4">
+                  <div className="bg-neutral-50 dark:bg-surface-elevated rounded-xl p-4 border border-neutral-200 dark:border-border-default">
                     <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">
                       Est. daily expenses
                     </p>
@@ -679,17 +673,7 @@ export default function TripDetailView({
                   </div>
                 )}
 
-                <button
-                  onClick={handleBook}
-                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary-500 px-6 py-4 font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
-                >
-                  Book This Trip <ExternalLink className="h-4 w-4" />
-                </button>
-
-                <div className="flex items-center gap-2 text-xs text-text-muted justify-center">
-                  <Shield className="h-3.5 w-3.5 text-green-500" /> Free cancellation within 24h
-                </div>
-                <p className="text-xs text-text-muted text-center">
+                <p className="text-xs text-text-muted text-center px-2">
                   Prices shown are estimates. Final price may vary.
                 </p>
               </div>
