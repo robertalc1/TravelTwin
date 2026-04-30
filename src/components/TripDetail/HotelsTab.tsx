@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import HotelCard, { type HotelOfferData } from '@/components/Hotels/HotelCard';
 import HotelDetailModal from '@/components/Hotels/HotelDetailModal';
+import { useTripPricing } from '@/stores/tripPricingStore';
+import { useToastStore } from '@/stores/toastStore';
 
 interface HotelsTabProps {
   destinationCityCode: string;
@@ -32,6 +34,21 @@ export default function HotelsTab({
   const [sortBy, setSortBy] = useState<'price' | 'rating'>('price');
   const [filterStars, setFilterStars] = useState<number>(0);
 
+  const selectHotelInStore = useTripPricing((s) => s.selectHotel);
+  const selectedHotelStore = useTripPricing((s) => s.selectedHotel);
+  const showToast = useToastStore((s) => s.show);
+
+  const handleAddToTrip = (h: HotelOfferData) => {
+    const offer = h.offers[0];
+    const total = parseFloat(offer?.price.total ?? '0');
+    selectHotelInStore(h, total);
+    onHotelSelect(h);
+    const sym = offer?.price.currency === 'EUR' ? '€'
+      : offer?.price.currency === 'USD' ? '$'
+      : `${offer?.price.currency ?? ''} `;
+    showToast(`Hotel added · ${sym}${Math.round(total)}`, 'success');
+  };
+
   const fetchHotels = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -49,7 +66,7 @@ export default function HotelsTab({
 
       const hotelIds = listData.data.slice(0, 8).map((h) => h.hotelId).filter(Boolean).join(',');
       const offersRes = await fetch(
-        `/api/amadeus/hotels/offers?hotelIds=${hotelIds}&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&adults=${adults}`
+        `/api/amadeus/hotels/offers?hotelIds=${hotelIds}&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&adults=${adults}&cityCode=${encodeURIComponent(destinationCityCode)}`
       );
       const offersData: { data?: HotelOfferData[] } = await offersRes.json();
 
@@ -167,10 +184,13 @@ export default function HotelsTab({
           nights={nights}
           onClose={() => setSelectedForModal(null)}
           onAddToTrip={(h) => {
-            onHotelSelect(h);
+            handleAddToTrip(h);
             setSelectedForModal(null);
           }}
-          isSelected={selectedHotel?.hotel?.hotelId === selectedForModal.hotel.hotelId}
+          isSelected={
+            selectedHotel?.hotel?.hotelId === selectedForModal.hotel.hotelId ||
+            selectedHotelStore?.hotel?.hotelId === selectedForModal.hotel.hotelId
+          }
         />
       )}
     </div>
