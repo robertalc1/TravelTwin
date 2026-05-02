@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Plane, Loader2, Sparkles } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { useUserLocation } from "@/hooks/useUserLocation";
+import { useChatStore } from "@/stores/chatStore";
 import type { ChatDeal, ChatFlight, ChatHotel } from "@/app/api/chat/route";
 
 type MessageData = {
@@ -34,7 +35,9 @@ const QUICK_PROMPTS = [
 ];
 
 export function ChatPanel() {
-  const [isOpen, setIsOpen] = useState(false);
+  const isOpen = useChatStore(s => s.isOpen);
+  const openChat = useChatStore(s => s.open);
+  const closeChat = useChatStore(s => s.close);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -125,7 +128,7 @@ export function ChatPanel() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            onClick={() => setIsOpen(true)}
+            onClick={openChat}
             className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-primary-500 px-4 py-3 text-white shadow-lg transition-all duration-200 hover:bg-primary-600 hover:shadow-xl lg:bottom-8 lg:right-8"
             aria-label="Open travel assistant"
           >
@@ -159,7 +162,7 @@ export function ChatPanel() {
                 </div>
               </div>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={closeChat}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-neutral-100 dark:hover:bg-secondary-700"
                 aria-label="Close chat"
               >

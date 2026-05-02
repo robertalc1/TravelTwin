@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
 import { CurrencySelector } from "@/components/CurrencySelector";
 import { useAuthModalStore } from "@/stores/authModalStore";
+import { useChatStore } from "@/stores/chatStore";
 import { AvatarMenu } from "./AvatarMenu";
 
 export function Header() {
@@ -20,6 +21,7 @@ export function Header() {
     const [menuOpen, setMenuOpen] = useState(false);
     const { user, loading, displayName } = useUser();
     const openAuthModal = useAuthModalStore((s) => s.open);
+    const openChat = useChatStore((s) => s.open);
 
     const isHome = pathname === "/";
 
@@ -91,14 +93,19 @@ export function Header() {
                                 Plan a Trip
                             </Link>
 
-                            {/* Live Agent — desktop only */}
-                            <div className={cn(
-                                "hidden md:flex items-center gap-2 text-sm font-medium cursor-pointer",
-                                isHome ? "text-white/90 hover:text-white" : "text-text-secondary hover:text-text-primary"
-                            )}>
+                            {/* Live Agent — desktop only — opens AI chat widget */}
+                            <button
+                                type="button"
+                                onClick={openChat}
+                                className={cn(
+                                    "hidden md:flex items-center gap-2 text-sm font-medium cursor-pointer transition-colors",
+                                    isHome ? "text-white/90 hover:text-white" : "text-text-secondary hover:text-text-primary"
+                                )}
+                                aria-label="Open AI travel assistant"
+                            >
                                 <Headphones className="h-4 w-4" />
                                 Live Agent
-                            </div>
+                            </button>
 
                             {/* Currency selector — visible on tablet+ */}
                             <div className="hidden sm:block">

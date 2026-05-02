@@ -179,6 +179,7 @@ c86fb32 docs: add README, .env.example, and architecture diagrams
 
 | Date | Type | Description | Commit |
 |---|---|---|---|
+| 2026-05-02 | fix | **"Live Agent" navbar button now opens the AI chat widget.** Added `useChatStore` (Zustand, `src/stores/chatStore.ts`), refactored `ChatPanel` to read `isOpen`/`open`/`close` from the store instead of local `useState`, and wired the desktop "Live Agent" button in `Header.tsx` to call `openChat()`. The floating "Ask AI" button now uses the same store, so both triggers stay in sync. | _this commit_ |
 | 2026-05-02 | feat | **Carbon Footprint feature fully removed.** Deleted `src/lib/carbon.ts`, the entire `src/components/CarbonTracker/` folder (`CarbonFootprintBadge`, `CarbonFootprintCard`, `CarbonComparisonBar`), and stripped `CarbonFootprintBadge` + `calculateCO2` references from `plan/results/page.tsx`. Also dropped item #8 (Carbon Footprint Calculator + Eco Mode) from the pending-features backlog. `tsc --noEmit` clean. | _this commit_ |
 | 2026-05-01 | refactor | Removed "Climate impact" / Carbon Footprint section from `TripDetailView.tsx` per user request — not useful in the trip detail flow. Dropped `CarbonFootprintCard` + `calculateCO2` imports and orphan helpers `durationToMinutes` / `approxDistanceKmFromDuration`. | _this commit_ |
 | 2026-05-01 | fix | Bug #2 — removed fake "Google Reviews 4.6" badge from `Footer.tsx`; dropped unused `Star` import | `827cbc1` |
