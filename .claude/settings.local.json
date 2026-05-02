@@ -21,7 +21,8 @@
       "WebFetch(domain:www.tryp.com)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(rm -f \"src/lib/carbon.ts\")",
-      "Bash(rm -rf \"src/components/CarbonTracker\")"
+      "Bash(rm -rf \"src/components/CarbonTracker\")",
+      "Bash(tasklist)"
     ]
   }
 }
