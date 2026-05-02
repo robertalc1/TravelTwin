@@ -151,12 +151,12 @@ c86fb32 docs: add README, .env.example, and architecture diagrams
 
 | # | Severity | Location | Problem | Fix |
 |---|---|---|---|---|
-| 1 | CRITICAL | `src/app/(main)/plan/page.tsx:93–94` | `originIata: "OTP"` hardcoded — no origin selector in wizard UI | Add Step 0 with `LocationAutocomplete`; `totalSteps = 5` |
+| 1 | ~~CRITICAL~~ ✅ | `src/app/(main)/plan/page.tsx` | _Resolved._ Step 0 with `LocationAutocomplete` + Romanian airport chips (OTP/CLJ/TSR/CND/IAS), initial origin is empty string, `totalSteps = 5`, Next disabled until origin selected. | Verified 2026-05-01 |
 | 2 | Major | `src/app/(main)/plan/page.tsx:296–298` | Budget slider max 3000€ blocks intercontinental | Raise `max` to 8000 |
 | 3 | Major | `src/app/(main)/plan/results/page.tsx:30–49` | `sessionStorage` loses results on refresh | Persist in `plan_sessions` Supabase table, pass `?session=ID` |
 | 4 | Major | `src/app/(main)/plan/results/page.tsx:163–169` | Unsplash images have no `onError` fallback → silent 404s | Add `onError` → fallback hero image |
 | 5 | Minor | `src/app/(main)/page.tsx:139–148` | `Math.random()` shuffle on every load → "cheapest" inconsistent | Default `sortBy: 'price-asc'`, drop the shuffle |
-| 6 | Major (legal) | `src/app/(main)/page.tsx:75–84` | Hardcoded "Google Reviews 4.6" — fake | Query real `reviews` table or remove the badge |
+| 6 | ~~Major (legal)~~ ✅ | `src/components/layout/Footer.tsx` | _Resolved._ Removed hardcoded "Google Reviews 4.6" badge from Footer brand block (badge had migrated from homepage to footer). Also dropped now-unused `Star` import. | Verified 2026-05-01 |
 | 7 | Major | `src/components/InteractiveMap.tsx:55–59` | Nominatim sequential 300ms × N → ~3s + rate-limit risk | `geocoding_cache` table + Mapbox |
 | 8 | Minor | `src/components/InteractiveMap.tsx:11–13` | Leaflet icons fetched from `unpkg.com` CDN | Self-host in `public/leaflet/` |
 | 9 | CRITICAL (legal) | `src/app/(main)/booking/simulate/page.tsx` | Booking simulator accepts real card numbers | Red `DEMO MODE` banner + force test card `4242 4242 4242 4242` |
@@ -180,7 +180,9 @@ c86fb32 docs: add README, .env.example, and architecture diagrams
 
 | Date | Type | Description | Commit |
 |---|---|---|---|
-| 2026-05-01 | chore | Added `PROJECT_LOG.md` tracking system | _this commit_ |
+| 2026-05-01 | fix | Bug #2 — removed fake "Google Reviews 4.6" badge from `Footer.tsx`; dropped unused `Star` import | _this commit_ |
+| 2026-05-01 | fix | Bug #1 verified resolved — origin selection step (Step 0) with `LocationAutocomplete` + Romanian airport chips, `totalSteps = 5`, no hardcoded OTP fallback | `(prev)` |
+| 2026-05-01 | chore | Added `PROJECT_LOG.md` tracking system | `(prev)` |
 | 2026-04-30 | feat | Hotels fallback offers, transfer route map, dynamic price breakdown | `b81c0a5` |
 | 2026-04-30 | feat | Amadeus transfers/cars + hotels API and trip detail tabs | `44823ae` |
 | 2026-04-29 | feat | Avatar menu, toaster, favorites components, profile rework | `72fb836` |
