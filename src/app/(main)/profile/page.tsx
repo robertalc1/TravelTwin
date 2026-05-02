@@ -531,12 +531,16 @@ function FavoritesTab({ onExploreClick }: { onExploreClick: () => void }) {
     async function remove(fav: Favorite) {
         setRemoving(fav.id);
         try {
-            const res = await fetch(`/api/favorites?city_name=${encodeURIComponent(fav.city_name)}`, { method: "DELETE" });
-            if (!res.ok) throw new Error();
+            const res = await fetch(`/api/favorites?id=${encodeURIComponent(fav.id)}`, { method: "DELETE" });
+            if (!res.ok) {
+                const json = await res.json().catch(() => ({}));
+                throw new Error(json?.error || `HTTP ${res.status}`);
+            }
             setFavs((prev) => prev.filter((f) => f.id !== fav.id));
             showToast("Removed from favorites", "info");
-        } catch {
-            showToast("Couldn’t remove — try again", "error");
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Couldn’t remove — try again";
+            showToast(message, "error");
         } finally {
             setRemoving(null);
         }
@@ -572,7 +576,7 @@ function FavoritesTab({ onExploreClick }: { onExploreClick: () => void }) {
                     <div className="min-w-0">
                         <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
                             <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                            {f.city_name}
+                            {f.item_name}
                         </h3>
                         <p className="text-xs text-text-muted mt-1">
                             Saved {new Date(f.created_at).toLocaleDateString()}
@@ -582,7 +586,7 @@ function FavoritesTab({ onExploreClick }: { onExploreClick: () => void }) {
                         type="button"
                         onClick={() => remove(f)}
                         disabled={removing === f.id}
-                        aria-label={`Remove ${f.city_name}`}
+                        aria-label={`Remove ${f.item_name}`}
                         className="text-text-muted hover:text-red-500 transition-colors disabled:opacity-60"
                     >
                         {removing === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

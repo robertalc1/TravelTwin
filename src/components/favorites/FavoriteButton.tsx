@@ -60,7 +60,8 @@ export function FavoriteButton({
         .from("favorites")
         .select("id")
         .eq("user_id", user.id)
-        .eq("city_name", cityName)
+        .eq("item_type", "city")
+        .eq("item_id", cityName)
         .limit(1)
         .maybeSingle();
       if (!cancelled) setIsFav(Boolean(data));
@@ -85,21 +86,33 @@ export function FavoriteButton({
         const res = await fetch("/api/favorites", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ city_name: cityName, city_data: metadata ?? null }),
+          body: JSON.stringify({
+            item_type: "city",
+            item_id: cityName,
+            item_name: cityName,
+            item_data: metadata ?? null,
+          }),
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        showToast("Added to favorites", "success");
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json?.error || `HTTP ${res.status}`);
+        }
+        showToast("Added to favorites ✓", "success");
       } else {
         const res = await fetch(
-          `/api/favorites?city_name=${encodeURIComponent(cityName)}`,
+          `/api/favorites?item_type=city&item_id=${encodeURIComponent(cityName)}`,
           { method: "DELETE" }
         );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json?.error || `HTTP ${res.status}`);
+        }
         showToast("Removed from favorites", "info");
       }
-    } catch {
+    } catch (err) {
       setIsFav(!next);       // rollback
-      showToast("Couldn’t update favorite — try again", "error");
+      const message = err instanceof Error ? err.message : "Couldn’t update favorite — try again";
+      showToast(message, "error");
     } finally {
       setWorking(false);
     }
