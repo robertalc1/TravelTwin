@@ -18,8 +18,6 @@ import {
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import { handleDestinationImageError, handleAirlineLogoError } from "@/lib/imageFallback";
-import { CarbonFootprintBadge } from "@/components/CarbonTracker/CarbonFootprintBadge";
-import { calculateCO2 } from "@/lib/carbon";
 import { useCurrency } from "@/hooks/useCurrency";
 
 interface PlanParams {
@@ -191,16 +189,6 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
   if (pkg.destination.tags.includes("culture")) highlights.push("🏛 Cultural hotspot");
   if (pkg.destination.tags.includes("food")) highlights.push("🍕 Food paradise");
 
-  // Approximate CO₂ from flight duration (750 km/h cruise) when we don't have origin coords.
-  const flightMinutes = (() => {
-    const iso = pkg.flight?.duration ?? "";
-    const h = parseInt(iso.match(/(\d+)H/)?.[1] ?? "0", 10);
-    const m = parseInt(iso.match(/(\d+)M/)?.[1] ?? "0", 10);
-    return h * 60 + m;
-  })();
-  const approxKm = flightMinutes > 0 ? Math.round((flightMinutes / 60) * 750) : 1500;
-  const carbon = calculateCO2(approxKm, 1, true);
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -249,11 +237,6 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
             ))}
           </div>
         )}
-
-        {/* Carbon badge */}
-        <div className="mb-4">
-          <CarbonFootprintBadge carbon={carbon} />
-        </div>
 
         {/* Price breakdown */}
         <div className="bg-neutral-50 dark:bg-surface-elevated rounded-xl p-4 mb-4 space-y-2">

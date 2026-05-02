@@ -64,3 +64,64 @@ export const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
 export function getAirportCoord(iata: string): AirportCoord | undefined {
   return AIRPORT_COORDINATES[iata.toUpperCase()];
 }
+
+// Airport IATA → city IATA (Amadeus-style 3-letter city code).
+// Most airports double as the city code (BCN, AMS, ATH, IST...) — only multi-airport
+// metros need an entry here.
+export const IATA_TO_CITY_CODE: Record<string, string> = {
+  // Paris
+  CDG: 'PAR', ORY: 'PAR', BVA: 'PAR', LBG: 'PAR',
+  // London
+  LHR: 'LON', LGW: 'LON', STN: 'LON', LTN: 'LON', LCY: 'LON', SEN: 'LON',
+  // Rome
+  FCO: 'ROM', CIA: 'ROM',
+  // Milan
+  MXP: 'MIL', LIN: 'MIL', BGY: 'MIL',
+  // Istanbul
+  IST: 'IST', SAW: 'IST',
+  // Tokyo
+  NRT: 'TYO', HND: 'TYO',
+  // New York
+  JFK: 'NYC', LGA: 'NYC', EWR: 'NYC',
+  // Stockholm
+  ARN: 'STO', BMA: 'STO', NYO: 'STO',
+  // Bucharest
+  OTP: 'BUH', BBU: 'BUH',
+  // Moscow
+  SVO: 'MOW', DME: 'MOW', VKO: 'MOW',
+  // Washington
+  IAD: 'WAS', DCA: 'WAS', BWI: 'WAS',
+  // Berlin
+  BER: 'BER', SXF: 'BER', TXL: 'BER',
+};
+
+/**
+ * Resolve an airport IATA into a city IATA (Amadeus city code).
+ * Returns the input unchanged when no mapping is known — works correctly
+ * for cities whose airport and city codes coincide (BCN, ATH, MAD, etc.).
+ */
+export function iataToCityCode(iata: string | undefined | null): string {
+  if (!iata) return '';
+  const upper = iata.toUpperCase();
+  return IATA_TO_CITY_CODE[upper] ?? upper;
+}
+
+/**
+ * Haversine distance (km) between two lat/lng points.
+ */
+export function haversineKm(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
