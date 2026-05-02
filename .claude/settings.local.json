@@ -19,7 +19,9 @@
       "Bash(xargs grep *)",
       "Bash(tsc --noEmit)",
       "WebFetch(domain:www.tryp.com)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(rm -f \"src/lib/carbon.ts\")",
+      "Bash(rm -rf \"src/components/CarbonTracker\")"
     ]
   }
 }

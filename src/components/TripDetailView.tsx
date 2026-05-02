@@ -15,8 +15,6 @@ import { buildLegsFromTrip, buildStopsFromTrip } from '@/lib/itineraryHelpers';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import DestinationVideos from '@/components/DestinationVideos';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
-import { CarbonFootprintCard } from '@/components/CarbonTracker/CarbonFootprintCard';
-import { calculateCO2 } from '@/lib/carbon';
 import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
 import { VisaRequirementsCard } from '@/components/VisaChecker/VisaRequirementsCard';
 import { useUser } from '@/hooks/useUser';
@@ -26,27 +24,6 @@ import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
-
-/**
- * Convert ISO 8601 duration like "PT2H30M" to total minutes.
- * Returns 0 for empty / malformed input so callers can guard with a min default.
- */
-function durationToMinutes(iso: string): number {
-  if (!iso) return 0;
-  const h = parseInt(iso.match(/(\d+)H/)?.[1] ?? "0", 10);
-  const m = parseInt(iso.match(/(\d+)M/)?.[1] ?? "0", 10);
-  return h * 60 + m;
-}
-
-/**
- * Approximate one-way flight distance from in-air duration.
- * 750 km/h average ground speed for narrow/wide-body jets at cruise.
- */
-function approxDistanceKmFromDuration(iso: string): number {
-  const minutes = durationToMinutes(iso);
-  if (minutes <= 0) return 1500; // sane fallback for medium-haul
-  return Math.round((minutes / 60) * 750);
-}
 
 const InteractiveMap = dynamic(
   () => import('@/components/InteractiveMap'),
@@ -527,16 +504,6 @@ export default function TripDetailView({
                   )}
                 </div>
               </div>
-            </section>
-
-            {/* Carbon Footprint */}
-            <section>
-              <h2 className="text-xl font-bold text-secondary-500 mb-4">Climate impact</h2>
-              <CarbonFootprintCard
-                carbon={calculateCO2(approxDistanceKmFromDuration(trip.duration), 1, true)}
-                passengers={1}
-                caption="Estimated round-trip emissions for one traveler. Compare against ground transport when distance allows."
-              />
             </section>
 
             {/* Visa & entry — shown only when nationality is known */}

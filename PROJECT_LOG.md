@@ -3,7 +3,7 @@
 > **Tracking file** for ongoing development. Read this at the start of every session along with `PROJECT_SUMMARY.md` to know what's done, what's pending, and what's broken.
 
 **Created:** 2026-05-01
-**Last updated:** 2026-05-01
+**Last updated:** 2026-05-02
 **Live URL:** https://travel-twin.vercel.app
 **Repository:** https://github.com/robertalc1/TravelTwin
 
@@ -104,7 +104,6 @@
 |---|---|---|
 | 6 | AR Camera Mode (WebXR via @react-three/xr) | 40–50 |
 | 7 | Group Polling (vote destinations) | 6–8 |
-| 8 | Carbon Footprint Calculator + Eco Mode | 8–10 |
 | 9 | AI Voice Mode (Web Speech + ElevenLabs) | 12–16 |
 | 10 | Currency Conversion Real-Time (exchangerate.host) | 3–5 |
 
@@ -180,7 +179,9 @@ c86fb32 docs: add README, .env.example, and architecture diagrams
 
 | Date | Type | Description | Commit |
 |---|---|---|---|
-| 2026-05-01 | fix | Bug #2 — removed fake "Google Reviews 4.6" badge from `Footer.tsx`; dropped unused `Star` import | _this commit_ |
+| 2026-05-02 | feat | **Carbon Footprint feature fully removed.** Deleted `src/lib/carbon.ts`, the entire `src/components/CarbonTracker/` folder (`CarbonFootprintBadge`, `CarbonFootprintCard`, `CarbonComparisonBar`), and stripped `CarbonFootprintBadge` + `calculateCO2` references from `plan/results/page.tsx`. Also dropped item #8 (Carbon Footprint Calculator + Eco Mode) from the pending-features backlog. `tsc --noEmit` clean. | _this commit_ |
+| 2026-05-01 | refactor | Removed "Climate impact" / Carbon Footprint section from `TripDetailView.tsx` per user request — not useful in the trip detail flow. Dropped `CarbonFootprintCard` + `calculateCO2` imports and orphan helpers `durationToMinutes` / `approxDistanceKmFromDuration`. | _this commit_ |
+| 2026-05-01 | fix | Bug #2 — removed fake "Google Reviews 4.6" badge from `Footer.tsx`; dropped unused `Star` import | `827cbc1` |
 | 2026-05-01 | fix | Bug #1 verified resolved — origin selection step (Step 0) with `LocationAutocomplete` + Romanian airport chips, `totalSteps = 5`, no hardcoded OTP fallback | `(prev)` |
 | 2026-05-01 | chore | Added `PROJECT_LOG.md` tracking system | `(prev)` |
 | 2026-04-30 | feat | Hotels fallback offers, transfer route map, dynamic price breakdown | `b81c0a5` |
