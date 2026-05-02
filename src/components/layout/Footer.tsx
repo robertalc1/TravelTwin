@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart, Star } from "lucide-react";
+import { Heart } from "lucide-react";
 import { FooterAuthLinks } from "./FooterAuthLinks";
 
 export function Footer() {
@@ -16,17 +16,7 @@ export function Footer() {
             <p className="text-body-sm text-text-secondary max-w-[280px] mb-4">
               Travel more for less. Together with AI we help you find the best travel deals.
             </p>
-            <p className="text-caption text-text-muted mb-4">Constanța, Romania</p>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Google Reviews</span>
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4].map((i) => (
-                  <Star key={i} className="h-3 w-3 fill-gold-500 text-gold-500" />
-                ))}
-                <Star className="h-3 w-3 fill-gold-500/50 text-gold-500" />
-              </div>
-              <span className="text-xs font-bold text-text-primary">4.6</span>
-            </div>
+            <p className="text-caption text-text-muted">Constanța, Romania</p>
           </div>
 
           {/* Travel */}
