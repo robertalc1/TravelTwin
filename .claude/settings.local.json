@@ -22,7 +22,10 @@
       "Bash(echo \"EXIT: $?\")",
       "Bash(rm -f \"src/lib/carbon.ts\")",
       "Bash(rm -rf \"src/components/CarbonTracker\")",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__execute_sql"
     ]
   }
 }

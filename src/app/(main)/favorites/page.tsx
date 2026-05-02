@@ -102,7 +102,7 @@ export default function FavoritesPage() {
                                 <div>
                                     <h3 className="font-display text-lg font-bold text-text-primary flex items-center gap-2">
                                         <MapPin className="h-4 w-4 text-primary-500" />
-                                        {fav.city_name}
+                                        {fav.item_name}
                                     </h3>
                                     <p className="text-xs text-text-muted flex items-center gap-1 mt-1">
                                         <Clock className="h-3 w-3" />

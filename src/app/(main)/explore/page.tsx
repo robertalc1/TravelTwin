@@ -345,11 +345,12 @@ export default function ExplorePage() {
                 const supabase = createClient();
                 const { data } = await supabase
                     .from("favorites")
-                    .select("city_name")
-                    .eq("user_id", user!.id);
+                    .select("item_id")
+                    .eq("user_id", user!.id)
+                    .eq("item_type", "city");
                 if (data) {
                     setFavoritedCities(
-                        new Set(data.map((f: { city_name: string }) => f.city_name))
+                        new Set(data.map((f: { item_id: string }) => f.item_id))
                     );
                 }
             } catch { /* ignore */ }
@@ -368,7 +369,7 @@ export default function ExplorePage() {
         try {
             if (favoritedCities.has(cityName)) {
                 await fetch(
-                    `/api/favorites?city_name=${encodeURIComponent(cityName)}`,
+                    `/api/favorites?item_type=city&item_id=${encodeURIComponent(cityName)}`,
                     { method: "DELETE" }
                 );
                 setFavoritedCities((prev) => {
@@ -381,8 +382,10 @@ export default function ExplorePage() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        city_name: cityName,
-                        city_data: {
+                        item_type: "city",
+                        item_id: cityName,
+                        item_name: cityName,
+                        item_data: {
                             id: cityData.id,
                             description: cityData.description,
                             temperature: cityData.temperature,
