@@ -5,6 +5,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { AuthModalUrlSync } from "@/components/auth/AuthModalUrlSync";
 import { Toaster } from "@/components/ui/Toaster";
+import CurrencyAutoDetect from "@/components/CurrencyAutoDetect";
 
 export default function MainLayout({
     children,
@@ -21,6 +22,7 @@ export default function MainLayout({
             <BottomNav />
             {/* Spacer for mobile bottom nav */}
             <div className="h-16 lg:hidden" />
+            <CurrencyAutoDetect />
             <ChatPanel />
             <AuthModal />
             <AuthModalUrlSync />
