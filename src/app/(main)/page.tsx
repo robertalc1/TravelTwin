@@ -197,12 +197,12 @@ export default function Home() {
             <Link
               href="/plan"
               prefetch={false}
-              className="group relative inline-flex items-center gap-3 rounded-full bg-primary-500 px-10 py-5 text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+              className="group relative inline-flex items-center gap-2 sm:gap-3 rounded-full bg-primary-500 px-6 py-3 text-sm sm:px-10 sm:py-5 sm:text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
               style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
             >
-              <Plane className="h-6 w-6 transition-transform duration-300 group-hover:-rotate-12" />
+              <Plane className="h-4 w-4 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:-rotate-12" />
               Plan My Trip
-              <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
+              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
 
           </div>
@@ -484,9 +484,9 @@ export default function Home() {
             <Link
               href="/plan"
               prefetch={false}
-              className="inline-flex items-center justify-center gap-2 h-14 rounded-full bg-white text-primary-500 px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-lg"
+              className="inline-flex items-center justify-center gap-2 h-11 sm:h-14 rounded-full bg-white text-primary-500 px-6 sm:px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-sm sm:text-lg"
             >
-              <Plane className="h-6 w-6" />
+              <Plane className="h-4 w-4 sm:h-6 sm:w-6" />
               Plan My Trip
             </Link>
           </div>
