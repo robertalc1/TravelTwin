@@ -243,12 +243,6 @@ export function Header() {
                         label="Search Hotels"
                         onClick={() => setMenuOpen(false)}
                     />
-                    <MenuLink
-                        href="/explore"
-                        icon={<CalendarDays className="h-5 w-5" />}
-                        label="Explore Destinations"
-                        onClick={() => setMenuOpen(false)}
-                    />
                 </nav>
 
                 {/* ── Divider ── */}

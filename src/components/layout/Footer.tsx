@@ -26,7 +26,6 @@ export function Footer() {
               <li><Link href="/plan" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Plan a Trip</Link></li>
               <li><Link href="/flights" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Search Flights</Link></li>
               <li><Link href="/hotels" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Search Hotels</Link></li>
-              <li><Link href="/explore" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Explore Destinations</Link></li>
             </ul>
           </div>
 
