@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plane } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { useCurrencyStore } from "@/stores/currencyStore";
 
 interface TripCardProps {
     id: string;
@@ -42,6 +43,7 @@ export function TripCard({
     viewDealHref,
 }: TripCardProps) {
     const [imageError, setImageError] = useState(false);
+    const formatCurrency = useCurrencyStore((s) => s.format);
 
     const formatDate = (dateStr: string) => {
         try {
@@ -51,19 +53,6 @@ export function TripCard({
             });
         } catch {
             return dateStr;
-        }
-    };
-
-    const formatPrice = (price: number, curr: string) => {
-        try {
-            return new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: curr,
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-            }).format(price);
-        } catch {
-            return `${curr} ${Math.round(price)}`;
         }
     };
 
@@ -126,11 +115,11 @@ export function TripCard({
                     <div>
                         {originalPrice && originalPrice > discountedPrice && (
                             <span className="text-sm text-text-muted line-through mr-2">
-                                {formatPrice(originalPrice, currency)}
+                                {formatCurrency(originalPrice, currency)}
                             </span>
                         )}
                         <span className="text-xl font-bold text-secondary-500">
-                            {formatPrice(discountedPrice, currency)}
+                            {formatCurrency(discountedPrice, currency)}
                         </span>
                         <p className="text-[10px] text-text-muted mt-0.5">
                             Transportation for {travelers} person{travelers > 1 ? "s" : ""}

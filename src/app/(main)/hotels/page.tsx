@@ -6,7 +6,8 @@ import { HotelCard } from "@/components/features/hotels/HotelCard";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { getHotelImage, formatPrice } from "@/lib/hotelImages";
+import { getHotelImage } from "@/lib/hotelImages";
+import { useCurrencyStore } from "@/stores/currencyStore";
 import type { NormalizedHotel } from "@/lib/supabase/types";
 
 export default function HotelsPage() {
@@ -15,6 +16,7 @@ export default function HotelsPage() {
     const [checkInDate, setCheckInDate] = useState("");
     const [checkOutDate, setCheckOutDate] = useState("");
 
+    const formatCurrency = useCurrencyStore((s) => s.format);
     const [hotels, setHotels] = useState<NormalizedHotel[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -245,9 +247,9 @@ export default function HotelsPage() {
                                     </span>
                                     <span className="font-mono font-semibold text-primary-500">
                                         Total:{" "}
-                                        {formatPrice(
+                                        {formatCurrency(
                                             hotel.pricePerNight * nights,
-                                            hotel.currency
+                                            hotel.currency || 'EUR'
                                         )}
                                     </span>
                                 </div>

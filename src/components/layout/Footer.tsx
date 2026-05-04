@@ -44,7 +44,6 @@ export function Footer() {
           <div>
             <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-4">More</h3>
             <ul className="space-y-2.5">
-              <li><Link href="/stats" className="text-body-sm text-text-secondary hover:text-text-primary transition-colors">Travel Stats</Link></li>
               <FooterAuthLinks />
             </ul>
           </div>

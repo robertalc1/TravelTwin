@@ -5,25 +5,14 @@ import { getCityImageByIata } from "@/lib/cityImages";
 import { formatDuration } from "@/lib/hotelImages";
 import { SourceBadge } from "@/components/ui/SourceBadge";
 import type { NormalizedFlight } from "@/lib/supabase/types";
+import { useCurrencyStore } from "@/stores/currencyStore";
 
 interface FlightResultCardProps {
     flight: NormalizedFlight;
 }
 
-function formatPrice(price: number, currency: string) {
-    try {
-        return new Intl.NumberFormat("en-US", {
-            style: "currency",
-            currency,
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(price);
-    } catch {
-        return `${currency} ${Math.round(price)}`;
-    }
-}
-
 export function FlightResultCard({ flight }: FlightResultCardProps) {
+    const formatCurrency = useCurrencyStore((s) => s.format);
     const destImage = getCityImageByIata(flight.destination, flight.id);
     const airlineLogoUrl = `https://pics.avs.io/200/200/${flight.airline}.png`;
     const durationDisplay = formatDuration(flight.duration) || flight.duration;
@@ -122,7 +111,7 @@ export function FlightResultCard({ flight }: FlightResultCardProps) {
                 <div className="flex items-end justify-between pt-2 border-t border-border-default">
                     <div>
                         <p className="text-2xl font-bold text-primary-600">
-                            {formatPrice(flight.price, flight.currency)}
+                            {formatCurrency(flight.price, flight.currency)}
                         </p>
                         <p className="text-xs text-text-muted">per person · {flight.travelClass || "Economy"}</p>
                     </div>

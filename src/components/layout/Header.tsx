@@ -272,12 +272,6 @@ export function Header() {
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/stats"
-                        icon={<BarChart2 className="h-5 w-5" />}
-                        label="Travel Stats"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
                         href="/profile"
                         icon={<User className="h-5 w-5" />}
                         label="Profile"
