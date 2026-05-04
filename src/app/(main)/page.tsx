@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchProgressHeader } from "@/components/deals/SearchProgressHeader";
 import { DealCardSkeleton } from "@/components/deals/DealCardSkeleton";
@@ -86,7 +86,6 @@ const featureCards = [
    MAIN HOME PAGE
    ═══════════════════════════════════════ */
 export default function Home() {
-  const router = useRouter();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter store (category + modal filters)
@@ -195,15 +194,16 @@ export default function Home() {
               Your dream vacation,<br />planned by AI
             </h1>
             {/* CTA Button */}
-            <button
-              onClick={() => router.push('/plan')}
+            <Link
+              href="/plan"
+              prefetch={false}
               className="group relative inline-flex items-center gap-3 rounded-full bg-primary-500 px-10 py-5 text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
               style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
             >
               <Plane className="h-6 w-6 transition-transform duration-300 group-hover:-rotate-12" />
               Plan My Trip
               <ArrowRight className="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" />
-            </button>
+            </Link>
 
           </div>
         </div>
@@ -481,13 +481,14 @@ export default function Home() {
             <p className="text-white/80 text-lg mb-8 max-w-lg mx-auto">
               Let our AI find the perfect trip for you — flights, hotels, and a day-by-day itinerary
             </p>
-            <button
-              onClick={() => router.push('/plan')}
+            <Link
+              href="/plan"
+              prefetch={false}
               className="inline-flex items-center justify-center gap-2 h-14 rounded-full bg-white text-primary-500 px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-lg"
             >
               <Plane className="h-6 w-6" />
               Plan My Trip
-            </button>
+            </Link>
           </div>
         </div>
       </section>
