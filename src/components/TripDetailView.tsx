@@ -496,7 +496,6 @@ export default function TripDetailView({
                           >
                             <div className="flex items-center justify-between pr-6">
                               <p className="font-semibold text-secondary-500 text-sm">{r.name}</p>
-                              <span className="text-xs font-bold text-green-600 shrink-0">{r.priceRange}</span>
                             </div>
                             <p className="text-xs text-text-muted mt-0.5">{r.cuisine}</p>
                             <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
