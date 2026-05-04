@@ -15,6 +15,27 @@ import {
   MapPin,
 } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
+import { useCurrencyStore } from "@/stores/currencyStore";
+
+const BUDGET_CONFIG: Record<string, { min: number; max: number; step: number; presets: number[]; default: number }> = {
+  EUR: { min: 150, max: 8000, step: 50,  presets: [150, 500, 1000, 2000, 3000, 5000, 8000], default: 800 },
+  USD: { min: 160, max: 8600, step: 50,  presets: [160, 540, 1080, 2160, 3240, 5400, 8600], default: 860 },
+  RON: { min: 750, max: 40000, step: 250, presets: [750, 2500, 5000, 10000, 15000, 25000, 40000], default: 4000 },
+  GBP: { min: 130, max: 6800, step: 50,  presets: [130, 430, 860, 1700, 2600, 4300, 6800], default: 700 },
+  CHF: { min: 150, max: 7800, step: 50,  presets: [150, 490, 970, 1950, 2900, 4900, 7800], default: 780 },
+  SEK: { min: 1700, max: 88000, step: 500, presets: [1700, 5700, 11400, 22800, 34000, 57000, 88000], default: 9100 },
+};
+
+function formatBudget(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency", currency,
+      minimumFractionDigits: 0, maximumFractionDigits: 0,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString()}`;
+  }
+}
 
 const ORIGIN_SUGGESTIONS: Array<{ iata: string; label: string }> = [
   { iata: "OTP", label: "Bucharest (OTP)" },
@@ -90,6 +111,7 @@ const defaultRet = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOStri
 
 export default function PlanPage() {
   const router = useRouter();
+  const storeCurrency = useCurrencyStore((s) => s.currency);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [aiLoading, setAiLoading] = useState(false);
@@ -100,11 +122,12 @@ export default function PlanPage() {
   // Clear any stale error when component mounts (e.g. navigating back from results)
   useEffect(() => { setError(""); }, []);
 
+  const defaultCfg = BUDGET_CONFIG[storeCurrency] ?? BUDGET_CONFIG.EUR;
   const [state, setState] = useState<PlanState>({
     originIata: "",
     originDisplay: "",
-    budget: 800,
-    currency: "EUR",
+    budget: defaultCfg.default,
+    currency: storeCurrency,
     departureDate: defaultDep,
     returnDate: defaultRet,
     nights: 7,
@@ -359,60 +382,67 @@ export default function PlanPage() {
                 <p className="text-text-secondary mb-10 text-lg">
                   Including flights and hotel for all travelers
                 </p>
-                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8">
-                  {/* Budget display */}
-                  <div className="text-center mb-6">
-                    <span className="text-5xl font-extrabold text-primary-500">
-                      {state.currency === "EUR" ? "€" : state.currency === "USD" ? "$" : ""}
-                      {state.budget.toLocaleString()}
-                      {state.currency === "RON" ? " RON" : ""}
-                    </span>
-                  </div>
+                {(() => {
+                  const cfg = BUDGET_CONFIG[state.currency] ?? BUDGET_CONFIG.EUR;
+                  return (
+                    <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8">
+                      {/* Budget display */}
+                      <div className="text-center mb-6">
+                        <span className="text-5xl font-extrabold text-primary-500">
+                          {formatBudget(state.budget, state.currency)}
+                        </span>
+                      </div>
 
-                  {/* Slider */}
-                  <input
-                    type="range"
-                    min={150}
-                    max={8000}
-                    step={50}
-                    value={state.budget}
-                    onChange={e => set("budget", parseInt(e.target.value))}
-                    className="w-full accent-primary-500 mb-4"
-                  />
-                  <div className="flex justify-between text-xs text-text-muted mb-6">
-                    <span>€150</span><span>€8,000</span>
-                  </div>
+                      {/* Slider */}
+                      <input
+                        type="range"
+                        min={cfg.min}
+                        max={cfg.max}
+                        step={cfg.step}
+                        value={state.budget}
+                        onChange={e => set("budget", parseInt(e.target.value))}
+                        className="w-full accent-primary-500 mb-4"
+                      />
+                      <div className="flex justify-between text-xs text-text-muted mb-6">
+                        <span>{formatBudget(cfg.min, state.currency)}</span>
+                        <span>{formatBudget(cfg.max, state.currency)}</span>
+                      </div>
 
-                  {/* Quick presets */}
-                  <div className="flex flex-wrap justify-center gap-2 mb-6">
-                    {[150, 500, 1000, 2000, 3000, 5000, 8000].map((preset) => (
-                      <button
-                        key={preset}
-                        onClick={() => set("budget", preset)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all border ${
-                          state.budget === preset
-                            ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
-                            : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
-                        }`}
-                      >
-                        €{preset.toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
+                      {/* Quick presets */}
+                      <div className="flex flex-wrap justify-center gap-2 mb-6">
+                        {cfg.presets.map((preset) => (
+                          <button
+                            key={preset}
+                            onClick={() => set("budget", preset)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all border ${
+                              state.budget === preset
+                                ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
+                                : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
+                            }`}
+                          >
+                            {formatBudget(preset, state.currency)}
+                          </button>
+                        ))}
+                      </div>
 
-                  {/* Currency selector */}
-                  <div className="flex justify-center gap-3">
-                    {["EUR", "USD", "RON"].map(c => (
-                      <button
-                        key={c}
-                        onClick={() => set("currency", c)}
-                        className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${state.currency === c ? "bg-primary-500 text-white" : "bg-neutral-100 text-text-secondary hover:bg-neutral-200 dark:bg-surface-elevated"}`}
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                      {/* Currency selector */}
+                      <div className="flex justify-center gap-3">
+                        {(["EUR", "USD", "RON", "GBP", "CHF", "SEK"] as const).map(c => (
+                          <button
+                            key={c}
+                            onClick={() => {
+                              const newCfg = BUDGET_CONFIG[c] ?? BUDGET_CONFIG.EUR;
+                              setState(prev => ({ ...prev, currency: c, budget: newCfg.default }));
+                            }}
+                            className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${state.currency === c ? "bg-primary-500 text-white" : "bg-neutral-100 text-text-secondary hover:bg-neutral-200 dark:bg-surface-elevated"}`}
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex justify-center gap-4 mt-8">
                   <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
