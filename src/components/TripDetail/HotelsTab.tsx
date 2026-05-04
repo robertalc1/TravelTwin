@@ -4,6 +4,7 @@ import HotelCard, { type HotelOfferData } from '@/components/Hotels/HotelCard';
 import HotelDetailModal from '@/components/Hotels/HotelDetailModal';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useToastStore } from '@/stores/toastStore';
+import { useCurrencyStore } from '@/stores/currencyStore';
 
 interface HotelsTabProps {
   destinationCityCode: string;
@@ -37,16 +38,14 @@ export default function HotelsTab({
   const selectHotelInStore = useTripPricing((s) => s.selectHotel);
   const selectedHotelStore = useTripPricing((s) => s.selectedHotel);
   const showToast = useToastStore((s) => s.show);
+  const formatCurrency = useCurrencyStore((s) => s.format);
 
   const handleAddToTrip = (h: HotelOfferData) => {
     const offer = h.offers[0];
     const total = parseFloat(offer?.price.total ?? '0');
     selectHotelInStore(h, total);
     onHotelSelect(h);
-    const sym = offer?.price.currency === 'EUR' ? '€'
-      : offer?.price.currency === 'USD' ? '$'
-      : `${offer?.price.currency ?? ''} `;
-    showToast(`Hotel added · ${sym}${Math.round(total)}`, 'success');
+    showToast(`Hotel added · ${formatCurrency(total, offer?.price.currency || 'EUR')}`, 'success');
   };
 
   const fetchHotels = useCallback(async () => {

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useCurrencyStore } from '@/stores/currencyStore';
 import { Users, Briefcase, Clock, MapPin, Star, Map as MapIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
@@ -55,13 +56,12 @@ export default function TransferCard({
   destinationLat,
   destinationLng,
 }: TransferCardProps) {
+  const formatCurrency = useCurrencyStore((s) => s.format);
   const [showMap, setShowMap] = useState(false);
   const seats = offer.vehicle.seats[0]?.count ?? 3;
   const bags = offer.vehicle.baggages[0]?.count ?? 2;
   const price = parseFloat(offer.quotation.monetaryAmount);
-  const currencySymbol = offer.quotation.currencyCode === 'EUR' ? '€'
-    : offer.quotation.currencyCode === 'USD' ? '$'
-    : `${offer.quotation.currencyCode} `;
+  const fromCurrency = offer.quotation.currencyCode || 'EUR';
   const { label: durationLabel, minutes: durationMinutes } = parseDuration(offer.duration);
 
   const canShowMap =
@@ -101,7 +101,7 @@ export default function TransferCard({
 
         <div className="text-right shrink-0">
           <p className="text-2xl font-bold text-primary-500">
-            {currencySymbol}{price.toFixed(0)}
+            {formatCurrency(price, fromCurrency)}
           </p>
           {offer.quotation.isEstimated && (
             <span className="text-xs text-text-muted">estimated</span>
