@@ -25,6 +25,7 @@ import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
+import { useCurrencyStore } from '@/stores/currencyStore';
 
 const InteractiveMap = dynamic(
   () => import('@/components/InteractiveMap'),
@@ -109,9 +110,11 @@ export default function TripDetailView({
     } catch { /* ignore */ }
   }, []);
 
+  const formatCurrency = useCurrencyStore((s) => s.format);
+  const src = trip.currency || 'EUR';
+
   const heroUrl = resolveHeroUrl(trip);
   const ai = trip.aiContent;
-  const sym = trip.currency === 'EUR' ? '€' : trip.currency === 'USD' ? '$' : `${trip.currency} `;
   const activitiesEstimate = ai?.estimatedDailyExpenses
     ? (ai.estimatedDailyExpenses.food + ai.estimatedDailyExpenses.transport + ai.estimatedDailyExpenses.activities) * trip.nights
     : 0;
@@ -252,7 +255,7 @@ export default function TripDetailView({
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="font-bold text-primary-500">{sym}{trip.hotelPricePerNight}/night</p>
+                    <p className="font-bold text-primary-500">{formatCurrency(trip.hotelPricePerNight, src)}/night</p>
                     <p className="text-xs text-text-muted">{trip.nights} nights total</p>
                   </div>
                 </div>
@@ -564,14 +567,14 @@ export default function TripDetailView({
                         <Icon className="h-4 w-4" /> {label}
                       </span>
                       <span className="font-semibold text-text-primary">
-                        {value > 0 ? `${sym}${Math.round(value).toLocaleString()}` : '—'}
+                        {value > 0 ? formatCurrency(value, src) : '—'}
                       </span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-5 py-4 bg-neutral-50 dark:bg-surface-elevated">
                     <span className="font-bold text-text-primary">Total</span>
                     <span className="font-extrabold text-lg text-primary-500">
-                      {sym}{trip.totalPrice.toLocaleString()}
+                      {formatCurrency(trip.totalPrice, src)}
                     </span>
                   </div>
                 </div>
@@ -627,7 +630,7 @@ export default function TripDetailView({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-text-secondary">Est. price</span>
-                    <span className="font-bold text-primary-500">{sym}{trip.totalPrice.toLocaleString()}</span>
+                    <span className="font-bold text-primary-500">{formatCurrency(trip.totalPrice, src)}</span>
                   </div>
                 </div>
               </div>
@@ -652,7 +655,7 @@ export default function TripDetailView({
                   {pricingTotal > 0 && trip.totalPrice > 0 && (
                     <div className="flex justify-between text-xs pt-2 border-t border-neutral-100 dark:border-border-default">
                       <span className="text-text-muted">Original package</span>
-                      <span className="text-text-muted">{sym}{trip.totalPrice.toLocaleString()}</span>
+                      <span className="text-text-muted">{formatCurrency(trip.totalPrice, src)}</span>
                     </div>
                   )}
                 </div>

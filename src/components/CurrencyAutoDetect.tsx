@@ -22,6 +22,9 @@ export default function CurrencyAutoDetect() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    // Always load exchange rates so all price conversions work
+    loadRates();
+
     if (localStorage.getItem(GEO_DONE_KEY)) return;
 
     fetch("/api/geolocation")

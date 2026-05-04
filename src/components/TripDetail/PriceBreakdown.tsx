@@ -3,17 +3,12 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plane, Hotel, Car, ChevronDown, ChevronUp, X, Shield } from 'lucide-react';
 import { useTripPricing } from '@/stores/tripPricingStore';
+import { useCurrencyStore } from '@/stores/currencyStore';
 
 interface PriceBreakdownProps {
   onBook?: () => void;
   showBookButton?: boolean;
   nights?: number;
-}
-
-function currencySymbol(c: string): string {
-  if (c === 'EUR') return '€';
-  if (c === 'USD') return '$';
-  return `${c} `;
 }
 
 export default function PriceBreakdown({
@@ -27,8 +22,9 @@ export default function PriceBreakdown({
   const selectedTransfer = useTripPricing((s) => s.selectedTransfer);
   const removeHotel = useTripPricing((s) => s.removeHotel);
   const removeTransfer = useTripPricing((s) => s.removeTransfer);
+  const formatCurrency = useCurrencyStore((s) => s.format);
+  const src = breakdown.currency || 'EUR';
   const total = breakdown.flightPrice + breakdown.hotelPrice + breakdown.transferPrice;
-  const sym = currencySymbol(breakdown.currency);
 
   return (
     <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden shadow-md">
@@ -46,7 +42,7 @@ export default function PriceBreakdown({
             transition={{ type: 'spring', stiffness: 380, damping: 18 }}
             className="text-3xl font-extrabold text-primary-500"
           >
-            {sym}{Math.round(total).toLocaleString()}
+            {formatCurrency(total, src)}
           </motion.p>
           <p className="text-xs text-text-muted mt-0.5">
             {nights ? `${nights} nights · ` : ''}per person · all included
@@ -79,7 +75,7 @@ export default function PriceBreakdown({
                 </div>
                 <span className="text-sm font-semibold text-text-primary">
                   {breakdown.flightPrice > 0
-                    ? `${sym}${Math.round(breakdown.flightPrice).toLocaleString()}`
+                    ? formatCurrency(breakdown.flightPrice, src)
                     : '—'}
                 </span>
               </div>
@@ -118,7 +114,7 @@ export default function PriceBreakdown({
                     }`}
                   >
                     {breakdown.hotelPrice > 0
-                      ? `${sym}${Math.round(breakdown.hotelPrice).toLocaleString()}`
+                      ? formatCurrency(breakdown.hotelPrice, src)
                       : '+ Add'}
                   </span>
                   {selectedHotel && (
@@ -168,7 +164,7 @@ export default function PriceBreakdown({
                     }`}
                   >
                     {breakdown.transferPrice > 0
-                      ? `${sym}${Math.round(breakdown.transferPrice).toLocaleString()}`
+                      ? formatCurrency(breakdown.transferPrice, src)
                       : '+ Add'}
                   </span>
                   {selectedTransfer && (
@@ -187,7 +183,7 @@ export default function PriceBreakdown({
               <div className="border-t border-neutral-200 dark:border-border-default pt-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-text-primary">Total</span>
                 <span className="text-lg font-extrabold text-primary-500">
-                  {sym}{Math.round(total).toLocaleString()}
+                  {formatCurrency(total, src)}
                 </span>
               </div>
             </div>
@@ -199,7 +195,7 @@ export default function PriceBreakdown({
                   onClick={onBook}
                   className="w-full bg-primary-500 text-white font-semibold py-3 rounded-xl hover:bg-primary-600 transition-colors"
                 >
-                  Book Now — {sym}{Math.round(total).toLocaleString()}
+                  Book Now — {formatCurrency(total, src)}
                 </button>
                 <div className="flex items-center justify-center gap-1.5 mt-2 text-xs text-text-muted">
                   <Shield className="h-3.5 w-3.5 text-green-500" />
