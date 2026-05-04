@@ -167,7 +167,7 @@ export async function GET(
 
     const originCity = getCityFromIata(origin) || origin;
     const nights = DEFAULT_NIGHTS;
-    const { departureDate, returnDate } = futureDates(21, nights);
+    const { departureDate, returnDate } = futureDates(14, nights);
     const currency = 'EUR';
     let packages: TripPackage[] = [];
 

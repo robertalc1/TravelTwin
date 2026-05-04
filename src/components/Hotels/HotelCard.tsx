@@ -2,6 +2,7 @@
 import { Star, MapPin, Wifi, UtensilsCrossed, Dumbbell, Waves } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getHotelImage } from '@/lib/hotelImages';
+import { useCurrencyStore } from '@/stores/currencyStore';
 
 const AMENITY_ICONS: Record<string, React.ReactNode> = {
   SWIMMING_POOL: <Waves className="h-3.5 w-3.5" />,
@@ -51,11 +52,10 @@ export default function HotelCard({ hotelOffer, onSelect, nights = 1 }: HotelCar
   const fallbackImage = getHotelImage(hotel.name, hotel.address?.cityName ?? hotel.cityCode, stars);
   const imageUrl = apiImage || fallbackImage;
 
+  const formatCurrency = useCurrencyStore((s) => s.format);
   const totalPrice = bestOffer ? parseFloat(bestOffer.price.total) : 0;
   const pricePerNight = nights > 0 && totalPrice > 0 ? totalPrice / nights : 0;
-  const currencySym = bestOffer?.price.currency === 'EUR' ? '€'
-    : bestOffer?.price.currency === 'USD' ? '$'
-    : `${bestOffer?.price.currency ?? ''} `;
+  const fromCurrency = bestOffer?.price.currency || 'EUR';
   const isFreeCancel = bestOffer?.policies?.cancellations?.[0]?.amount === '0';
 
   return (
@@ -123,7 +123,7 @@ export default function HotelCard({ hotelOffer, onSelect, nights = 1 }: HotelCar
           <div>
             <p className="text-xs text-text-muted">per night from</p>
             <p className="text-2xl font-bold text-primary-500">
-              {currencySym}{pricePerNight > 0 ? pricePerNight.toFixed(0) : '—'}
+              {pricePerNight > 0 ? formatCurrency(pricePerNight, fromCurrency) : '—'}
             </p>
           </div>
           <button
