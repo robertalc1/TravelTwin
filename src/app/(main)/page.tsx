@@ -189,15 +189,11 @@ export default function Home() {
           <div className="mx-auto max-w-3xl text-center animate-fade-in-up">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm px-4 py-2 mb-6 border border-white/20">
               <Sparkles className="h-4 w-4 text-yellow-300" />
-              <span className="text-sm font-medium text-white/90">AI-Powered Trip Planning</span>
+              <span className="text-sm font-medium text-white/90">AI Driven Travel Companion</span>
             </div>
             <h1 className="font-display font-extrabold text-white mb-4 sm:mb-5 text-[32px] leading-[38px] sm:text-[48px] sm:leading-[56px] lg:text-[64px] lg:leading-[72px] tracking-tight" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.35)' }}>
               Your dream vacation,<br />planned by AI
             </h1>
-            <p className="text-base sm:text-lg lg:text-xl text-white/90 max-w-xl mx-auto font-medium mb-10" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>
-              Tell us where you&apos;re from, your budget, and what you love — we&apos;ll find the perfect trip and build your itinerary
-            </p>
-
             {/* CTA Button */}
             <button
               onClick={() => router.push('/plan')}
