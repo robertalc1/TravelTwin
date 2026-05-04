@@ -667,7 +667,7 @@ export default function TripDetailView({
                     {Object.entries(ai.estimatedDailyExpenses).map(([key, val]) => (
                       <div key={key} className="flex justify-between text-xs mb-1.5">
                         <span className="text-text-muted capitalize">{key}</span>
-                        <span className="font-medium">€{val}/day</span>
+                        <span className="font-medium">{formatCurrency(val as number, src)}/day</span>
                       </div>
                     ))}
                   </div>

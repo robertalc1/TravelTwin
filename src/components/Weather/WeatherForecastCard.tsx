@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CloudSun, Loader2, AlertCircle } from "lucide-react";
+import { CloudSun, Loader2 } from "lucide-react";
 import { WeatherDayItem } from "./WeatherDayItem";
 import { clothingTips, type WeatherResponse, type DailyForecast } from "@/lib/weatherService";
 
@@ -61,15 +61,7 @@ export function WeatherForecastCard({ lat, lon, startDate, endDate, cityName }: 
   }
 
   if (error || !data || data.daily.length === 0) {
-    return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-800 p-4 flex items-start gap-3 text-sm text-amber-800 dark:text-amber-200">
-        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-        <span>
-          Weather forecast unavailable for these dates. Open-Meteo only provides
-          forecasts up to 16 days ahead.
-        </span>
-      </div>
-    );
+    return null;
   }
 
   const tips = clothingTips(data.daily);
