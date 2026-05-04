@@ -17,7 +17,6 @@ import AttractionPhotos from '@/components/AttractionPhotos';
 import DestinationVideos from '@/components/DestinationVideos';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
-import { VisaRequirementsCard } from '@/components/VisaChecker/VisaRequirementsCard';
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
@@ -538,18 +537,6 @@ export default function TripDetailView({
                 </div>
               </div>
             </section>
-
-            {/* Visa & entry — shown only when nationality is known */}
-            {profile?.nationality && trip.destinationCountry && (
-              <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-4">Visa &amp; entry</h2>
-                <VisaRequirementsCard
-                  nationality={profile.nationality}
-                  country={trip.destinationCountry}
-                  nights={trip.nights}
-                />
-              </section>
-            )}
 
             {/* Cost Breakdown */}
             <section>
