@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
     LogOut, Heart, Loader2, Menu, Sparkles, Headphones, User,
-    ChevronLeft, ChevronRight, CalendarDays, Star, BarChart2, Search, Hotel,
+    ChevronLeft, ChevronRight, CalendarDays, Search, Hotel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -263,12 +263,6 @@ export function Header() {
                         href="/favorites"
                         icon={<Heart className="h-5 w-5" />}
                         label="Favorites"
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href="/reviews"
-                        icon={<Star className="h-5 w-5" />}
-                        label="Reviews"
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
