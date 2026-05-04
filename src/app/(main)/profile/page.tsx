@@ -8,7 +8,6 @@ import {
     User,
     Mail,
     Globe,
-    Compass,
     Heart,
     Plane,
     Calendar,
@@ -38,15 +37,6 @@ const NATIONALITIES = [
     "Austrian", "Swiss", "Greek", "Swedish", "Norwegian", "Danish", "Finnish",
     "Irish", "British", "Croatian", "Serbian", "Ukrainian", "Other",
 ];
-
-const TRAVEL_STYLES = [
-    { id: "adventure", label: "Adventure" },
-    { id: "luxury", label: "Luxury" },
-    { id: "budget", label: "Budget" },
-    { id: "family", label: "Family" },
-    { id: "solo", label: "Solo" },
-    { id: "business", label: "Business" },
-] as const;
 
 type TabId = "personal" | "trips" | "favorites" | "settings";
 
@@ -196,7 +186,6 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
     const { user, profile } = useUser();
     const [fullName, setFullName] = useState("");
     const [nationality, setNationality] = useState("");
-    const [styles, setStyles] = useState<string[]>([]);
     const [saving, setSaving] = useState(false);
 
     const currency = useCurrencyStore((s) => s.currency);
@@ -206,13 +195,7 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
         if (!profile) return;
         setFullName(profile.full_name ?? "");
         setNationality(profile.nationality ?? "");
-        const raw = profile.travel_style ?? "";
-        setStyles(raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : []);
     }, [profile]);
-
-    function toggleStyle(id: string) {
-        setStyles((prev) => prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]);
-    }
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
@@ -225,7 +208,6 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
                 full_name: fullName,
                 email: user.email,
                 nationality,
-                travel_style: styles.join(","),
                 updated_at: new Date().toISOString(),
             });
             if (error) throw error;
@@ -287,30 +269,6 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
                         ))}
                     </select>
                 </Field>
-            </div>
-
-            <div>
-                <Label icon={Compass}>Travel style</Label>
-                <div className="flex flex-wrap gap-2">
-                    {TRAVEL_STYLES.map((s) => {
-                        const selected = styles.includes(s.id);
-                        return (
-                            <button
-                                key={s.id}
-                                type="button"
-                                onClick={() => toggleStyle(s.id)}
-                                className={cn(
-                                    "rounded-full px-4 py-2 text-sm font-medium transition-all border",
-                                    selected
-                                        ? "border-primary-500 bg-primary-50 dark:bg-primary-500/15 text-primary-600 dark:text-primary-400"
-                                        : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
-                                )}
-                            >
-                                {s.label}
-                            </button>
-                        );
-                    })}
-                </div>
             </div>
 
             <div className="flex items-center gap-3 pt-2">
