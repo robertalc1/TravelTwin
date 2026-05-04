@@ -122,6 +122,12 @@ export default function PlanPage() {
   // Clear any stale error when component mounts (e.g. navigating back from results)
   useEffect(() => { setError(""); }, []);
 
+  // Sync currency/budget when Zustand persist hydrates (storeCurrency may start as EUR default)
+  useEffect(() => {
+    const cfg = BUDGET_CONFIG[storeCurrency] ?? BUDGET_CONFIG.EUR;
+    setState(prev => ({ ...prev, currency: storeCurrency, budget: cfg.default }));
+  }, [storeCurrency]);
+
   const defaultCfg = BUDGET_CONFIG[storeCurrency] ?? BUDGET_CONFIG.EUR;
   const [state, setState] = useState<PlanState>({
     originIata: "",

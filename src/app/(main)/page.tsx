@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { SearchProgressHeader } from "@/components/deals/SearchProgressHeader";
 import { DealCardSkeleton } from "@/components/deals/DealCardSkeleton";
@@ -35,7 +36,6 @@ import {
   Gem,
   Globe2,
 } from "lucide-react";
-import { PlanTripWizard } from "@/components/search/PlanTripWizard";
 import { TripCard } from "@/components/results/TripCard";
 import { getCityImageByIata } from "@/lib/cityImages";
 import { useUserLocation } from "@/hooks/useUserLocation";
@@ -86,7 +86,7 @@ const featureCards = [
    MAIN HOME PAGE
    ═══════════════════════════════════════ */
 export default function Home() {
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const router = useRouter();
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Filter store (category + modal filters)
@@ -200,7 +200,7 @@ export default function Home() {
 
             {/* CTA Button */}
             <button
-              onClick={() => setWizardOpen(true)}
+              onClick={() => router.push('/plan')}
               className="group relative inline-flex items-center gap-3 rounded-full bg-primary-500 px-10 py-5 text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
               style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
             >
@@ -486,7 +486,7 @@ export default function Home() {
               Let our AI find the perfect trip for you — flights, hotels, and a day-by-day itinerary
             </p>
             <button
-              onClick={() => setWizardOpen(true)}
+              onClick={() => router.push('/plan')}
               className="inline-flex items-center justify-center gap-2 h-14 rounded-full bg-white text-primary-500 px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-lg"
             >
               <Plane className="h-6 w-6" />
@@ -495,12 +495,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      {/* Plan My Trip Wizard */}
-      <PlanTripWizard
-        isOpen={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-      />
 
       {/* Filters Modal */}
       <FiltersModal
