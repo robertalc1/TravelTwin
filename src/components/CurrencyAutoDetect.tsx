@@ -4,15 +4,17 @@ import { useEffect } from "react";
 import { useCurrencyStore } from "@/stores/currencyStore";
 import type { CurrencyCode } from "@/lib/currencyService";
 
+// Keys are lowercase full country names — what ip-api.com / ipapi.co return
 const COUNTRY_CURRENCY: Record<string, CurrencyCode> = {
-  RO: "RON",
-  GB: "GBP",
-  US: "USD",
-  CH: "CHF",
-  SE: "SEK",
+  "romania": "RON",
+  "united kingdom": "GBP",
+  "united states": "USD",
+  "switzerland": "CHF",
+  "sweden": "SEK",
 };
 
-const GEO_DONE_KEY = "geo-currency-done";
+// v2 forces re-detection for users who got the broken v1 (which always set EUR)
+const GEO_DONE_KEY = "geo-currency-v2";
 
 export default function CurrencyAutoDetect() {
   const setCurrency = useCurrencyStore((s) => s.setCurrency);
@@ -25,7 +27,7 @@ export default function CurrencyAutoDetect() {
     fetch("/api/geolocation")
       .then((r) => r.json())
       .then((data: { country?: string }) => {
-        const cc = data.country?.toUpperCase();
+        const cc = data.country?.toLowerCase().trim();
         const currency: CurrencyCode = (cc && COUNTRY_CURRENCY[cc]) ? COUNTRY_CURRENCY[cc]! : "EUR";
         setCurrency(currency);
         loadRates();
