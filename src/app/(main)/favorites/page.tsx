@@ -87,8 +87,8 @@ export default function FavoritesPage() {
                     <p className="text-body text-text-muted max-w-md mx-auto mb-6">
                         Explore our destinations and save your favorites to access them quickly later.
                     </p>
-                    <Button variant="primary" size="lg" onClick={() => window.location.href = "/explore"}>
-                        Explore Destinations
+                    <Button variant="primary" size="lg" onClick={() => window.location.href = "/flights"}>
+                        Search Flights
                     </Button>
                 </div>
             ) : (

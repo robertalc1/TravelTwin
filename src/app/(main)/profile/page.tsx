@@ -10,12 +10,10 @@ import {
     Globe,
     Compass,
     Heart,
-    Search,
     Plane,
     Calendar,
     Loader2,
     Save,
-    Star,
     Pencil,
     BadgeCheck,
     Bell,
@@ -71,34 +69,6 @@ export default function ProfilePage() {
     useEffect(() => {
         if (!userLoading && !user) openAuthModal("login");
     }, [user, userLoading, openAuthModal]);
-
-    /* ── Stats ── */
-    const [stats, setStats] = useState({ trips: 0, searches: 0, reviews: 0, favorites: 0 });
-    const [statsLoading, setStatsLoading] = useState(true);
-
-    useEffect(() => {
-        if (!user) return;
-        let cancelled = false;
-        (async () => {
-            const supabase = createClient();
-            const [trips, searches, reviews, favs] = await Promise.all([
-                supabase.from("saved_trips").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-                supabase.from("user_searches").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-                supabase.from("reviews").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-                supabase.from("favorites").select("id", { count: "exact", head: true }).eq("user_id", user.id),
-            ]);
-            if (!cancelled) {
-                setStats({
-                    trips: trips.count ?? 0,
-                    searches: searches.count ?? 0,
-                    reviews: reviews.count ?? 0,
-                    favorites: favs.count ?? 0,
-                });
-                setStatsLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [user]);
 
     /* ── Member since ── */
     const memberSince = useMemo(() => {
@@ -176,14 +146,6 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* ─── Stats row ─── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
-                <StatCard icon={Plane} label="Trips" value={stats.trips} loading={statsLoading} tint="primary" />
-                <StatCard icon={Search} label="Searches" value={stats.searches} loading={statsLoading} tint="amber" />
-                <StatCard icon={Star} label="Reviews" value={stats.reviews} loading={statsLoading} tint="yellow" />
-                <StatCard icon={Heart} label="Favorites" value={stats.favorites} loading={statsLoading} tint="red" />
-            </div>
-
             {/* ─── Tabs ─── */}
             <div className="flex gap-1 border-b border-neutral-200 dark:border-border-default mb-6 overflow-x-auto no-scrollbar">
                 {TABS.map((t) => (
@@ -221,42 +183,10 @@ export default function ProfilePage() {
                 >
                     {activeTab === "personal" && <PersonalInfoTab onSaved={() => showToast("Profile saved", "success")} />}
                     {activeTab === "trips" && <TripsTab onPlanClick={() => router.push("/plan")} />}
-                    {activeTab === "favorites" && <FavoritesTab onExploreClick={() => router.push("/explore")} />}
+                    {activeTab === "favorites" && <FavoritesTab />}
                     {activeTab === "settings" && <SettingsTab />}
                 </motion.div>
             </AnimatePresence>
-        </div>
-    );
-}
-
-/* ═════════ Stat card ═════════ */
-const TINTS = {
-    primary: "bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-400",
-    amber: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    yellow: "bg-yellow-50 dark:bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-    red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
-} as const;
-
-function StatCard({
-    icon: Icon, label, value, loading, tint,
-}: {
-    icon: React.ComponentType<{ className?: string }>;
-    label: string; value: number; loading: boolean;
-    tint: keyof typeof TINTS;
-}) {
-    return (
-        <div className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-4 flex items-center gap-3">
-            <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl", TINTS[tint])}>
-                <Icon className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-                {loading ? (
-                    <Skeleton className="h-7 w-12 mb-1" />
-                ) : (
-                    <p className="text-2xl font-extrabold text-text-primary leading-none">{value}</p>
-                )}
-                <p className="text-xs text-text-secondary mt-1">{label}</p>
-            </div>
         </div>
     );
 }
@@ -503,7 +433,7 @@ function StatusPill({ status }: { status: SavedTrip["status"] }) {
 }
 
 /* ═════════ TAB — Favorites ═════════ */
-function FavoritesTab({ onExploreClick }: { onExploreClick: () => void }) {
+function FavoritesTab() {
     const { user } = useUser();
     const showToast = useToastStore((s) => s.show);
     const [favs, setFavs] = useState<Favorite[]>([]);
@@ -560,8 +490,6 @@ function FavoritesTab({ onExploreClick }: { onExploreClick: () => void }) {
                 icon={Heart}
                 title="No favorites yet"
                 body="Bookmark destinations you love to access them quickly later."
-                ctaLabel="Explore Destinations"
-                onCta={onExploreClick}
             />
         );
     }
@@ -700,7 +628,7 @@ function EmptyState({
 }: {
     icon: React.ComponentType<{ className?: string }>;
     title: string; body: string;
-    ctaLabel: string; onCta: () => void;
+    ctaLabel?: string; onCta?: () => void;
 }) {
     return (
         <div className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-dashed border-neutral-300 dark:border-border-default p-10 text-center">
@@ -709,13 +637,15 @@ function EmptyState({
             </div>
             <h3 className="text-lg font-bold text-text-primary mb-1">{title}</h3>
             <p className="text-sm text-text-secondary max-w-md mx-auto mb-6">{body}</p>
-            <button
-                type="button"
-                onClick={onCta}
-                className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
-            >
-                {ctaLabel}
-            </button>
+            {ctaLabel && onCta && (
+                <button
+                    type="button"
+                    onClick={onCta}
+                    className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-colors"
+                >
+                    {ctaLabel}
+                </button>
+            )}
         </div>
     );
 }
