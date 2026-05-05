@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Plane, Loader2, Sparkles } from "lucide-react";
+import { X, Send, Plane, Sparkles } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { useChatStore } from "@/stores/chatStore";
@@ -147,8 +147,7 @@ export function ChatPanel() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[380px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl dark:border-border-default dark:bg-surface lg:bottom-8 lg:right-8"
-            style={{ height: "min(520px, calc(100dvh - 180px))" }}
+            className="fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[380px] h-[min(520px,calc(100dvh-180px))] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-border-default dark:bg-surface lg:bottom-8 lg:right-8 lg:max-w-[520px] lg:h-[min(680px,calc(100dvh-120px))]"
           >
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-border-default">
@@ -183,9 +182,10 @@ export function ChatPanel() {
 
               {isLoading && (
                 <div className="flex items-start">
-                  <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-neutral-100 px-3 py-2 dark:bg-secondary-700">
-                    <Loader2 className="h-3 w-3 animate-spin text-primary-500" />
-                    <span className="text-xs text-text-secondary">Searching...</span>
+                  <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-sm bg-neutral-100 px-3.5 py-2.5 dark:bg-secondary-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:-0.3s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-text-muted animate-bounce [animation-delay:-0.15s]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-text-muted animate-bounce" />
                   </div>
                 </div>
               )}
