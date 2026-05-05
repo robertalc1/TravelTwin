@@ -284,18 +284,6 @@ export default function TripDetailView({
           {/* ── Left column (2/3) ── */}
           <div className="lg:col-span-2 space-y-10">
 
-            {/* Your Trip */}
-            <section>
-              <h2 className="text-xl font-bold text-secondary-500 mb-3">Your Trip</h2>
-              <p className="text-text-secondary leading-relaxed">
-                {ai?.description ||
-                  `Discover the magic of ${trip.destinationCity} on this perfectly curated ${trip.nights}-night journey. From iconic landmarks to hidden local gems, this trip combines the best of ${trip.destinationCountry}'s culture and beauty.`}
-              </p>
-              {ai?.whyThisTrip && (
-                <p className="mt-2 text-sm text-primary-600 dark:text-primary-400 italic">{ai.whyThisTrip}</p>
-              )}
-            </section>
-
             {/* Destination Videos */}
             {trip.destinationCity && (
               <DestinationVideos
