@@ -13,6 +13,24 @@ import {
   CheckCircle2,
   Loader2,
   MapPin,
+  Umbrella,
+  Mountain,
+  Landmark,
+  PartyPopper,
+  UtensilsCrossed,
+  Snowflake,
+  Bike,
+  Heart,
+  Users,
+  Briefcase,
+  Sun,
+  CloudSun,
+  Cloud,
+  Compass,
+  Wallet,
+  Clock,
+  ShieldCheck,
+  type LucideIcon,
 } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { useCurrencyStore } from "@/stores/currencyStore";
@@ -44,35 +62,57 @@ const ORIGIN_SUGGESTIONS: Array<{ iata: string; label: string }> = [
   { iata: "CND", label: "Constanța (CND)" },
   { iata: "IAS", label: "Iași (IAS)" },
 ];
-// Travel style options
-const TRAVEL_STYLES = [
-  { id: "beach", emoji: "🏖", label: "Beach & Relaxation" },
-  { id: "nature", emoji: "🏔", label: "Mountains & Nature" },
-  { id: "culture", emoji: "🏛", label: "Culture & History" },
-  { id: "nightlife", emoji: "🎉", label: "Nightlife & Entertainment" },
-  { id: "food", emoji: "🍕", label: "Food & Culinary" },
-  { id: "snow", emoji: "❄️", label: "Winter & Snow" },
-  { id: "adventure", emoji: "🏄", label: "Adventure & Sports" },
-  { id: "romantic", emoji: "💑", label: "Romantic Getaway" },
-  { id: "family", emoji: "👨‍👩‍👧‍👦", label: "Family Friendly" },
-  { id: "nomad", emoji: "💼", label: "Digital Nomad" },
+// Travel style options — lucide icons + brand color tokens
+interface VisualOption {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  description: string;
+  tone: "amber" | "emerald" | "indigo" | "pink" | "rose" | "sky" | "violet" | "orange" | "teal" | "slate";
+}
+
+const TRAVEL_STYLES: VisualOption[] = [
+  { id: "beach", icon: Umbrella, label: "Beach & Relaxation", description: "Sun, sand, slow days", tone: "amber" },
+  { id: "nature", icon: Mountain, label: "Mountains & Nature", description: "Hiking, fresh air, scenery", tone: "emerald" },
+  { id: "culture", icon: Landmark, label: "Culture & History", description: "Museums, monuments, art", tone: "indigo" },
+  { id: "nightlife", icon: PartyPopper, label: "Nightlife & Entertainment", description: "Bars, clubs, live music", tone: "pink" },
+  { id: "food", icon: UtensilsCrossed, label: "Food & Culinary", description: "Local cuisine, fine dining", tone: "rose" },
+  { id: "snow", icon: Snowflake, label: "Winter & Snow", description: "Skiing, cozy retreats", tone: "sky" },
+  { id: "adventure", icon: Bike, label: "Adventure & Sports", description: "Active, outdoor, thrills", tone: "orange" },
+  { id: "romantic", icon: Heart, label: "Romantic Getaway", description: "Intimate, scenic, special", tone: "rose" },
+  { id: "family", icon: Users, label: "Family Friendly", description: "Kid-safe, varied activities", tone: "teal" },
+  { id: "nomad", icon: Briefcase, label: "Digital Nomad", description: "Wi-Fi, cafes, long stays", tone: "violet" },
 ];
 
-const CLIMATE_OPTIONS = [
-  { id: "warm", emoji: "☀️", label: "Warm (25°C+)" },
-  { id: "mild", emoji: "🌤", label: "Mild (15-25°C)" },
-  { id: "cold", emoji: "❄️", label: "Cold (< 15°C)" },
-  { id: "no-preference", emoji: "🤷", label: "No preference" },
+const CLIMATE_OPTIONS: VisualOption[] = [
+  { id: "warm", icon: Sun, label: "Warm", description: "25°C and above", tone: "amber" },
+  { id: "mild", icon: CloudSun, label: "Mild", description: "15–25°C", tone: "teal" },
+  { id: "cold", icon: Cloud, label: "Cold", description: "Below 15°C", tone: "sky" },
+  { id: "no-preference", icon: Compass, label: "No preference", description: "Surprise me", tone: "slate" },
 ];
 
-const PRIORITY_OPTIONS = [
-  { id: "cheapest", emoji: "💰", label: "Cheapest price" },
-  { id: "best-hotel", emoji: "⭐", label: "Best hotel rating" },
-  { id: "direct-flights", emoji: "✈️", label: "Direct flights only" },
-  { id: "shortest-time", emoji: "🕐", label: "Shortest travel time" },
-  { id: "central-location", emoji: "📍", label: "Central hotel location" },
-  { id: "free-cancellation", emoji: "🆓", label: "Free cancellation" },
+const PRIORITY_OPTIONS: VisualOption[] = [
+  { id: "cheapest", icon: Wallet, label: "Cheapest price", description: "Lowest total cost", tone: "emerald" },
+  { id: "best-hotel", icon: Star, label: "Best hotel rating", description: "4★ and 5★ stays first", tone: "amber" },
+  { id: "direct-flights", icon: Plane, label: "Direct flights only", description: "No layovers", tone: "sky" },
+  { id: "shortest-time", icon: Clock, label: "Shortest travel time", description: "Fastest flights & transfers", tone: "violet" },
+  { id: "central-location", icon: MapPin, label: "Central hotel location", description: "Walk-everywhere stays", tone: "rose" },
+  { id: "free-cancellation", icon: ShieldCheck, label: "Free cancellation", description: "Flexible bookings only", tone: "teal" },
 ];
+
+// Tailwind doesn't support fully dynamic class names — map tones explicitly.
+const TONE_STYLES: Record<VisualOption["tone"], { iconBg: string; iconFg: string }> = {
+  amber:   { iconBg: "bg-amber-100 dark:bg-amber-900/30",   iconFg: "text-amber-600 dark:text-amber-400" },
+  emerald: { iconBg: "bg-emerald-100 dark:bg-emerald-900/30", iconFg: "text-emerald-600 dark:text-emerald-400" },
+  indigo:  { iconBg: "bg-indigo-100 dark:bg-indigo-900/30", iconFg: "text-indigo-600 dark:text-indigo-400" },
+  pink:    { iconBg: "bg-pink-100 dark:bg-pink-900/30",     iconFg: "text-pink-600 dark:text-pink-400" },
+  rose:    { iconBg: "bg-rose-100 dark:bg-rose-900/30",     iconFg: "text-rose-600 dark:text-rose-400" },
+  sky:     { iconBg: "bg-sky-100 dark:bg-sky-900/30",       iconFg: "text-sky-600 dark:text-sky-400" },
+  violet:  { iconBg: "bg-violet-100 dark:bg-violet-900/30", iconFg: "text-violet-600 dark:text-violet-400" },
+  orange:  { iconBg: "bg-orange-100 dark:bg-orange-900/30", iconFg: "text-orange-600 dark:text-orange-400" },
+  teal:    { iconBg: "bg-teal-100 dark:bg-teal-900/30",     iconFg: "text-teal-600 dark:text-teal-400" },
+  slate:   { iconBg: "bg-slate-100 dark:bg-slate-800",      iconFg: "text-slate-600 dark:text-slate-300" },
+};
 
 const NIGHT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30];
 
@@ -568,23 +608,37 @@ export default function PlanPage() {
                 </h2>
                 <p className="text-text-secondary mb-8 text-lg">Select all that apply</p>
 
-                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6 space-y-6">
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-5 sm:p-6 space-y-6">
                   {/* Travel styles grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {TRAVEL_STYLES.map(style => {
                       const selected = state.travelStyles.includes(style.id);
+                      const tone = TONE_STYLES[style.tone];
+                      const Icon = style.icon;
                       return (
                         <button
                           key={style.id}
                           onClick={() => toggleStyle(style.id)}
-                          className={`flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-medium transition-all border-2 ${selected
-                            ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10 shadow-sm"
-                            : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/5"
-                            }`}
+                          className={`group relative flex flex-col items-start gap-2 rounded-2xl p-3.5 text-left transition-all border-2 ${
+                            selected
+                              ? "border-primary-500 bg-primary-50/60 dark:bg-primary-500/10 shadow-md"
+                              : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated hover:border-primary-300 hover:shadow-md"
+                          }`}
                         >
-                          <span className="text-xl">{style.emoji}</span>
-                          <span className="text-left text-xs leading-tight">{style.label}</span>
-                          {selected && <CheckCircle2 className="h-4 w-4 text-primary-500 ml-auto shrink-0" />}
+                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${tone.iconBg}`}>
+                            <Icon className={`h-5 w-5 ${tone.iconFg}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
+                              {style.label}
+                            </p>
+                            <p className="text-[11px] text-text-muted leading-snug mt-0.5 line-clamp-2">
+                              {style.description}
+                            </p>
+                          </div>
+                          {selected && (
+                            <CheckCircle2 className="absolute top-2 right-2 h-4 w-4 text-primary-500" />
+                          )}
                         </button>
                       );
                     })}
@@ -592,21 +646,34 @@ export default function PlanPage() {
 
                   {/* Climate preference */}
                   <div className="text-left">
-                    <p className="text-sm font-semibold text-text-primary mb-3">Climate preference</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {CLIMATE_OPTIONS.map(c => (
-                        <button
-                          key={c.id}
-                          onClick={() => set("climate", c.id)}
-                          className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all border-2 ${state.climate === c.id
-                            ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
-                            : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
+                    <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Climate preference</p>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      {CLIMATE_OPTIONS.map(c => {
+                        const tone = TONE_STYLES[c.tone];
+                        const Icon = c.icon;
+                        const selected = state.climate === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => set("climate", c.id)}
+                            className={`flex items-center gap-2.5 rounded-2xl px-3 py-2.5 text-left transition-all border-2 ${
+                              selected
+                                ? "border-primary-500 bg-primary-50/60 dark:bg-primary-500/10 shadow-md"
+                                : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated hover:border-primary-300"
                             }`}
-                        >
-                          <span className="text-lg">{c.emoji}</span>
-                          {c.label}
-                        </button>
-                      ))}
+                          >
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone.iconBg}`}>
+                              <Icon className={`h-4.5 w-4.5 ${tone.iconFg}`} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
+                                {c.label}
+                              </p>
+                              <p className="text-[11px] text-text-muted leading-snug">{c.description}</p>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -650,31 +717,46 @@ export default function PlanPage() {
                   </div>
                 )}
 
-                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6">
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-5 sm:p-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {PRIORITY_OPTIONS.map(p => {
                       const selected = state.priorities.includes(p.id);
                       const disabled = !selected && state.priorities.length >= 3;
+                      const tone = TONE_STYLES[p.tone];
+                      const Icon = p.icon;
                       return (
                         <button
                           key={p.id}
                           onClick={() => !disabled && togglePriority(p.id)}
-                          className={`flex items-center gap-3 rounded-xl px-4 py-4 text-sm font-medium transition-all border-2 text-left ${selected
-                            ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
-                            : disabled
-                              ? "border-neutral-100 bg-neutral-50 text-text-muted cursor-not-allowed opacity-50"
-                              : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-500/5"
-                            }`}
+                          disabled={disabled}
+                          className={`group relative flex items-center gap-3 rounded-2xl p-4 text-left transition-all border-2 ${
+                            selected
+                              ? "border-primary-500 bg-primary-50/60 dark:bg-primary-500/10 shadow-md"
+                              : disabled
+                                ? "border-neutral-100 bg-neutral-50 dark:bg-surface-elevated/50 cursor-not-allowed opacity-40"
+                                : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated hover:border-primary-300 hover:shadow-md"
+                          }`}
                         >
-                          <span className="text-xl">{p.emoji}</span>
-                          <span className="flex-1">{p.label}</span>
-                          {selected && <CheckCircle2 className="h-4 w-4 text-primary-500 shrink-0" />}
+                          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${tone.iconBg}`}>
+                            <Icon className={`h-5 w-5 ${tone.iconFg}`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
+                              {p.label}
+                            </p>
+                            <p className="text-[11px] text-text-muted leading-snug mt-0.5">
+                              {p.description}
+                            </p>
+                          </div>
+                          {selected && (
+                            <CheckCircle2 className="h-5 w-5 text-primary-500 shrink-0" />
+                          )}
                         </button>
                       );
                     })}
                   </div>
-                  <p className="text-xs text-text-muted mt-4 text-center">
-                    {state.priorities.length}/3 selected
+                  <p className="text-xs text-text-muted mt-5 text-center">
+                    <span className="font-bold text-primary-500">{state.priorities.length}</span> of 3 selected
                   </p>
                 </div>
 
