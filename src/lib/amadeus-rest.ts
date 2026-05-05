@@ -1,3 +1,7 @@
+const AMADEUS_BASE_URL = process.env.AMADEUS_HOSTNAME === 'production'
+    ? 'https://api.amadeus.com'
+    : 'https://test.api.amadeus.com';
+
 let cachedToken: { token: string; expires: number } | null = null;
 
 export async function getAmadeusToken(): Promise<string> {
@@ -5,7 +9,7 @@ export async function getAmadeusToken(): Promise<string> {
         return cachedToken.token;
     }
 
-    const res = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+    const res = await fetch(`${AMADEUS_BASE_URL}/v1/security/oauth2/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -30,7 +34,7 @@ export async function getAmadeusToken(): Promise<string> {
 
 export async function amadeusGet(path: string, params: Record<string, string>): Promise<Record<string, unknown>> {
     const token = await getAmadeusToken();
-    const url = new URL(`https://test.api.amadeus.com${path}`);
+    const url = new URL(`${AMADEUS_BASE_URL}${path}`);
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
     const res = await fetch(url.toString(), {

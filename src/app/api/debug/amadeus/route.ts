@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+const AMADEUS_HOSTNAME = process.env.AMADEUS_HOSTNAME === 'production' ? 'production' : 'test';
+const AMADEUS_BASE_URL = AMADEUS_HOSTNAME === 'production'
+  ? 'https://api.amadeus.com'
+  : 'https://test.api.amadeus.com';
+
 export async function GET() {
   const clientId = process.env.AMADEUS_CLIENT_ID;
   const clientSecret = process.env.AMADEUS_CLIENT_SECRET;
@@ -14,7 +19,7 @@ export async function GET() {
   }
 
   try {
-    const tokenRes = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+    const tokenRes = await fetch(`${AMADEUS_BASE_URL}/v1/security/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -40,7 +45,7 @@ export async function GET() {
 
     // Test a simple API call
     const testRes = await fetch(
-      'https://test.api.amadeus.com/v1/reference-data/locations?keyword=London&subType=CITY&page%5Blimit%5D=3',
+      `${AMADEUS_BASE_URL}/v1/reference-data/locations?keyword=London&subType=CITY&page%5Blimit%5D=3`,
       { headers: { Authorization: `Bearer ${tokenData.access_token}` } }
     );
 
@@ -49,6 +54,7 @@ export async function GET() {
     return NextResponse.json({
       status: 'SUCCESS',
       message: 'Amadeus API is working correctly!',
+      hostname: AMADEUS_HOSTNAME,
       tokenType: tokenData.token_type,
       expiresIn: tokenData.expires_in,
       testSearchResults: testData.data?.length || 0,
