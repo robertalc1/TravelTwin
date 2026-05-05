@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plane, Hotel, Car, ChevronDown, ChevronUp, X, Shield } from 'lucide-react';
+import { Plane, Hotel, Car, ChevronDown, ChevronUp, X, Shield, Sparkles } from 'lucide-react';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 
@@ -22,9 +22,15 @@ export default function PriceBreakdown({
   const selectedTransfer = useTripPricing((s) => s.selectedTransfer);
   const removeHotel = useTripPricing((s) => s.removeHotel);
   const removeTransfer = useTripPricing((s) => s.removeTransfer);
+  const extras = useTripPricing((s) => s.extras);
+  const toggleExtra = useTripPricing((s) => s.toggleExtra);
   const formatCurrency = useCurrencyStore((s) => s.format);
   const src = breakdown.currency || 'EUR';
-  const total = breakdown.flightPrice + breakdown.hotelPrice + breakdown.transferPrice;
+  const total =
+    breakdown.flightPrice + breakdown.hotelPrice + breakdown.transferPrice + breakdown.extrasPrice;
+
+  const hotelDisplayName = selectedHotel?.hotel?.name || breakdown.hotelLabel;
+  const transferDisplayName = selectedTransfer?.vehicle?.description || breakdown.transferLabel;
 
   return (
     <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden shadow-md">
@@ -85,22 +91,22 @@ export default function PriceBreakdown({
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      selectedHotel
+                      breakdown.hotelPrice > 0
                         ? 'bg-orange-50 dark:bg-orange-900/20'
                         : 'bg-neutral-100 dark:bg-surface-elevated'
                     }`}
                   >
                     <Hotel
                       className={`h-4 w-4 ${
-                        selectedHotel ? 'text-primary-500' : 'text-text-muted'
+                        breakdown.hotelPrice > 0 ? 'text-primary-500' : 'text-text-muted'
                       }`}
                     />
                   </div>
                   <div className="min-w-0">
                     <span className="text-sm text-text-secondary block">Hotel</span>
-                    {selectedHotel ? (
+                    {hotelDisplayName ? (
                       <p className="text-xs text-text-muted truncate max-w-[150px]">
-                        {selectedHotel.hotel.name}
+                        {hotelDisplayName}
                       </p>
                     ) : (
                       <p className="text-xs text-text-muted">Not selected</p>
@@ -110,14 +116,14 @@ export default function PriceBreakdown({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-sm font-semibold ${
-                      selectedHotel ? 'text-text-primary' : 'text-text-muted'
+                      breakdown.hotelPrice > 0 ? 'text-text-primary' : 'text-text-muted'
                     }`}
                   >
                     {breakdown.hotelPrice > 0
                       ? formatCurrency(breakdown.hotelPrice, src)
                       : '+ Add'}
                   </span>
-                  {selectedHotel && (
+                  {breakdown.hotelPrice > 0 && (
                     <button
                       type="button"
                       onClick={removeHotel}
@@ -135,22 +141,22 @@ export default function PriceBreakdown({
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                      selectedTransfer
+                      breakdown.transferPrice > 0
                         ? 'bg-green-50 dark:bg-green-900/20'
                         : 'bg-neutral-100 dark:bg-surface-elevated'
                     }`}
                   >
                     <Car
                       className={`h-4 w-4 ${
-                        selectedTransfer ? 'text-green-500' : 'text-text-muted'
+                        breakdown.transferPrice > 0 ? 'text-green-500' : 'text-text-muted'
                       }`}
                     />
                   </div>
                   <div className="min-w-0">
-                    <span className="text-sm text-text-secondary block">Transfer</span>
-                    {selectedTransfer ? (
+                    <span className="text-sm text-text-secondary block">Airport transfer</span>
+                    {transferDisplayName ? (
                       <p className="text-xs text-text-muted truncate max-w-[150px]">
-                        {selectedTransfer.vehicle.description}
+                        {transferDisplayName}
                       </p>
                     ) : (
                       <p className="text-xs text-text-muted">Not selected</p>
@@ -160,14 +166,14 @@ export default function PriceBreakdown({
                 <div className="flex items-center gap-2 shrink-0">
                   <span
                     className={`text-sm font-semibold ${
-                      selectedTransfer ? 'text-text-primary' : 'text-text-muted'
+                      breakdown.transferPrice > 0 ? 'text-text-primary' : 'text-text-muted'
                     }`}
                   >
                     {breakdown.transferPrice > 0
                       ? formatCurrency(breakdown.transferPrice, src)
                       : '+ Add'}
                   </span>
-                  {selectedTransfer && (
+                  {breakdown.transferPrice > 0 && (
                     <button
                       type="button"
                       onClick={removeTransfer}
@@ -179,6 +185,34 @@ export default function PriceBreakdown({
                   )}
                 </div>
               </div>
+
+              {/* Extras */}
+              {extras.length > 0 && (
+                <div className="pt-2 border-t border-neutral-100 dark:border-border-default space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-text-muted uppercase tracking-wider">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Add-ons
+                  </div>
+                  {extras.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between">
+                      <span className="text-sm text-text-secondary truncate pr-2">{e.label}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-semibold text-text-primary">
+                          {formatCurrency(e.price, src)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleExtra(e)}
+                          aria-label={`Remove ${e.label}`}
+                          className="p-1 text-text-muted hover:text-red-500 transition-colors"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="border-t border-neutral-200 dark:border-border-default pt-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-text-primary">Total</span>

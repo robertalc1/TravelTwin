@@ -21,10 +21,12 @@ import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
+import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
+import { getAirportCoord, haversineKm } from '@/lib/airportCoordinates';
 
 const InteractiveMap = dynamic(
   () => import('@/components/InteractiveMap'),
@@ -88,14 +90,54 @@ export default function TripDetailView({
   const [extraTransfer, setExtraTransfer] = useState<TransferOffer | null>(null);
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
-  const pricingTotal = useTripPricing((s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice);
+  const seedHotelInStore = useTripPricing((s) => s.seedHotel);
+  const seedTransferInStore = useTripPricing((s) => s.seedTransfer);
+  const pricingTotal = useTripPricing(
+    (s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice + s.breakdown.extrasPrice,
+  );
+  const breakdown = useTripPricing((s) => s.breakdown);
+  const storeExtras = useTripPricing((s) => s.extras);
+  const storeSelectedHotel = useTripPricing((s) => s.selectedHotel);
+  const storeSelectedTransfer = useTripPricing((s) => s.selectedTransfer);
 
-  // Seed flight price into the dynamic pricing store on trip mount.
+  // Seed flight + default hotel + airport-transfer estimate on trip mount.
   useEffect(() => {
-    if (trip?.id) {
-      initTripPricing(trip.id, trip.flightPrice || 0, trip.currency || 'EUR');
+    if (!trip?.id) return;
+    initTripPricing(trip.id, trip.flightPrice || 0, trip.currency || 'EUR');
+
+    // Default hotel — the hotel that came with the package.
+    if (trip.hotelPrice > 0 && trip.hotelName) {
+      seedHotelInStore(trip.hotelName, trip.hotelPrice);
     }
-  }, [trip.id, trip.flightPrice, trip.currency, initTripPricing]);
+
+    // Default airport→hotel transfer — distance-based estimate.
+    if (originCode && trip.destinationLat && trip.destinationLon) {
+      const airport = getAirportCoord(originCode);
+      // If we don't know the origin airport, skip — user can pick a real transfer
+      // from the Transfers tab later.
+      if (airport) {
+        const distanceKm = Math.max(
+          5,
+          Math.round(haversineKm(airport.lat, airport.lng, trip.destinationLat, trip.destinationLon)),
+        );
+        // Same model as /api/amadeus/transfers buildDynamicFallback (sedan tier).
+        const sedanPrice = Math.round(Math.max(25, distanceKm * 1.8));
+        seedTransferInStore(`Airport sedan (~${distanceKm} km)`, sedanPrice);
+      }
+    }
+  }, [
+    trip.id,
+    trip.flightPrice,
+    trip.currency,
+    trip.hotelPrice,
+    trip.hotelName,
+    trip.destinationLat,
+    trip.destinationLon,
+    originCode,
+    initTripPricing,
+    seedHotelInStore,
+    seedTransferInStore,
+  ]);
 
   // Read origin from sessionStorage (populated by AI planner)
   useEffect(() => {
@@ -119,19 +161,54 @@ export default function TripDetailView({
     : 0;
 
   function handleBook() {
-    // Save full TripDetail object so booking/simulate can read all flat fields correctly
-    sessionStorage.setItem('bookingTrip', JSON.stringify(trip));
-    // Save meta so booking page knows the correct back href + origin city
+    // Snapshot the LIVE quote from the pricing store and merge it into the trip
+    // before handing off to /booking/simulate. The booking page must price the
+    // exact configuration the user sees on the trip page (custom hotel, transfer,
+    // extras), not the stale package totals.
+    const liveTotal =
+      breakdown.flightPrice + breakdown.hotelPrice + breakdown.transferPrice + breakdown.extrasPrice;
+    const liveHotelName = storeSelectedHotel?.hotel?.name || breakdown.hotelLabel || trip.hotelName;
+    const liveHotelStars = storeSelectedHotel?.hotel?.rating
+      ? parseInt(storeSelectedHotel.hotel.rating, 10) || trip.hotelStars
+      : trip.hotelStars;
+    const liveHotelPricePerNight =
+      breakdown.hotelPrice > 0 && trip.nights > 0
+        ? Math.round(breakdown.hotelPrice / trip.nights)
+        : trip.hotelPricePerNight;
+
+    const bookingPayload = {
+      ...trip,
+      flightPrice: breakdown.flightPrice,
+      hotelName: liveHotelName,
+      hotelStars: liveHotelStars,
+      hotelPrice: breakdown.hotelPrice,
+      hotelPricePerNight: liveHotelPricePerNight,
+      totalPrice: liveTotal,
+      // Custom quote details — rendered in booking sidebar as separate line items.
+      quote: {
+        flightPrice: breakdown.flightPrice,
+        hotelPrice: breakdown.hotelPrice,
+        hotelLabel: liveHotelName,
+        transferPrice: breakdown.transferPrice,
+        transferLabel: storeSelectedTransfer?.vehicle?.description || breakdown.transferLabel,
+        extras: storeExtras.map((e) => ({ id: e.id, label: e.label, price: e.price })),
+        extrasPrice: breakdown.extrasPrice,
+        currency: breakdown.currency,
+        total: liveTotal,
+      },
+    };
+
+    sessionStorage.setItem('bookingTrip', JSON.stringify(bookingPayload));
     try {
-      let originCity = '';
+      let originCityName = '';
       const pr = sessionStorage.getItem('planResults');
       if (pr) {
         const parsed = JSON.parse(pr);
-        originCity = parsed.params?.originDisplay?.split(' (')[0] || parsed.params?.originIata || '';
+        originCityName = parsed.params?.originDisplay?.split(' (')[0] || parsed.params?.originIata || '';
       }
       sessionStorage.setItem('currentBookingMeta', JSON.stringify({
         backHref: window.location.pathname,
-        originCity,
+        originCity: originCityName,
       }));
     } catch { /* ignore */ }
     router.push('/booking/simulate');
@@ -339,6 +416,11 @@ export default function TripDetailView({
               </section>
             )}
 
+            {/* Add-ons / extras */}
+            {!isSharedView && (
+              <ExtrasPanel nights={trip.nights} adults={1} />
+            )}
+
             {/* Day-by-Day Plan */}
             {ai?.dayByDay && ai.dayByDay.length > 0 && (
               <section>
@@ -538,15 +620,35 @@ export default function TripDetailView({
               </div>
             </section>
 
-            {/* Cost Breakdown */}
+            {/* Cost Breakdown — sourced from the live pricing store */}
             <section>
               <h2 className="text-xl font-bold text-secondary-500 mb-4">Cost Breakdown</h2>
               <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
                 <div className="divide-y divide-neutral-100 dark:divide-border-default">
                   {[
-                    { label: 'Roundtrip flight', icon: Plane, value: trip.flightPrice },
-                    { label: `Hotel · ${trip.nights} nights`, icon: Hotel, value: trip.hotelPrice },
-                    ...(activitiesEstimate > 0 ? [{ label: 'Est. activities & food', icon: DollarSign, value: activitiesEstimate }] : []),
+                    { label: 'Roundtrip flight', icon: Plane, value: breakdown.flightPrice },
+                    {
+                      label: breakdown.hotelLabel
+                        ? `${breakdown.hotelLabel} · ${trip.nights} nights`
+                        : `Hotel · ${trip.nights} nights`,
+                      icon: Hotel,
+                      value: breakdown.hotelPrice,
+                    },
+                    ...(breakdown.transferPrice > 0
+                      ? [{
+                          label: breakdown.transferLabel || 'Airport transfer',
+                          icon: Navigation,
+                          value: breakdown.transferPrice,
+                        }]
+                      : []),
+                    ...storeExtras.map((e) => ({
+                      label: e.label,
+                      icon: DollarSign,
+                      value: e.price,
+                    })),
+                    ...(activitiesEstimate > 0
+                      ? [{ label: 'Est. activities & food (not in quote)', icon: DollarSign, value: activitiesEstimate }]
+                      : []),
                   ].map(({ label, icon: Icon, value }) => (
                     <div key={label} className="flex items-center justify-between px-5 py-3.5 text-sm">
                       <span className="flex items-center gap-2 text-text-secondary">
@@ -558,9 +660,9 @@ export default function TripDetailView({
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-5 py-4 bg-neutral-50 dark:bg-surface-elevated">
-                    <span className="font-bold text-text-primary">Total</span>
+                    <span className="font-bold text-text-primary">Quote total</span>
                     <span className="font-extrabold text-lg text-primary-500">
-                      {formatCurrency(trip.totalPrice, src)}
+                      {formatCurrency(pricingTotal, src)}
                     </span>
                   </div>
                 </div>
