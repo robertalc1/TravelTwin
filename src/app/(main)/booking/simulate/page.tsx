@@ -7,12 +7,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, ArrowRight, Check, CreditCard, User, Lock,
   Plane, Hotel, Shield, Calendar, MapPin, ChevronUp, ChevronDown,
+  Car, Sparkles,
 } from "lucide-react";
 import { DemoBanner } from "@/components/booking/DemoBanner";
 import { createClient } from "@/lib/supabase/client";
 import { useToastStore } from "@/stores/toastStore";
 import { useCurrencyStore } from "@/stores/currencyStore";
 import type { TripDetail } from "@/lib/tripDetail";
+
+interface QuoteExtra { id: string; label: string; price: number }
+interface QuoteSnapshot {
+  flightPrice: number;
+  hotelPrice: number;
+  hotelLabel?: string;
+  transferPrice: number;
+  transferLabel?: string;
+  extras: QuoteExtra[];
+  extrasPrice: number;
+  currency: string;
+  total: number;
+}
+type BookingTrip = TripDetail & { quote?: QuoteSnapshot };
 
 interface TravelerInfo {
   firstName: string;
@@ -88,7 +103,7 @@ export default function BookingSimulatePage() {
   const [step, setStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [bookingRef] = useState(() => "TW-" + Math.random().toString(36).substring(2, 8).toUpperCase());
-  const [bookingTrip, setBookingTrip] = useState<TripDetail | null>(null);
+  const [bookingTrip, setBookingTrip] = useState<BookingTrip | null>(null);
   const [bookingMeta, setBookingMeta] = useState<{ backHref: string; originCity: string }>({ backHref: "/", originCity: "" });
   const [pricingExpanded, setPricingExpanded] = useState(true);
 
@@ -124,9 +139,22 @@ export default function BookingSimulatePage() {
   const displayRoute = `${originCity} → ${displayDestination}`;
   const heroImageId = "photo-1488085061387-422e29b40080";
 
-  const flightPrice = bookingTrip?.flightPrice || 0;
-  const hotelPrice = bookingTrip?.hotelPrice || 0;
-  const totalPrice = bookingTrip?.totalPrice || flightPrice + hotelPrice;
+  // Prefer the live quote captured on the trip page (includes hotel changes,
+  // transfer, and extras). Fall back to the trip's flat fields for
+  // backwards-compatibility if a booking was opened without going through
+  // PriceBreakdown.
+  const quote = bookingTrip?.quote;
+  const flightPrice = quote?.flightPrice ?? bookingTrip?.flightPrice ?? 0;
+  const hotelPrice = quote?.hotelPrice ?? bookingTrip?.hotelPrice ?? 0;
+  const transferPrice = quote?.transferPrice ?? 0;
+  const extrasPrice = quote?.extrasPrice ?? 0;
+  const extras = quote?.extras ?? [];
+  const hotelLabel = quote?.hotelLabel ?? bookingTrip?.hotelName ?? "";
+  const transferLabel = quote?.transferLabel ?? "Airport transfer";
+  const totalPrice =
+    quote?.total ??
+    bookingTrip?.totalPrice ??
+    flightPrice + hotelPrice + transferPrice + extrasPrice;
 
   function formatCardNumber(val: string) {
     const digits = val.replace(/\D/g, "").slice(0, 16);
@@ -613,15 +641,56 @@ export default function BookingSimulatePage() {
                         )}
                         {hotelPrice > 0 && (
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-9 h-9 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center shrink-0">
                                 <Hotel className="h-4 w-4 text-primary-500" />
                               </div>
-                              <span className="text-sm text-text-secondary">Hotel</span>
+                              <div className="min-w-0">
+                                <span className="text-sm text-text-secondary block">Hotel</span>
+                                {hotelLabel && (
+                                  <p className="text-xs text-text-muted truncate max-w-[160px]">{hotelLabel}</p>
+                                )}
+                              </div>
                             </div>
-                            <span className="text-sm font-semibold text-text-primary">
+                            <span className="text-sm font-semibold text-text-primary shrink-0">
                               {formatCurrency(hotelPrice, currency)}
                             </span>
+                          </div>
+                        )}
+
+                        {transferPrice > 0 && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center shrink-0">
+                                <Car className="h-4 w-4 text-green-500" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-sm text-text-secondary block">Airport transfer</span>
+                                {transferLabel && (
+                                  <p className="text-xs text-text-muted truncate max-w-[160px]">{transferLabel}</p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-text-primary shrink-0">
+                              {formatCurrency(transferPrice, currency)}
+                            </span>
+                          </div>
+                        )}
+
+                        {extras.length > 0 && (
+                          <div className="pt-2 border-t border-neutral-100 dark:border-border-default space-y-2">
+                            <div className="flex items-center gap-2 text-xs font-bold text-text-muted uppercase tracking-wider">
+                              <Sparkles className="h-3.5 w-3.5" />
+                              Add-ons
+                            </div>
+                            {extras.map((e) => (
+                              <div key={e.id} className="flex items-center justify-between">
+                                <span className="text-sm text-text-secondary truncate pr-2">{e.label}</span>
+                                <span className="text-sm font-semibold text-text-primary shrink-0">
+                                  {formatCurrency(e.price, currency)}
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         )}
 
@@ -657,9 +726,21 @@ export default function BookingSimulatePage() {
                   {hotelPrice > 0 && (
                     <li className="flex items-start gap-2">
                       <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                      {bookingTrip?.nights || 0} nights at {bookingTrip?.hotelName || "your hotel"}
+                      {bookingTrip?.nights || 0} nights at {hotelLabel || bookingTrip?.hotelName || "your hotel"}
                     </li>
                   )}
+                  {transferPrice > 0 && (
+                    <li className="flex items-start gap-2">
+                      <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
+                      {transferLabel || "Airport transfer"}
+                    </li>
+                  )}
+                  {extras.map((e) => (
+                    <li key={e.id} className="flex items-start gap-2">
+                      <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
+                      {e.label}
+                    </li>
+                  ))}
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
                     All taxes &amp; fees
