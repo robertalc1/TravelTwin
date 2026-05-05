@@ -258,12 +258,35 @@ export default function HotelsPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-16 rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default">
-                        <HotelIcon className="h-12 w-12 text-text-muted mx-auto mb-4 opacity-40" />
-                        <h3 className="text-lg font-bold text-text-primary mb-2">No hotels found</h3>
-                        <p className="text-sm text-text-muted max-w-md mx-auto">
-                            {warning || "Try a different city or adjust your dates."}
+                    <div className="text-center py-12 rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default px-6">
+                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
+                            <HotelIcon className="h-7 w-7 text-primary-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-text-primary mb-2">
+                            We couldn&apos;t fetch hotels for this city
+                        </h3>
+                        <p className="text-sm text-text-muted max-w-md mx-auto mb-5">
+                            {warning ||
+                                "Some cities have limited availability in our test environment. Try one of these popular destinations:"}
                         </p>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                            {[
+                                ["PAR", "Paris"],
+                                ["LON", "London"],
+                                ["BCN", "Barcelona"],
+                                ["MAD", "Madrid"],
+                                ["BER", "Berlin"],
+                            ].map(([code, label]) => (
+                                <button
+                                    key={code}
+                                    type="button"
+                                    onClick={() => { setCityIata(code); setCityDisplay(label); }}
+                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-4 py-1.5 text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
