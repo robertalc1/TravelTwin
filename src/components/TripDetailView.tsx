@@ -655,23 +655,6 @@ export default function TripDetailView({
               </div>
             </section>
 
-            {/* Local Tips */}
-            {ai?.localTips && ai.localTips.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-4">Local Tips</h2>
-                <div className="space-y-3">
-                  {ai.localTips.map((tip, i) => (
-                    <div
-                      key={i}
-                      className="flex items-start gap-3 bg-white dark:bg-surface rounded-xl border border-neutral-200 dark:border-border-default p-4"
-                    >
-                      <Lightbulb className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-text-secondary">{tip}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
 
           {/* ── Right column: booking card or shared banner ── */}
