@@ -400,51 +400,109 @@ export default function Home() {
       </section>
 
       {/* ═══════════ 4.5 COMPLETE YOUR JOURNEY ═══════════ */}
-      <section className="py-12 lg:py-16">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-          <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-            Complete Your Journey
-          </h2>
-          <p className="text-text-muted mb-8">
-            Flights, hotels and transfers — all in one place
-          </p>
+      <section className="py-16 lg:py-20 relative overflow-hidden">
+        {/* Subtle decorative gradient blobs */}
+        <div className="absolute -top-32 right-0 h-64 w-64 rounded-full bg-primary-500/5 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 left-0 h-64 w-64 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a
-              href="/flights"
-              className="group bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
-            >
-              <span className="text-3xl">✈️</span>
-              <h3 className="font-semibold text-text-primary mt-3 mb-1">Flights</h3>
-              <p className="text-text-muted text-sm mb-4">Live prices from 500+ airlines</p>
-              <span className="text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:underline">
-                Search flights →
+        <div className="mx-auto max-w-[1280px] px-4 lg:px-8 relative">
+          {/* Section header */}
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1 text-xs font-bold uppercase tracking-wider mb-3">
+                <span className="apple-emoji">✨</span> Build your trip
               </span>
-            </a>
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
+                Complete Your Journey
+              </h2>
+              <p className="text-text-secondary mt-3 text-base md:text-lg max-w-xl">
+                Flights, hotels and transfers — booked in one place, paid in one currency.
+              </p>
+            </div>
+          </div>
 
-            <a
-              href="/hotels"
-              className="group bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-2xl p-6 border border-orange-200 dark:border-orange-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
-            >
-              <span className="text-3xl">🏨</span>
-              <h3 className="font-semibold text-text-primary mt-3 mb-1">Hotels</h3>
-              <p className="text-text-muted text-sm mb-4">Best rates, free cancellation</p>
-              <span className="text-primary-500 text-sm font-medium group-hover:underline">
-                Find hotels →
-              </span>
-            </a>
+          {/* Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                href: "/flights",
+                emoji: "✈️",
+                title: "Flights",
+                stat: "500+",
+                statLabel: "airlines compared",
+                description: "Live prices, transparent stops, and round-trip filters that actually work.",
+                cta: "Search flights",
+                gradient: "from-sky-100 via-blue-50 to-white dark:from-sky-900/30 dark:via-blue-900/20 dark:to-surface",
+                ring: "ring-blue-500/30",
+                accent: "text-blue-600 dark:text-blue-400",
+                glow: "bg-blue-500/15",
+              },
+              {
+                href: "/hotels",
+                emoji: "🏨",
+                title: "Hotels",
+                stat: "1.2M+",
+                statLabel: "stays worldwide",
+                description: "From boutique B&Bs to 5-star resorts. Free cancellation on most rooms.",
+                cta: "Find hotels",
+                gradient: "from-orange-100 via-amber-50 to-white dark:from-orange-900/30 dark:via-amber-900/20 dark:to-surface",
+                ring: "ring-primary-500/30",
+                accent: "text-primary-600 dark:text-primary-400",
+                glow: "bg-primary-500/15",
+              },
+              {
+                href: "/transfers",
+                emoji: "🚖",
+                title: "Transfers",
+                stat: "150+",
+                statLabel: "airports covered",
+                description: "Skip the taxi line — prebook a private driver waiting at arrivals.",
+                cta: "Book a ride",
+                gradient: "from-emerald-100 via-green-50 to-white dark:from-emerald-900/30 dark:via-green-900/20 dark:to-surface",
+                ring: "ring-emerald-500/30",
+                accent: "text-emerald-600 dark:text-emerald-400",
+                glow: "bg-emerald-500/15",
+              },
+            ].map((card) => (
+              <a
+                key={card.href}
+                href={card.href}
+                className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${card.gradient} p-7 border border-neutral-200/60 dark:border-border-default transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:ring-4 ${card.ring}`}
+              >
+                {/* Decorative blob behind emoji */}
+                <div className={`absolute -top-12 -right-12 h-40 w-40 rounded-full ${card.glow} blur-3xl transition-all duration-500 group-hover:scale-125`} />
 
-            <a
-              href="/transfers"
-              className="group bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-2xl p-6 border border-green-200 dark:border-green-800 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
-            >
-              <span className="text-3xl">🚗</span>
-              <h3 className="font-semibold text-text-primary mt-3 mb-1">Transfers</h3>
-              <p className="text-text-muted text-sm mb-4">Airport pickups, private cars</p>
-              <span className="text-green-600 dark:text-green-400 text-sm font-medium group-hover:underline">
-                Book transfer →
-              </span>
-            </a>
+                {/* Emoji holder */}
+                <div className="relative mb-6">
+                  <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/80 dark:bg-white/10 backdrop-blur-sm shadow-md ring-1 ring-black/5 transition-all duration-500 group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-xl">
+                    <span className="apple-emoji text-4xl leading-none translate-y-[1px]">
+                      {card.emoji}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="relative">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <h3 className="text-2xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
+                      {card.title}
+                    </h3>
+                    <span className={`text-xs font-bold ${card.accent}`}>
+                      {card.stat} <span className="text-text-muted font-normal">{card.statLabel}</span>
+                    </span>
+                  </div>
+                  <p className="text-sm text-text-secondary leading-relaxed mb-6 max-w-[260px]">
+                    {card.description}
+                  </p>
+
+                  {/* CTA pill */}
+                  <span className={`inline-flex items-center gap-1.5 rounded-full bg-white/90 dark:bg-white/10 backdrop-blur-sm px-4 py-2 text-sm font-bold ${card.accent} shadow-sm transition-all duration-300 group-hover:gap-3 group-hover:px-5 group-hover:shadow-md`}>
+                    {card.cta}
+                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+              </a>
+            ))}
           </div>
         </div>
       </section>

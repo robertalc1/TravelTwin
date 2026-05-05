@@ -643,3 +643,19 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Premium emoji rendering — prefers Apple Color Emoji on macOS/iOS,
+   then Segoe UI Emoji on Windows, Noto Color Emoji on Linux/Android.
+   These are full-color, well-designed glyphs that look like the iPhone style. */
+.apple-emoji {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+    "Twemoji Mozilla", "EmojiOne Color", sans-serif;
+  font-style: normal;
+  font-variant-emoji: emoji;
+  -webkit-font-feature-settings: "liga", "kern";
+  font-feature-settings: "liga", "kern";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  display: inline-block;
+}
