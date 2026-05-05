@@ -1,13 +1,21 @@
 // Dual-mode Amadeus client: tries SDK first, falls back to REST
 import Amadeus from 'amadeus';
 
+// Hostname switch: 'test' (sandbox) or 'production' (live data).
+// Defaults to 'test' for safety. Flip via AMADEUS_HOSTNAME=production once
+// production credentials are issued by Amadeus.
+const AMADEUS_HOSTNAME = (process.env.AMADEUS_HOSTNAME === 'production') ? 'production' : 'test';
+const AMADEUS_BASE_URL = AMADEUS_HOSTNAME === 'production'
+  ? 'https://api.amadeus.com'
+  : 'https://test.api.amadeus.com';
+
 // SDK client
 let sdkClient: InstanceType<typeof Amadeus> | null = null;
 try {
   sdkClient = new Amadeus({
     clientId: process.env.AMADEUS_CLIENT_ID!,
     clientSecret: process.env.AMADEUS_CLIENT_SECRET!,
-    hostname: 'test',
+    hostname: AMADEUS_HOSTNAME,
   });
 } catch (e) {
   console.warn('[Amadeus] SDK init failed:', e);
@@ -19,7 +27,7 @@ let tokenCache: { token: string; expires: number } | null = null;
 async function getToken(): Promise<string> {
   if (tokenCache && Date.now() < tokenCache.expires) return tokenCache.token;
 
-  const res = await fetch('https://test.api.amadeus.com/v1/security/oauth2/token', {
+  const res = await fetch(`${AMADEUS_BASE_URL}/v1/security/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -37,7 +45,7 @@ async function getToken(): Promise<string> {
 
 export async function amadeusRest(path: string, params: Record<string, string | number>): Promise<any> {
   const token = await getToken();
-  const url = new URL(`https://test.api.amadeus.com${path}`);
+  const url = new URL(`${AMADEUS_BASE_URL}${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`API error: ${res.status} ${await res.text()}`);
