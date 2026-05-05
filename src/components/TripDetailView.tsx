@@ -28,18 +28,12 @@ import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { getAirportCoord, haversineKm } from '@/lib/airportCoordinates';
 
-const InteractiveMap = dynamic(
-  () => import('@/components/InteractiveMap'),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[500px] rounded-2xl bg-neutral-100 dark:bg-surface-elevated animate-pulse flex flex-col items-center justify-center gap-3">
-        <div className="h-8 w-8 rounded-full border-[3px] border-neutral-200 border-t-primary-500 animate-spin" />
-        <p className="text-sm text-text-muted">Loading map...</p>
-      </div>
-    ),
-  },
-);
+const RouteMapEmbed = dynamic(() => import('@/components/RouteMapEmbed'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[500px] rounded-2xl bg-neutral-100 dark:bg-surface-elevated animate-pulse" />
+  ),
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(iso: string): string {
@@ -518,15 +512,14 @@ export default function TripDetailView({
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
                 {/* Map (60%) */}
                 <div className="lg:col-span-3 space-y-2 lg:sticky lg:top-24">
-                  <InteractiveMap
-                    centerLat={trip.destinationLat}
-                    centerLon={trip.destinationLon}
-                    cityName={trip.destinationCity}
+                  <RouteMapEmbed
+                    originCode={originCode}
+                    originCity={originCity}
+                    destinationCity={trip.destinationCity}
+                    destinationCountry={trip.destinationCountry}
+                    destinationLat={trip.destinationLat}
+                    destinationLon={trip.destinationLon}
                     attractions={ai?.topAttractions ?? []}
-                    restaurants={ai?.topRestaurants ?? []}
-                    cafes={ai?.topCafes ?? []}
-                    selectedPlace={selectedPlace}
-                    onSelectPlace={setSelectedPlace}
                   />
                   <p className="text-xs text-text-muted text-center">
                     {trip.destinationCity}, {trip.destinationCountry} ·{' '}
@@ -544,22 +537,17 @@ export default function TripDetailView({
                       </div>
                       <div className="space-y-1.5">
                         {ai.topAttractions.map((a, i) => (
-                          <button
+                          <a
                             key={i}
-                            type="button"
-                            onClick={() => setSelectedPlace(selectedPlace === a.name ? null : a.name)}
-                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
-                              selectedPlace === a.name
-                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200'
-                                : 'border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50'
-                            }`}
+                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${a.name}, ${trip.destinationCity}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
                           >
-                            <p className="font-semibold text-secondary-500 text-sm pr-6">{a.name}</p>
+                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{a.name}</p>
                             <p className="text-xs text-text-muted capitalize mt-0.5">{a.category}</p>
-                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
-                              selectedPlace === a.name ? 'text-primary-500 opacity-100' : 'text-text-muted opacity-0 group-hover:opacity-50'
-                            }`} />
-                          </button>
+                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
+                          </a>
                         ))}
                       </div>
                     </div>
@@ -573,24 +561,19 @@ export default function TripDetailView({
                       </div>
                       <div className="space-y-1.5">
                         {ai.topRestaurants.map((r, i) => (
-                          <button
+                          <a
                             key={i}
-                            type="button"
-                            onClick={() => setSelectedPlace(selectedPlace === r.name ? null : r.name)}
-                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
-                              selectedPlace === r.name
-                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200'
-                                : 'border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50'
-                            }`}
+                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${r.name}, ${trip.destinationCity}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
                           >
                             <div className="flex items-center justify-between pr-6">
-                              <p className="font-semibold text-secondary-500 text-sm">{r.name}</p>
+                              <p className="font-semibold text-secondary-500 dark:text-white text-sm">{r.name}</p>
                             </div>
                             <p className="text-xs text-text-muted mt-0.5">{r.cuisine}</p>
-                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
-                              selectedPlace === r.name ? 'text-primary-500 opacity-100' : 'text-text-muted opacity-0 group-hover:opacity-50'
-                            }`} />
-                          </button>
+                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
+                          </a>
                         ))}
                       </div>
                     </div>
@@ -604,22 +587,17 @@ export default function TripDetailView({
                       </div>
                       <div className="space-y-1.5">
                         {ai.topCafes.map((c, i) => (
-                          <button
+                          <a
                             key={i}
-                            type="button"
-                            onClick={() => setSelectedPlace(selectedPlace === c.name ? null : c.name)}
-                            className={`relative w-full text-left rounded-xl border px-3 py-2.5 transition-all group ${
-                              selectedPlace === c.name
-                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 ring-2 ring-primary-200'
-                                : 'border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50'
-                            }`}
+                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${c.name}, ${trip.destinationCity}`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
                           >
-                            <p className="font-semibold text-secondary-500 text-sm pr-6">{c.name}</p>
+                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{c.name}</p>
                             <p className="text-xs text-text-muted mt-0.5">{c.specialty}</p>
-                            <MapPin className={`absolute bottom-2.5 right-2.5 h-3.5 w-3.5 transition-all ${
-                              selectedPlace === c.name ? 'text-primary-500 opacity-100' : 'text-text-muted opacity-0 group-hover:opacity-50'
-                            }`} />
-                          </button>
+                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
+                          </a>
                         ))}
                       </div>
                     </div>
