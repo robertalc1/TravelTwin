@@ -26,7 +26,7 @@ export function ChatMessage({ role, content, data }: ChatMessageProps) {
       {/* Text bubble */}
       {content && (
         <div
-          className={`max-w-[260px] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+          className={`max-w-[260px] lg:max-w-[400px] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${
             isUser
               ? "rounded-br-sm bg-primary-500 text-white"
               : "rounded-bl-sm bg-neutral-100 text-text-primary dark:bg-secondary-700 dark:text-white"
