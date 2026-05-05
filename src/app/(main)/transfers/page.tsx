@@ -66,8 +66,16 @@ export default function TransfersPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
-      <div className="relative bg-gradient-to-br from-primary-500 to-primary-600 text-white">
-        <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-12 lg:py-16">
+      <div className="relative overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+        <div
+          className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: 'url(https://images.unsplash.com/photo-1502877338535-766e1452684a?w=1920&h=600&fit=crop&q=80)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+        <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8 py-12 lg:py-16">
           <div className="flex items-center gap-3 mb-2">
             <Car className="h-7 w-7" />
             <h1 className="text-3xl md:text-4xl font-extrabold">Airport Transfers</h1>
