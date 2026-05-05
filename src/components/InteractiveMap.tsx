@@ -273,8 +273,10 @@ export default function InteractiveMap({
           className="z-0"
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            subdomains={['a', 'b', 'c', 'd']}
+            maxZoom={20}
           />
 
           <MapController
@@ -372,22 +374,27 @@ export default function InteractiveMap({
           })}
         </MapContainer>
 
-        {/* Legend overlay */}
+        {/* Subtle gradient frame for premium feel */}
+        <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-black/5 rounded-2xl z-[400]" />
+
+        {/* Legend overlay — branded floating chip */}
         <div
-          className="absolute bottom-4 right-4 z-[1000] bg-white dark:bg-surface rounded-xl shadow-lg border border-neutral-200 dark:border-border-default px-3 py-2 text-xs space-y-1 pointer-events-none"
+          className="absolute bottom-4 left-4 z-[1000] bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-xl shadow-xl border border-neutral-200/80 dark:border-border-default px-3.5 py-2.5 text-xs space-y-1.5 pointer-events-none"
           style={{ zIndex: 1000 }}
         >
+          <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted mb-1">Map legend</p>
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+            <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0 ring-2 ring-white" />
+            <span className="text-text-secondary">City center</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0 ring-2 ring-white" />
             <span className="text-text-secondary">Attraction</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" />
+            <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0 ring-2 ring-white" />
             <span className="text-text-secondary">Restaurant / Cafe</span>
           </div>
-          <p className="text-[10px] text-text-muted border-t border-neutral-100 dark:border-border-default pt-1 mt-1">
-            Click any card to navigate
-          </p>
         </div>
       </div>
     </>

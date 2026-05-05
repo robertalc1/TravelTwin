@@ -494,17 +494,37 @@ export default function TripDetailView({
             <section>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-secondary-500">Explore the City</h2>
-                <a
-                  href={`https://www.google.com/maps/search/${encodeURIComponent(
-                    trip.destinationCity + (ai?.topAttractions?.[0]?.name ? ' ' + ai.topAttractions[0].name : ''),
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-600 transition-colors"
-                >
-                  <Navigation className="h-3.5 w-3.5" />
-                  Open in Google Maps
-                </a>
+                {(() => {
+                  // Build a multi-stop walking route: city center → top attractions
+                  // → top restaurants. Google Maps Directions API supports up to
+                  // ~10 waypoints in a single URL.
+                  const stops: string[] = [];
+                  stops.push(`${trip.destinationCity} city center`);
+                  (ai?.topAttractions ?? []).slice(0, 5).forEach((a) =>
+                    stops.push(`${a.name}, ${trip.destinationCity}`),
+                  );
+                  (ai?.topRestaurants ?? []).slice(0, 2).forEach((r) =>
+                    stops.push(`${r.name}, ${trip.destinationCity}`),
+                  );
+                  // Fallback to a simple search if we have no attractions yet.
+                  const href =
+                    stops.length > 1
+                      ? `https://www.google.com/maps/dir/${stops
+                          .map((s) => encodeURIComponent(s))
+                          .join('/')}/data=!4m2!4m1!3e2`
+                      : `https://www.google.com/maps/search/${encodeURIComponent(trip.destinationCity)}`;
+                  return (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-primary-600 shadow-md hover:shadow-lg transition-all"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      View route in Google Maps
+                    </a>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
