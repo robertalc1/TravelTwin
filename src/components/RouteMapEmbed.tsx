@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Plane, Navigation, Sparkles } from 'lucide-react';
+import { MapPin, Plane, Navigation, Sparkles, Car, Footprints, Bus } from 'lucide-react';
 
 interface RouteMapEmbedProps {
   originCode: string;
@@ -14,6 +14,14 @@ interface RouteMapEmbedProps {
   attractions: Array<{ name: string }>;
 }
 
+type TravelMode = 'driving' | 'walking' | 'transit';
+
+const MODE_OPTIONS: Array<{ id: TravelMode; label: string; icon: typeof Car }> = [
+  { id: 'driving', label: 'Driving', icon: Car },
+  { id: 'walking', label: 'Walking', icon: Footprints },
+  { id: 'transit', label: 'Transit', icon: Bus },
+];
+
 export default function RouteMapEmbed({
   originCode,
   originCity,
@@ -24,6 +32,7 @@ export default function RouteMapEmbed({
   attractions,
 }: RouteMapEmbedProps) {
   const [active, setActive] = useState(false);
+  const [mode, setMode] = useState<TravelMode>('driving');
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   // Embed Directions API caps waypoints at 3
@@ -37,15 +46,14 @@ export default function RouteMapEmbed({
       ? `${originCity} airport (${originCode})`
       : originCity || `${destinationCity} airport`;
 
-  const directionsUrl =
-    apiKey
-      ? `https://www.google.com/maps/embed/v1/directions` +
-        `?key=${apiKey}` +
-        `&origin=${encodeURIComponent(origin)}` +
-        `&destination=${encodeURIComponent(`${destinationCity} city center`)}` +
-        (waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '') +
-        `&mode=driving`
-      : null;
+  const directionsUrl = apiKey
+    ? `https://www.google.com/maps/embed/v1/directions` +
+      `?key=${apiKey}` +
+      `&origin=${encodeURIComponent(origin)}` +
+      `&destination=${encodeURIComponent(`${destinationCity} city center`)}` +
+      (waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '') +
+      `&mode=${mode}`
+    : null;
 
   // Fallback to a simple `place` map if the key is missing — at least show something
   const placeUrl = apiKey
@@ -60,7 +68,7 @@ export default function RouteMapEmbed({
   const staticPreviewUrl = apiKey
     ? `https://maps.googleapis.com/maps/api/staticmap` +
       `?center=${destinationLat},${destinationLon}` +
-      `&zoom=11&size=800x400&scale=2&maptype=roadmap` +
+      `&zoom=11&size=1280x600&scale=2&maptype=roadmap` +
       `&markers=color:0xf97316%7C${destinationLat},${destinationLon}` +
       `&style=feature:poi%7Celement:labels%7Cvisibility:off` +
       `&key=${apiKey}`
@@ -81,7 +89,7 @@ export default function RouteMapEmbed({
             aria-label={`Show interactive route from ${originCity || originCode} to ${destinationCity}`}
           >
             {/* Background — static preview if available, otherwise gradient */}
-            <div className="relative h-[420px] sm:h-[500px] overflow-hidden">
+            <div className="relative h-[480px] sm:h-[600px] lg:h-[700px] overflow-hidden">
               {staticPreviewUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -95,7 +103,7 @@ export default function RouteMapEmbed({
               )}
 
               {/* Vignette overlay so the CTA pops */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-black/10" />
 
               {/* Route badge — top left */}
               <div className="absolute top-4 left-4 flex items-center gap-2 rounded-full bg-white/95 dark:bg-surface/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold shadow-md">
@@ -107,18 +115,18 @@ export default function RouteMapEmbed({
               </div>
 
               {/* CTA centered — bottom */}
-              <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col items-start gap-2 text-white">
-                <p className="text-xs font-bold uppercase tracking-wider text-white/80 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5" /> Interactive route
+              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 flex flex-col items-start gap-2 text-white">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/85 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> Interactive route map
                 </p>
-                <p className="text-2xl font-extrabold drop-shadow-sm">
-                  See your journey on Google Maps
+                <p className="text-3xl sm:text-4xl font-extrabold drop-shadow-md max-w-2xl">
+                  Plan your day in {destinationCity}
                 </p>
-                <p className="text-sm text-white/85 max-w-md">
-                  Driving directions from {originCity || originCode} airport to {destinationCity},
-                  with the top attractions plotted along the way.
+                <p className="text-sm sm:text-base text-white/90 max-w-xl">
+                  Routes from the airport, walking paths between attractions, and transit
+                  lines — all in one tap.
                 </p>
-                <span className="mt-2 inline-flex items-center gap-2 rounded-full bg-primary-500 group-hover:bg-primary-600 px-5 py-2.5 text-sm font-bold shadow-lg transition-all group-hover:gap-3 group-hover:px-6">
+                <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary-500 group-hover:bg-primary-600 px-6 py-3 text-sm font-bold shadow-lg transition-all group-hover:gap-3 group-hover:px-7">
                   <Navigation className="h-4 w-4" />
                   Show route map
                 </span>
@@ -132,11 +140,37 @@ export default function RouteMapEmbed({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="relative h-[420px] sm:h-[500px]"
+            className="relative h-[480px] sm:h-[600px] lg:h-[700px]"
           >
+            {/* Travel mode toggle bar — floats over the iframe */}
+            {directionsUrl && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1">
+                {MODE_OPTIONS.map(({ id, label, icon: Icon }) => {
+                  const selected = mode === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setMode(id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all ${
+                        selected
+                          ? 'bg-primary-500 text-white shadow-md'
+                          : 'text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                      <span className="hidden xs:inline sm:inline">{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {directionsUrl ? (
               <iframe
-                title={`Route from ${originCity} to ${destinationCity}`}
+                key={mode}
+                title={`Route from ${originCity} to ${destinationCity} (${mode})`}
                 src={directionsUrl}
                 width="100%"
                 height="100%"
