@@ -30,10 +30,10 @@ import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { getAirportCoord, haversineKm } from '@/lib/airportCoordinates';
 
-const RouteMapEmbed = dynamic(() => import('@/components/RouteMapEmbed'), {
+const RouteMapTeaser = dynamic(() => import('@/components/RouteMap/RouteMapTeaser'), {
   ssr: false,
   loading: () => (
-    <div className="h-[500px] rounded-2xl bg-neutral-100 dark:bg-surface-elevated animate-pulse" />
+    <div className="h-72 lg:h-[360px] rounded-2xl bg-neutral-100 dark:bg-surface-elevated animate-pulse" />
   ),
 });
 
@@ -329,64 +329,26 @@ export default function TripDetailView({
               )}
             />
 
-            {/* ── Explore the city — interactive map + place list ── */}
+            {/* ── Plan your day teaser → opens dedicated full-page route map ── */}
             <section>
-              <div className="flex items-end justify-between gap-4 mb-5 flex-wrap">
-                <div>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-2">
-                    <Navigation className="h-3 w-3" /> Plan your day
-                  </span>
-                  <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
-                    Explore {trip.destinationCity}
-                  </h2>
-                </div>
-                {(() => {
-                  const stops: string[] = [];
-                  stops.push(`${trip.destinationCity} city center`);
-                  (ai?.topAttractions ?? []).slice(0, 5).forEach((a) =>
-                    stops.push(`${a.name}, ${trip.destinationCity}`),
-                  );
-                  (ai?.topRestaurants ?? []).slice(0, 2).forEach((r) =>
-                    stops.push(`${r.name}, ${trip.destinationCity}`),
-                  );
-                  const href =
-                    stops.length > 1
-                      ? `https://www.google.com/maps/dir/${stops
-                          .map((s) => encodeURIComponent(s))
-                          .join('/')}/data=!4m2!4m1!3e2`
-                      : `https://www.google.com/maps/search/${encodeURIComponent(trip.destinationCity)}`;
-                  return (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-primary-500 hover:bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-md hover:shadow-lg transition-all"
-                    >
-                      <Navigation className="h-4 w-4" />
-                      View route in Google Maps
-                    </a>
-                  );
-                })()}
+              <div className="mb-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-2">
+                  <Navigation className="h-3 w-3" /> Plan your day
+                </span>
+                <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
+                  Explore {trip.destinationCity}
+                </h2>
               </div>
+              <RouteMapTeaser
+                originCity={originCity}
+                originCode={originCode}
+                destinationCity={trip.destinationCity}
+                destinationLat={trip.destinationLat}
+                destinationLon={trip.destinationLon}
+                href={`/plan/trip/${trip.id}/map`}
+              />
 
-              {/* Map — full width within the column */}
-              <div className="space-y-2">
-                <RouteMapEmbed
-                  originCode={originCode}
-                  originCity={originCity}
-                  destinationCity={trip.destinationCity}
-                  destinationCountry={trip.destinationCountry}
-                  destinationLat={trip.destinationLat}
-                  destinationLon={trip.destinationLon}
-                  attractions={ai?.topAttractions ?? []}
-                />
-                <p className="text-xs text-text-muted text-center">
-                  {trip.destinationCity}, {trip.destinationCountry} ·{' '}
-                  {trip.destinationLat.toFixed(4)}°N, {trip.destinationLon.toFixed(4)}°E
-                </p>
-              </div>
-
-              {/* Top Attractions — photo grid integrated under the map */}
+              {/* Top Attractions — photo grid still belongs on the trip page */}
               {ai?.topAttractions && ai.topAttractions.length > 0 && (
                 <div className="mt-6">
                   <div className="flex items-center gap-2 mb-3">
@@ -402,64 +364,6 @@ export default function TripDetailView({
                     onSelectPlace={setSelectedPlace}
                     selectedPlace={selectedPlace}
                   />
-                </div>
-              )}
-
-              {/* Restaurants + cafes — compact, two-column on desktop, below the photo grid */}
-              {((ai?.topRestaurants && ai.topRestaurants.length > 0) ||
-                (ai?.topCafes && ai.topCafes.length > 0)) && (
-                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {ai?.topRestaurants && ai.topRestaurants.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" />
-                        <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-                          Restaurants
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {ai.topRestaurants.map((r, i) => (
-                          <a
-                            key={i}
-                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${r.name}, ${trip.destinationCity}`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
-                          >
-                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{r.name}</p>
-                            <p className="text-xs text-text-muted mt-0.5">{r.cuisine}</p>
-                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {ai?.topCafes && ai.topCafes.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                        <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-                          Cafes
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {ai.topCafes.map((c, i) => (
-                          <a
-                            key={i}
-                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${c.name}, ${trip.destinationCity}`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
-                          >
-                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{c.name}</p>
-                            <p className="text-xs text-text-muted mt-0.5">{c.specialty}</p>
-                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </section>
