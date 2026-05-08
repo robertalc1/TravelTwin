@@ -317,7 +317,7 @@ export default function BookingSimulatePage() {
           >
             <ArrowLeft className="h-4 w-4" /> Back to trip
           </Link>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white">
+          <h1 className="text-2xl sm:text-3xl md:text-5xl font-extrabold text-white">
             Booking your trip to {displayDestination}
             {displayCountry && <span className="text-white/80">, {displayCountry}</span>}
           </h1>
@@ -334,10 +334,10 @@ export default function BookingSimulatePage() {
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-10">
         <StepBar current={step} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10">
 
           {/* Left column — steps content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 lg:order-1 order-2">
             <DemoBanner />
 
             {/* ── Step 1: Review ── */}
@@ -494,7 +494,7 @@ export default function BookingSimulatePage() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                       <div>
                         <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wide">Expiry</label>
                         <input
@@ -584,9 +584,9 @@ export default function BookingSimulatePage() {
             )}
           </div>
 
-          {/* Right column — sticky sidebar */}
-          <aside className="lg:col-span-1">
-            <div className="sticky top-20 space-y-4">
+          {/* Right column — sticky sidebar (shows above content on mobile so the price summary is the first thing the user sees) */}
+          <aside className="lg:col-span-1 lg:order-2 order-1">
+            <div className="lg:sticky lg:top-20 space-y-4">
               {/* Total Price card — matches PriceBreakdown */}
               <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden shadow-md">
                 <button

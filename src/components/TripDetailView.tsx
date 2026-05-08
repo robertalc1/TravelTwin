@@ -23,6 +23,7 @@ import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
+import MobileBookBar from '@/components/TripDetail/MobileBookBar';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
@@ -213,28 +214,26 @@ export default function TripDetailView({
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
 
       {/* ── Header bar above the hero ── */}
-      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-6 pb-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href={backHref}
-              aria-label={backLabel}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
-            >
-              <ArrowLeft className="h-4 w-4 text-text-primary" />
-            </Link>
-            <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-extrabold text-text-primary truncate">
-                {trip.nights} nights in {trip.destinationCity}, {trip.destinationCountry}
-              </h1>
-              {trip.departureTime && (
-                <p className="text-xs md:text-sm text-text-muted truncate">
-                  {formatTime(trip.departureTime)} – {formatTime(trip.arrivalTime)}
-                  {trip.duration ? ` · ${formatDuration(trip.duration)}` : ''}
-                  {` · ${trip.nights} nights`}
-                </p>
-              )}
-            </div>
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Link
+            href={backHref}
+            aria-label={backLabel}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
+          >
+            <ArrowLeft className="h-4 w-4 text-text-primary" />
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-text-primary truncate">
+              {trip.nights} nights in {trip.destinationCity}, {trip.destinationCountry}
+            </h1>
+            {trip.departureTime && (
+              <p className="hidden sm:block text-xs md:text-sm text-text-muted truncate">
+                {formatTime(trip.departureTime)} – {formatTime(trip.arrivalTime)}
+                {trip.duration ? ` · ${formatDuration(trip.duration)}` : ''}
+                {` · ${trip.nights} nights`}
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -249,7 +248,7 @@ export default function TripDetailView({
 
       {/* ── Hero card — contained, rounded ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-        <div className="relative h-72 md:h-[420px] rounded-3xl overflow-hidden bg-neutral-900 shadow-lg">
+        <div className="relative h-56 sm:h-72 md:h-[420px] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-900 shadow-lg">
           <HeroVideo
             city={trip.destinationCity}
             country={trip.destinationCountry}
@@ -258,16 +257,17 @@ export default function TripDetailView({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent pointer-events-none" />
 
-          {/* City pill — bottom-left */}
-          <div className="absolute bottom-4 left-4">
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 backdrop-blur-sm px-3 py-1.5 text-sm font-semibold text-white">
-              <MapPin className="h-3.5 w-3.5" /> {trip.destinationCity}
+          {/* City pill — bottom-left, stacked above weather on mobile */}
+          <div className="absolute bottom-3 sm:bottom-4 left-3 sm:left-4">
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 backdrop-blur-sm px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-white">
+              <MapPin className="h-3 w-3 sm:h-3.5 sm:w-3.5" /> {trip.destinationCity}
             </span>
           </div>
 
-          {/* Weather strip — bottom-right, anchored inside the contained card */}
+          {/* Weather strip — top-right on mobile (above the city pill area),
+              bottom-right on desktop. Constrained width on narrow screens. */}
           {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-            <div className="absolute bottom-4 right-4 max-w-[min(60%,560px)]">
+            <div className="absolute top-3 right-3 sm:top-auto sm:bottom-4 sm:right-4 max-w-[calc(100%-1.5rem)] sm:max-w-[min(60%,560px)]">
               <HeroWeatherStrip
                 lat={trip.destinationLat}
                 lon={trip.destinationLon}
@@ -296,8 +296,8 @@ export default function TripDetailView({
       )}
 
       {/* ── Main layout ── */}
-      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-6 sm:py-10 pb-28 lg:pb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10">
 
           {/* ── Left column (2/3) ── */}
           <div className="lg:col-span-2 space-y-10">
@@ -474,21 +474,23 @@ export default function TripDetailView({
 
                 <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
                   {/* Header row */}
-                  <div className="p-5 flex items-start gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary-50 dark:bg-secondary-900/20 text-secondary-500 shrink-0">
-                      <Hotel className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-secondary-500 dark:text-white text-base truncate">{trip.hotelName}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        {Array.from({ length: trip.hotelStars }).map((_, i) => (
-                          <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                        ))}
-                        <span className="text-xs text-text-muted ml-1">{trip.hotelStars}-star hotel</span>
+                  <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                    <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+                      <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-secondary-50 dark:bg-secondary-900/20 text-secondary-500 shrink-0">
+                        <Hotel className="h-5 w-5 sm:h-6 sm:w-6" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-secondary-500 dark:text-white text-base">{trip.hotelName}</p>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {Array.from({ length: trip.hotelStars }).map((_, i) => (
+                            <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                          ))}
+                          <span className="text-xs text-text-muted ml-1">{trip.hotelStars}-star hotel</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-2xl font-extrabold text-primary-500 leading-none">
+                    <div className="sm:text-right shrink-0 sm:pl-2">
+                      <p className="text-xl sm:text-2xl font-extrabold text-primary-500 leading-none">
                         {formatCurrency(trip.hotelPrice, src)}
                       </p>
                       <p className="text-xs text-text-muted mt-1">
@@ -551,7 +553,8 @@ export default function TripDetailView({
                             : 'text-text-secondary hover:text-text-primary'
                         }`}
                       >
-                        🏨 Hotels in {trip.destinationCity}
+                        <span className="sm:hidden">🏨 Hotels</span>
+                        <span className="hidden sm:inline">🏨 Hotels in {trip.destinationCity}</span>
                       </button>
                       <button
                         type="button"
@@ -562,7 +565,8 @@ export default function TripDetailView({
                             : 'text-text-secondary hover:text-text-primary'
                         }`}
                       >
-                        🚗 Airport Transfers
+                        <span className="sm:hidden">🚗 Transfers</span>
+                        <span className="hidden sm:inline">🚗 Airport Transfers</span>
                       </button>
                     </div>
                     <div className="p-4 sm:p-5">
@@ -624,11 +628,11 @@ export default function TripDetailView({
                             { label: 'Afternoon', icon: Sun, slot: day.afternoon },
                             { label: 'Evening', icon: Moon, slot: day.evening },
                           ].map(({ label, icon: TimeIcon, slot }) => (
-                            <div key={label} className="flex items-start gap-4 px-5 py-4">
+                            <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4">
                               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
                                 <TimeIcon className="h-4 w-4" />
                               </div>
-                              <div>
+                              <div className="min-w-0">
                                 <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">{label}</p>
                                 <p className="font-semibold text-secondary-500 text-sm">{slot?.activity}</p>
                                 <p className="text-xs text-text-secondary mt-0.5">{slot?.description}</p>
@@ -774,6 +778,8 @@ export default function TripDetailView({
         </div>
       </div>
 
+      {/* Mobile-only sticky Book Now bar — visible <lg, hidden on desktop where the sidebar holds the CTA */}
+      {!isSharedView && <MobileBookBar onBook={handleBook} />}
     </div>
   );
 }

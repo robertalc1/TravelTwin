@@ -233,7 +233,7 @@ export default function FlightsPage() {
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
                             Enter departure and destination above. Supports any city or airport worldwide.
                         </p>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {POPULAR_ROUTES.map(([from, to, label]) => (
                                 <button
                                     key={label}
@@ -242,7 +242,7 @@ export default function FlightsPage() {
                                         setOriginIata(from); setOriginDisplay(from);
                                         setDestIata(to); setDestDisplay(to);
                                     }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-1.5 text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
+                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
                                 >
                                     {label}
                                 </button>

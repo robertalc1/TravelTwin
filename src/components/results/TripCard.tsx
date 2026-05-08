@@ -73,12 +73,12 @@ export function TripCard({
 
                 {/* Badges */}
                 {isDirect && (
-                    <span className="absolute top-3 left-3 rounded-md bg-success px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                    <span className="absolute top-3 left-3 rounded-md bg-success px-2 sm:px-2.5 py-0.5 sm:py-1 text-[11px] sm:text-xs font-bold text-white shadow-sm">
                         Direct
                     </span>
                 )}
                 {badge && (
-                    <span className="absolute top-3 left-3 rounded-md bg-accent-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                    <span className="absolute top-3 left-3 rounded-md bg-accent-500 px-2 sm:px-2.5 py-0.5 sm:py-1 text-[11px] sm:text-xs font-bold text-white shadow-sm">
                         {badge}
                     </span>
                 )}

@@ -89,7 +89,7 @@ export default function RouteMapEmbed({
             aria-label={`Show interactive route from ${originCity || originCode} to ${destinationCity}`}
           >
             {/* Background — static preview if available, otherwise gradient */}
-            <div className="relative h-[480px] sm:h-[600px] lg:h-[700px] overflow-hidden">
+            <div className="relative h-[360px] sm:h-[520px] lg:h-[700px] overflow-hidden">
               {staticPreviewUrl ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
@@ -136,7 +136,7 @@ export default function RouteMapEmbed({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
-            className="relative h-[480px] sm:h-[600px] lg:h-[700px]"
+            className="relative h-[360px] sm:h-[520px] lg:h-[700px]"
           >
             {/* Travel mode toggle bar — floats over the iframe */}
             {directionsUrl && (

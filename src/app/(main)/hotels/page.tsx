@@ -197,13 +197,13 @@ export default function HotelsPage() {
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
                             Enter a city above to find hotels with live availability. Supports any city worldwide.
                         </p>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {POPULAR_CITIES.map(([code, label]) => (
                                 <button
                                     key={code}
                                     type="button"
                                     onClick={() => { setCityIata(code); setCityDisplay(label); }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-1.5 text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
+                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
                                 >
                                     {label}
                                 </button>
@@ -269,7 +269,7 @@ export default function HotelsPage() {
                             {warning ||
                                 "Some cities have limited availability in our test environment. Try one of these popular destinations:"}
                         </p>
-                        <div className="flex flex-wrap items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {[
                                 ["PAR", "Paris"],
                                 ["LON", "London"],
@@ -281,7 +281,7 @@ export default function HotelsPage() {
                                     key={code}
                                     type="button"
                                     onClick={() => { setCityIata(code); setCityDisplay(label); }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-4 py-1.5 text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
+                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
                                 >
                                     {label}
                                 </button>

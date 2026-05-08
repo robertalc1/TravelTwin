@@ -610,7 +610,7 @@ export default function PlanPage() {
 
                 <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-5 sm:p-6 space-y-6">
                   {/* Travel styles grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                     {TRAVEL_STYLES.map(style => {
                       const selected = state.travelStyles.includes(style.id);
                       const tone = TONE_STYLES[style.tone];
@@ -619,14 +619,14 @@ export default function PlanPage() {
                         <button
                           key={style.id}
                           onClick={() => toggleStyle(style.id)}
-                          className={`group relative flex flex-col items-start gap-2 rounded-2xl p-3.5 text-left transition-all border-2 ${
+                          className={`group relative flex flex-col items-start gap-2 rounded-2xl p-3 sm:p-3.5 text-left transition-all border-2 min-h-[120px] ${
                             selected
                               ? "border-primary-500 bg-primary-50/60 dark:bg-primary-500/10 shadow-md"
                               : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated hover:border-primary-300 hover:shadow-md"
                           }`}
                         >
-                          <div className={`flex h-10 w-10 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${tone.iconBg}`}>
-                            <Icon className={`h-5 w-5 ${tone.iconFg}`} />
+                          <div className={`flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${tone.iconBg}`}>
+                            <Icon className={`h-4 w-4 sm:h-5 sm:w-5 ${tone.iconFg}`} />
                           </div>
                           <div className="min-w-0">
                             <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>

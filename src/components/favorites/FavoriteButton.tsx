@@ -22,8 +22,8 @@ export interface FavoriteButtonProps {
 }
 
 const SIZES = {
-  sm: { btn: "h-8 w-8", icon: "h-4 w-4" },
-  md: { btn: "h-10 w-10", icon: "h-5 w-5" },
+  sm: { btn: "h-10 w-10", icon: "h-4 w-4" },
+  md: { btn: "h-11 w-11", icon: "h-5 w-5" },
   lg: { btn: "h-12 w-12", icon: "h-6 w-6" },
 } as const;
 

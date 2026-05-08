@@ -42,7 +42,7 @@ export default function ItinerarySection({ legs: initialLegs, stops: initialStop
 
   return (
     <section>
-      <h2 className="mb-6 text-3xl font-bold text-gray-900 dark:text-gray-100">
+      <h2 className="mb-4 sm:mb-6 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
         Your itinerary
       </h2>
 

@@ -33,7 +33,7 @@ export default function AttractionPhotos({ names, city, descriptions, onSelectPl
   }, [names.join(","), city]);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
       {names.map((name, i) => {
         const photo = images[name];
         return (
