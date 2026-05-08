@@ -17,7 +17,6 @@ import AttractionPhotos from '@/components/AttractionPhotos';
 import HeroVideo from '@/components/HeroVideo';
 import LazyMount from '@/components/LazyMount';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
-import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
@@ -641,25 +640,6 @@ export default function TripDetailView({
                     );
                   })}
                 </div>
-              </section>
-            )}
-
-            {/* Weather forecast — full inline card (lazy) */}
-            {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-              <section>
-                <LazyMount
-                  fallback={
-                    <div className="h-48 bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default animate-pulse" />
-                  }
-                >
-                  <WeatherForecastCard
-                    lat={trip.destinationLat}
-                    lon={trip.destinationLon}
-                    startDate={trip.departureDate}
-                    endDate={trip.returnDate || trip.departureDate}
-                    cityName={trip.destinationCity}
-                  />
-                </LazyMount>
               </section>
             )}
 
