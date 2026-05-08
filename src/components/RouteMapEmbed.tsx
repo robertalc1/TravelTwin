@@ -122,10 +122,6 @@ export default function RouteMapEmbed({
                 <p className="text-3xl sm:text-4xl font-extrabold drop-shadow-md max-w-2xl">
                   Plan your day in {destinationCity}
                 </p>
-                <p className="text-sm sm:text-base text-white/90 max-w-xl">
-                  Routes from the airport, walking paths between attractions, and transit
-                  lines — all in one tap.
-                </p>
                 <span className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary-500 group-hover:bg-primary-600 px-6 py-3 text-sm font-bold shadow-lg transition-all group-hover:gap-3 group-hover:px-7">
                   <Navigation className="h-4 w-4" />
                   Show route map

@@ -96,10 +96,7 @@ export default function ExtrasPanel({ nights, adults = 1 }: ExtrasPanelProps) {
 
   return (
     <section>
-      <h2 className="text-xl font-bold text-secondary-500 mb-2">Add to your trip</h2>
-      <p className="text-sm text-text-muted mb-4">
-        Tap any add-on to include it. Your quote updates instantly.
-      </p>
+      <h2 className="text-xl font-bold text-secondary-500 mb-4">Add to your trip</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {catalog.map(({ item, icon: Icon, accent }) => {
           const selected = extras.some((e) => e.id === item.id);

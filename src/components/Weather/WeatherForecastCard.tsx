@@ -98,7 +98,6 @@ export function WeatherForecastCard({ lat, lon, startDate, endDate, cityName }: 
         </div>
       )}
 
-      <p className="mt-4 text-xs text-text-muted">Data: Open-Meteo (free, no API key)</p>
     </div>
   );
 }

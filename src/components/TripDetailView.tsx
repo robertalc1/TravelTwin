@@ -306,10 +306,6 @@ export default function TripDetailView({
                   <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
                     Explore {trip.destinationCity}
                   </h2>
-                  <p className="text-sm text-text-secondary mt-1 max-w-xl">
-                    Routes from {originCity || originCode || 'the airport'}, walking paths between
-                    attractions, and transit lines — all on one interactive map.
-                  </p>
                 </div>
                 {(() => {
                   const stops: string[] = [];
@@ -738,9 +734,6 @@ export default function TripDetailView({
                   </div>
                 )}
 
-                <p className="text-xs text-text-muted text-center px-2">
-                  Prices shown are estimates. Final price may vary.
-                </p>
               </div>
             )}
           </aside>
