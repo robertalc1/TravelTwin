@@ -213,60 +213,71 @@ export default function TripDetailView({
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
 
-      {/* ── Hero ── */}
-      <div className="relative h-72 md:h-96 overflow-hidden bg-neutral-900">
-        <HeroVideo
-          city={trip.destinationCity}
-          country={trip.destinationCountry}
-          fallbackImageUrl={heroUrl}
-          alt={trip.destinationCity}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-        {/* ── Action buttons top-right ── */}
-        <div className="absolute top-4 right-4 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowShare(true)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-colors"
-            aria-label="Share trip"
-          >
-            <Share2 className="h-4 w-4 text-white" />
-          </button>
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-10">
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white mb-4 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" /> {backLabel}
-          </Link>
-          <div className="flex items-end justify-between gap-6 flex-wrap">
+      {/* ── Header bar above the hero ── */}
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-6 pb-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href={backHref}
+              aria-label={backLabel}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4 text-text-primary" />
+            </Link>
             <div className="min-w-0">
-              <h1 className="text-3xl md:text-5xl font-extrabold text-white">
+              <h1 className="text-xl md:text-2xl font-extrabold text-text-primary truncate">
                 {trip.nights} nights in {trip.destinationCity}, {trip.destinationCountry}
               </h1>
               {trip.departureTime && (
-                <p className="text-white/80 mt-2 text-lg">
+                <p className="text-xs md:text-sm text-text-muted truncate">
                   {formatTime(trip.departureTime)} – {formatTime(trip.arrivalTime)}
                   {trip.duration ? ` · ${formatDuration(trip.duration)}` : ''}
                   {` · ${trip.nights} nights`}
                 </p>
               )}
             </div>
-            {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-              <div className="shrink-0 max-w-full">
-                <HeroWeatherStrip
-                  lat={trip.destinationLat}
-                  lon={trip.destinationLon}
-                  startDate={trip.departureDate}
-                  endDate={trip.returnDate || trip.departureDate}
-                  cityName={trip.destinationCity}
-                />
-              </div>
-            )}
           </div>
+          <button
+            type="button"
+            onClick={() => setShowShare(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
+            aria-label="Share trip"
+          >
+            <Share2 className="h-4 w-4 text-text-primary" />
+          </button>
+        </div>
+      </div>
+
+      {/* ── Hero card — contained, rounded ── */}
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
+        <div className="relative h-72 md:h-[420px] rounded-3xl overflow-hidden bg-neutral-900 shadow-lg">
+          <HeroVideo
+            city={trip.destinationCity}
+            country={trip.destinationCountry}
+            fallbackImageUrl={heroUrl}
+            alt={trip.destinationCity}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent pointer-events-none" />
+
+          {/* City pill — bottom-left */}
+          <div className="absolute bottom-4 left-4">
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 backdrop-blur-sm px-3 py-1.5 text-sm font-semibold text-white">
+              <MapPin className="h-3.5 w-3.5" /> {trip.destinationCity}
+            </span>
+          </div>
+
+          {/* Weather strip — bottom-right, anchored inside the contained card */}
+          {trip.departureDate && trip.destinationLat && trip.destinationLon && (
+            <div className="absolute bottom-4 right-4 max-w-[min(60%,560px)]">
+              <HeroWeatherStrip
+                lat={trip.destinationLat}
+                lon={trip.destinationLon}
+                startDate={trip.departureDate}
+                endDate={trip.returnDate || trip.departureDate}
+                cityName={trip.destinationCity}
+              />
+            </div>
+          )}
         </div>
       </div>
 
