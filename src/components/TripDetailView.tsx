@@ -14,7 +14,8 @@ import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
 import { buildLegsFromTrip, buildStopsFromTrip } from '@/lib/itineraryHelpers';
 import AttractionPhotos from '@/components/AttractionPhotos';
-import DestinationVideos from '@/components/DestinationVideos';
+import HeroVideo from '@/components/HeroVideo';
+import LazyMount from '@/components/LazyMount';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
@@ -213,15 +214,12 @@ export default function TripDetailView({
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
 
       {/* ── Hero ── */}
-      <div className="relative h-72 md:h-96 overflow-hidden">
-        <img
-          src={heroUrl}
+      <div className="relative h-72 md:h-96 overflow-hidden bg-neutral-900">
+        <HeroVideo
+          city={trip.destinationCity}
+          country={trip.destinationCountry}
+          fallbackImageUrl={heroUrl}
           alt={trip.destinationCity}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1600&h=700&fit=crop&q=85';
-          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
@@ -293,14 +291,6 @@ export default function TripDetailView({
 
           {/* ── Left column (2/3) ── */}
           <div className="lg:col-span-2 space-y-10">
-
-            {/* Destination Videos */}
-            {trip.destinationCity && (
-              <DestinationVideos
-                city={trip.destinationCity}
-                country={trip.destinationCountry}
-              />
-            )}
 
             {/* Itinerary — new Kiwi-inspired design */}
             <ItinerarySection
@@ -530,62 +520,69 @@ export default function TripDetailView({
               </section>
             )}
 
-            {/* More options: Hotels / Transfers */}
+            {/* More options: Hotels / Transfers — lazy-mounted to keep heavy
+                Amadeus fetches off the initial-render critical path. */}
             {trip.destinationCode && trip.hotelCheckIn && trip.hotelCheckOut && (
               <section id="more-options" className="scroll-mt-24">
                 <h2 className="text-xl font-bold text-secondary-500 mb-4">More options</h2>
-                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
-                  <div className="flex border-b border-neutral-100 dark:border-border-default">
-                    <button
-                      type="button"
-                      onClick={() => setMoreOptionsTab('hotels')}
-                      className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
-                        moreOptionsTab === 'hotels'
-                          ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
-                          : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      🏨 Hotels in {trip.destinationCity}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMoreOptionsTab('transfers')}
-                      className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
-                        moreOptionsTab === 'transfers'
-                          ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
-                          : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      🚗 Airport Transfers
-                    </button>
+                <LazyMount
+                  fallback={
+                    <div className="h-72 bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default animate-pulse" />
+                  }
+                >
+                  <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+                    <div className="flex border-b border-neutral-100 dark:border-border-default">
+                      <button
+                        type="button"
+                        onClick={() => setMoreOptionsTab('hotels')}
+                        className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
+                          moreOptionsTab === 'hotels'
+                            ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
+                            : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        🏨 Hotels in {trip.destinationCity}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMoreOptionsTab('transfers')}
+                        className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
+                          moreOptionsTab === 'transfers'
+                            ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
+                            : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        🚗 Airport Transfers
+                      </button>
+                    </div>
+                    <div className="p-4 sm:p-5">
+                      {moreOptionsTab === 'hotels' ? (
+                        <HotelsTab
+                          destinationCityCode={trip.destinationCode}
+                          checkInDate={trip.hotelCheckIn}
+                          checkOutDate={trip.hotelCheckOut}
+                          adults={1}
+                          onHotelSelect={setExtraHotel}
+                          selectedHotel={extraHotel}
+                        />
+                      ) : (
+                        <TransfersTab
+                          startLocationCode={trip.destinationCode}
+                          endLatitude={trip.destinationLat}
+                          endLongitude={trip.destinationLon}
+                          endCityName={trip.destinationCity}
+                          startDateTime={
+                            trip.arrivalTime ||
+                            (trip.hotelCheckIn ? `${trip.hotelCheckIn}T12:00:00` : new Date().toISOString().slice(0, 19))
+                          }
+                          adults={1}
+                          onTransferSelect={setExtraTransfer}
+                          selectedTransferId={extraTransfer?.id}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="p-4 sm:p-5">
-                    {moreOptionsTab === 'hotels' ? (
-                      <HotelsTab
-                        destinationCityCode={trip.destinationCode}
-                        checkInDate={trip.hotelCheckIn}
-                        checkOutDate={trip.hotelCheckOut}
-                        adults={1}
-                        onHotelSelect={setExtraHotel}
-                        selectedHotel={extraHotel}
-                      />
-                    ) : (
-                      <TransfersTab
-                        startLocationCode={trip.destinationCode}
-                        endLatitude={trip.destinationLat}
-                        endLongitude={trip.destinationLon}
-                        endCityName={trip.destinationCity}
-                        startDateTime={
-                          trip.arrivalTime ||
-                          (trip.hotelCheckIn ? `${trip.hotelCheckIn}T12:00:00` : new Date().toISOString().slice(0, 19))
-                        }
-                        adults={1}
-                        onTransferSelect={setExtraTransfer}
-                        selectedTransferId={extraTransfer?.id}
-                      />
-                    )}
-                  </div>
-                </div>
+                </LazyMount>
               </section>
             )}
 
@@ -636,16 +633,22 @@ export default function TripDetailView({
               </section>
             )}
 
-            {/* Weather forecast — full inline card */}
+            {/* Weather forecast — full inline card (lazy) */}
             {trip.departureDate && trip.destinationLat && trip.destinationLon && (
               <section>
-                <WeatherForecastCard
-                  lat={trip.destinationLat}
-                  lon={trip.destinationLon}
-                  startDate={trip.departureDate}
-                  endDate={trip.returnDate || trip.departureDate}
-                  cityName={trip.destinationCity}
-                />
+                <LazyMount
+                  fallback={
+                    <div className="h-48 bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default animate-pulse" />
+                  }
+                >
+                  <WeatherForecastCard
+                    lat={trip.destinationLat}
+                    lon={trip.destinationLon}
+                    startDate={trip.departureDate}
+                    endDate={trip.returnDate || trip.departureDate}
+                    cityName={trip.destinationCity}
+                  />
+                </LazyMount>
               </section>
             )}
 
