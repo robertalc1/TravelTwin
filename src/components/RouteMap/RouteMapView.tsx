@@ -3,10 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
 import {
   ArrowLeft, Plane, MapPin, Car, Footprints, Bus, Bike,
-  Coffee, Utensils, Compass, ExternalLink,
+  Coffee, Utensils, Compass, ExternalLink, Route as RouteIcon,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import {
@@ -39,6 +38,12 @@ function googleMapsSearchUrl(name: string, city: string): string {
 export default function RouteMapView({ trip, originCity, originCode }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<TravelMode>('driving');
+  /**
+   * When non-null, the iframe shows just this place (Embed API "place" mode)
+   * instead of the full route. Set by clicking any sidebar item; cleared by
+   * the "Back to full route" pill or by changing the travel mode.
+   */
+  const [focusedPlace, setFocusedPlace] = useState<string | null>(null);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;
@@ -63,10 +68,20 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     mode,
   });
 
-  const placeUrl = buildPlaceEmbedUrl(
+  // When the user clicks a sidebar item we switch to a place embed for that
+  // location — keeps the experience inside our app instead of bouncing to
+  // Google Maps in a new tab.
+  const focusedPlaceUrl = focusedPlace ? buildPlaceEmbedUrl(apiKey, focusedPlace) : null;
+
+  // Fallback when the directions URL is unavailable (no attractions yet).
+  const cityPlaceUrl = buildPlaceEmbedUrl(
     apiKey,
     `${trip.destinationCity}, ${trip.destinationCountry}`,
   );
+
+  const iframeSrc = focusedPlaceUrl ?? directionsUrl ?? cityPlaceUrl;
+  // Force reload the iframe whenever the rendered URL changes.
+  const iframeKey = focusedPlace ? `place:${focusedPlace}` : `route:${mode}`;
 
   const airport = originCode ? getAirportCoord(originCode) : undefined;
   const airportLabel = airport
@@ -91,6 +106,24 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
       router.push(`/plan/trip/${trip.id}`);
     }
   };
+
+  function focusPlace(name: string) {
+    setFocusedPlace(`${name}, ${trip.destinationCity}`);
+    // Scroll the map into view on mobile so the user sees the result
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  function showFullRoute() {
+    setFocusedPlace(null);
+  }
+
+  function selectMode(next: TravelMode) {
+    setMode(next);
+    // Switching mode is only meaningful in route view — also clears focus.
+    setFocusedPlace(null);
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50 dark:bg-background">
@@ -121,47 +154,56 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
         {/* Map column — comes second in DOM order on desktop, first on mobile */}
         <section className="order-1 lg:order-2 lg:flex-1 relative bg-neutral-100 dark:bg-neutral-900">
-          {/* Floating mode toggle */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1 max-w-[calc(100%-1.5rem)]">
-            {TRAVEL_MODES.map((id) => {
-              const { label, icon: Icon } = MODE_META[id];
-              const selected = mode === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setMode(id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all ${
-                    selected
-                      ? 'bg-primary-500 text-white shadow-md'
-                      : 'text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated'
-                  }`}
-                  aria-pressed={selected}
-                >
-                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden xs:inline sm:inline">{label}</span>
-                </button>
-              );
-            })}
-          </div>
+          {/* Floating mode toggle (route mode only) */}
+          {!focusedPlace && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1 max-w-[calc(100%-1.5rem)]">
+              {TRAVEL_MODES.map((id) => {
+                const { label, icon: Icon } = MODE_META[id];
+                const selected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => selectMode(id)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all ${
+                      selected
+                        ? 'bg-primary-500 text-white shadow-md'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated'
+                    }`}
+                    aria-pressed={selected}
+                  >
+                    <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline sm:inline">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Focused-place pill — replaces the mode toggle while focused */}
+          {focusedPlace && (
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 max-w-[calc(100%-1.5rem)]">
+              <MapPin className="h-3.5 w-3.5 text-primary-500 shrink-0" />
+              <span className="text-xs sm:text-sm font-semibold text-text-primary truncate">
+                {focusedPlace.split(',')[0]}
+              </span>
+              <button
+                type="button"
+                onClick={showFullRoute}
+                className="inline-flex items-center gap-1 rounded-full bg-primary-500 hover:bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow shrink-0"
+              >
+                <RouteIcon className="h-3 w-3" />
+                Full route
+              </button>
+            </div>
+          )}
 
           <div className="h-[55vh] lg:h-[calc(100vh-4rem)]">
-            {directionsUrl ? (
+            {iframeSrc ? (
               <iframe
-                key={mode}
-                title={`Route from ${originCity} to ${trip.destinationCity} (${mode})`}
-                src={directionsUrl}
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                allowFullScreen
-              />
-            ) : placeUrl ? (
-              <iframe
-                title={`Map of ${trip.destinationCity}`}
-                src={placeUrl}
+                key={iframeKey}
+                title={focusedPlace ? `Map of ${focusedPlace}` : `Route to ${trip.destinationCity}`}
+                src={iframeSrc}
                 width="100%"
                 height="100%"
                 style={{ border: 0 }}
@@ -191,10 +233,21 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
             {/* ROUTE STOPS */}
             <section>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">
-                Your route
-              </h2>
-              <ol className="relative space-y-3">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted">
+                  Your route
+                </h2>
+                {focusedPlace && (
+                  <button
+                    type="button"
+                    onClick={showFullRoute}
+                    className="text-xs font-bold text-primary-500 hover:text-primary-600 inline-flex items-center gap-1"
+                  >
+                    <RouteIcon className="h-3 w-3" /> Show full route
+                  </button>
+                )}
+              </div>
+              <ol className="relative space-y-2">
                 {/* Connector line */}
                 <span className="absolute left-[15px] top-3 bottom-3 w-px bg-neutral-200 dark:bg-border-default" aria-hidden />
 
@@ -202,34 +255,48 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white shadow-md z-10">
                     <Plane className="h-4 w-4" />
                   </span>
-                  <div className="min-w-0 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => focusPlace(airportLabel)}
+                    className="min-w-0 pt-1 text-left flex-1 group"
+                  >
                     <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted leading-none">
                       Arrive at
                     </p>
-                    <p className="text-sm font-semibold text-text-primary mt-0.5 truncate">
+                    <p className="text-sm font-semibold text-text-primary group-hover:text-primary-500 transition-colors mt-0.5 truncate">
                       {airportLabel}
                     </p>
-                  </div>
+                  </button>
                 </li>
 
-                {attractions.map((a, i) => (
-                  <li key={a.name + i} className="relative flex items-start gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white dark:bg-surface border-2 border-primary-500 text-primary-600 dark:text-primary-400 text-xs font-bold z-10">
-                      {i + 1}
-                    </span>
-                    <a
-                      href={googleMapsSearchUrl(a.name, trip.destinationCity)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-w-0 pt-1 block group"
-                    >
-                      <p className="text-sm font-semibold text-text-primary group-hover:text-primary-500 transition-colors truncate">
-                        {a.name}
-                      </p>
-                      <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{a.description}</p>
-                    </a>
-                  </li>
-                ))}
+                {attractions.map((a, i) => {
+                  const isFocused = focusedPlace?.startsWith(a.name + ',');
+                  return (
+                    <li key={a.name + i} className="relative flex items-start gap-3">
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold z-10 ${
+                          isFocused
+                            ? 'bg-primary-500 border-primary-500 text-white'
+                            : 'bg-white dark:bg-surface border-primary-500 text-primary-600 dark:text-primary-400'
+                        }`}
+                      >
+                        {i + 1}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => focusPlace(a.name)}
+                        className="min-w-0 pt-1 text-left flex-1 group"
+                      >
+                        <p className={`text-sm font-semibold transition-colors truncate ${
+                          isFocused ? 'text-primary-500' : 'text-text-primary group-hover:text-primary-500'
+                        }`}>
+                          {a.name}
+                        </p>
+                        <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{a.description}</p>
+                      </button>
+                    </li>
+                  );
+                })}
               </ol>
               {attractions.length === 0 && (
                 <p className="text-xs text-text-muted">
@@ -246,11 +313,13 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 </h2>
                 <ul className="space-y-1.5">
                   {restaurants.map((r) => (
-                    <PlaceLink
+                    <PlaceItem
                       key={r.name}
                       name={r.name}
                       sub={`${r.cuisine}${r.priceRange ? ' · ' + r.priceRange : ''}`}
                       city={trip.destinationCity}
+                      isFocused={focusedPlace?.startsWith(r.name + ',') ?? false}
+                      onFocus={() => focusPlace(r.name)}
                     />
                   ))}
                 </ul>
@@ -265,11 +334,13 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 </h2>
                 <ul className="space-y-1.5">
                   {cafes.map((c) => (
-                    <PlaceLink
+                    <PlaceItem
                       key={c.name}
                       name={c.name}
                       sub={c.specialty}
                       city={trip.destinationCity}
+                      isFocused={focusedPlace?.startsWith(c.name + ',') ?? false}
+                      onFocus={() => focusPlace(c.name)}
                     />
                   ))}
                 </ul>
@@ -284,11 +355,13 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 </h2>
                 <ul className="space-y-1.5">
                   {attractions.map((a) => (
-                    <PlaceLink
+                    <PlaceItem
                       key={a.name}
                       name={a.name}
                       sub={a.description}
                       city={trip.destinationCity}
+                      isFocused={focusedPlace?.startsWith(a.name + ',') ?? false}
+                      onFocus={() => focusPlace(a.name)}
                     />
                   ))}
                 </ul>
@@ -309,30 +382,62 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
   );
 }
 
-interface PlaceLinkProps {
+interface PlaceItemProps {
   name: string;
   sub?: string;
   city: string;
+  isFocused: boolean;
+  onFocus: () => void;
 }
 
-function PlaceLink({ name, sub, city }: PlaceLinkProps) {
+/**
+ * Sidebar list row. Main click focuses the in-app map iframe on this place
+ * (no navigation, stays in our UI). The small external-link icon button is a
+ * separate optional escape hatch to open Google Maps in a new tab.
+ */
+function PlaceItem({ name, sub, city, isFocused, onFocus }: PlaceItemProps) {
   return (
     <li>
-      <a
-        href={googleMapsSearchUrl(name, city)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="relative flex items-start gap-2 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10 transition-colors group"
+      <div
+        className={`relative flex items-start gap-2 rounded-xl border transition-colors ${
+          isFocused
+            ? 'border-primary-500 bg-primary-50/60 dark:bg-primary-900/15 ring-2 ring-primary-500/20'
+            : 'border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10'
+        }`}
       >
-        <MapPin className="h-3.5 w-3.5 text-text-muted group-hover:text-primary-500 mt-0.5 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-text-primary group-hover:text-primary-500 transition-colors truncate">
-            {name}
-          </p>
-          {sub && <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{sub}</p>}
-        </div>
-        <ExternalLink className="h-3.5 w-3.5 text-text-muted shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5" />
-      </a>
+        <button
+          type="button"
+          onClick={onFocus}
+          className="flex items-start gap-2 flex-1 min-w-0 px-3 py-2.5 text-left group"
+          aria-pressed={isFocused}
+        >
+          <MapPin
+            className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+              isFocused ? 'text-primary-500' : 'text-text-muted group-hover:text-primary-500'
+            }`}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={`text-sm font-semibold transition-colors truncate ${
+                isFocused ? 'text-primary-500' : 'text-text-primary group-hover:text-primary-500'
+              }`}
+            >
+              {name}
+            </p>
+            {sub && <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{sub}</p>}
+          </div>
+        </button>
+        <a
+          href={googleMapsSearchUrl(name, city)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${name} in Google Maps in a new tab`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex h-9 w-9 mr-1 my-auto items-center justify-center rounded-lg text-text-muted hover:text-primary-500 hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors shrink-0"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
     </li>
   );
 }
