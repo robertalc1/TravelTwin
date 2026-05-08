@@ -17,7 +17,7 @@ import AttractionPhotos from '@/components/AttractionPhotos';
 import DestinationVideos from '@/components/DestinationVideos';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
-import StickyWeatherWidget from '@/components/Weather/StickyWeatherWidget';
+import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
@@ -244,16 +244,31 @@ export default function TripDetailView({
           >
             <ArrowLeft className="h-4 w-4" /> {backLabel}
           </Link>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white">
-            {trip.nights} nights in {trip.destinationCity}, {trip.destinationCountry}
-          </h1>
-          {trip.departureTime && (
-            <p className="text-white/80 mt-2 text-lg">
-              {formatTime(trip.departureTime)} – {formatTime(trip.arrivalTime)}
-              {trip.duration ? ` · ${formatDuration(trip.duration)}` : ''}
-              {` · ${trip.nights} nights`}
-            </p>
-          )}
+          <div className="flex items-end justify-between gap-6 flex-wrap">
+            <div className="min-w-0">
+              <h1 className="text-3xl md:text-5xl font-extrabold text-white">
+                {trip.nights} nights in {trip.destinationCity}, {trip.destinationCountry}
+              </h1>
+              {trip.departureTime && (
+                <p className="text-white/80 mt-2 text-lg">
+                  {formatTime(trip.departureTime)} – {formatTime(trip.arrivalTime)}
+                  {trip.duration ? ` · ${formatDuration(trip.duration)}` : ''}
+                  {` · ${trip.nights} nights`}
+                </p>
+              )}
+            </div>
+            {trip.departureDate && trip.destinationLat && trip.destinationLon && (
+              <div className="shrink-0 max-w-full">
+                <HeroWeatherStrip
+                  lat={trip.destinationLat}
+                  lon={trip.destinationLon}
+                  startDate={trip.departureDate}
+                  endDate={trip.returnDate || trip.departureDate}
+                  cityName={trip.destinationCity}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -765,16 +780,6 @@ export default function TripDetailView({
         </div>
       </div>
 
-      {/* Sticky compact weather — always visible while user scrolls */}
-      {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-        <StickyWeatherWidget
-          lat={trip.destinationLat}
-          lon={trip.destinationLon}
-          startDate={trip.departureDate}
-          endDate={trip.returnDate || trip.departureDate}
-          cityName={trip.destinationCity}
-        />
-      )}
     </div>
   );
 }
