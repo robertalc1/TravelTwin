@@ -264,20 +264,37 @@ export default function TripDetailView({
             </span>
           </div>
 
-          {/* Weather strip — top-right on mobile (above the city pill area),
-              bottom-right on desktop. Constrained width on narrow screens. */}
+          {/* Weather strip overlay — DESKTOP ONLY. On mobile the hero would be
+              covered by the strip, so we render a regular inline strip just
+              below the hero card instead (see next block). */}
           {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-            <div className="absolute top-3 right-3 sm:top-auto sm:bottom-4 sm:right-4 max-w-[calc(100%-1.5rem)] sm:max-w-[min(60%,560px)]">
+            <div className="hidden sm:block absolute bottom-4 right-4 max-w-[min(60%,560px)]">
               <HeroWeatherStrip
                 lat={trip.destinationLat}
                 lon={trip.destinationLon}
                 startDate={trip.departureDate}
                 endDate={trip.returnDate || trip.departureDate}
                 cityName={trip.destinationCity}
+                variant="overlay"
               />
             </div>
           )}
         </div>
+
+        {/* Mobile-only inline weather strip — sits under the hero card so the
+            video stays unobstructed. */}
+        {trip.departureDate && trip.destinationLat && trip.destinationLon && (
+          <div className="sm:hidden mt-3">
+            <HeroWeatherStrip
+              lat={trip.destinationLat}
+              lon={trip.destinationLon}
+              startDate={trip.departureDate}
+              endDate={trip.returnDate || trip.departureDate}
+              cityName={trip.destinationCity}
+              variant="inline"
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Share Modal ── */}

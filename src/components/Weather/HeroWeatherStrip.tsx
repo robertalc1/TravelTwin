@@ -11,15 +11,23 @@ interface Props {
   startDate: string;
   endDate: string;
   cityName: string;
+  /**
+   * `overlay` (default) — frosted glass for placement on top of the hero photo.
+   * `inline`           — solid card with regular border, for placement on the
+   *                      page background (used below the hero on mobile).
+   */
+  variant?: 'overlay' | 'inline';
 }
 
 /**
- * Compact horizontal weather strip designed to live inside the trip hero.
- * Always-expanded; shows the daily forecast as a row of day pills with
- * a translucent backdrop so it reads on top of the hero photo. Hidden if
- * Open-Meteo can't serve the date range (more than 16 days ahead).
+ * Compact horizontal weather strip. Two style variants share the same data:
+ * the `overlay` variant lives inside the hero on top of the photo; the `inline`
+ * variant renders as a regular card on the page so it has its own readable
+ * surface when there isn't enough room over the hero (e.g. mobile, where the
+ * overlay would cover the video). Hidden if Open-Meteo can't serve the date
+ * range (more than 16 days ahead).
  */
-export default function HeroWeatherStrip({ lat, lon, startDate, endDate, cityName }: Props) {
+export default function HeroWeatherStrip({ lat, lon, startDate, endDate, cityName, variant = 'overlay' }: Props) {
   const [data, setData] = useState<WeatherResponse | null>(null);
 
   useEffect(() => {
@@ -48,11 +56,18 @@ export default function HeroWeatherStrip({ lat, lon, startDate, endDate, cityNam
 
   const today = new Date().toISOString().slice(0, 10);
 
+  const isOverlay = variant === 'overlay';
+  const wrapperClass = isOverlay
+    ? 'rounded-xl sm:rounded-2xl bg-white/15 dark:bg-black/30 backdrop-blur-md border border-white/20 px-2 py-2 sm:px-3 sm:py-2.5 shadow-xl'
+    : 'rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default px-3 py-2.5 shadow-sm';
+  const labelClass = isOverlay ? 'text-white/90' : 'text-text-secondary';
+  const iconClass = isOverlay ? 'text-white/90' : 'text-primary-500';
+
   return (
-    <div className="rounded-xl sm:rounded-2xl bg-white/15 dark:bg-black/30 backdrop-blur-md border border-white/20 px-2 py-2 sm:px-3 sm:py-2.5 shadow-xl">
+    <div className={wrapperClass}>
       <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2 px-1">
-        <CloudSun className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-white/90 shrink-0" />
-        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-white/90 truncate">
+        <CloudSun className={`h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0 ${iconClass}`} />
+        <span className={`text-[10px] sm:text-[11px] font-bold uppercase tracking-wider truncate ${labelClass}`}>
           Weather in {cityName}
         </span>
       </div>
