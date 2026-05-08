@@ -336,55 +336,53 @@ export default function TripDetailView({
                 })()}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
-                {/* Map (60%) */}
-                <div className="lg:col-span-3 space-y-2">
-                  <RouteMapEmbed
-                    originCode={originCode}
-                    originCity={originCity}
-                    destinationCity={trip.destinationCity}
-                    destinationCountry={trip.destinationCountry}
-                    destinationLat={trip.destinationLat}
-                    destinationLon={trip.destinationLon}
-                    attractions={ai?.topAttractions ?? []}
+              {/* Map — full width within the column */}
+              <div className="space-y-2">
+                <RouteMapEmbed
+                  originCode={originCode}
+                  originCity={originCity}
+                  destinationCity={trip.destinationCity}
+                  destinationCountry={trip.destinationCountry}
+                  destinationLat={trip.destinationLat}
+                  destinationLon={trip.destinationLon}
+                  attractions={ai?.topAttractions ?? []}
+                />
+                <p className="text-xs text-text-muted text-center">
+                  {trip.destinationCity}, {trip.destinationCountry} ·{' '}
+                  {trip.destinationLat.toFixed(4)}°N, {trip.destinationLon.toFixed(4)}°E
+                </p>
+              </div>
+
+              {/* Top Attractions — photo grid integrated under the map */}
+              {ai?.topAttractions && ai.topAttractions.length > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+                    <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                      Top Attractions
+                    </span>
+                  </div>
+                  <AttractionPhotos
+                    names={ai.topAttractions.map((a) => a.name)}
+                    city={trip.destinationCity}
+                    descriptions={Object.fromEntries(ai.topAttractions.map((a) => [a.name, a.description]))}
+                    onSelectPlace={setSelectedPlace}
+                    selectedPlace={selectedPlace}
                   />
-                  <p className="text-xs text-text-muted text-center">
-                    {trip.destinationCity}, {trip.destinationCountry} ·{' '}
-                    {trip.destinationLat.toFixed(4)}°N, {trip.destinationLon.toFixed(4)}°E
-                  </p>
                 </div>
+              )}
 
-                {/* Place list (40%) — scrollable */}
-                <div className="lg:col-span-2 max-h-[700px] overflow-y-auto space-y-4 pr-0.5">
-                  {ai?.topAttractions && ai.topAttractions.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1 z-[1]">
-                        <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
-                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Attractions</span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {ai.topAttractions.map((a, i) => (
-                          <a
-                            key={i}
-                            href={`https://www.google.com/maps/search/${encodeURIComponent(`${a.name}, ${trip.destinationCity}`)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
-                          >
-                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{a.name}</p>
-                            <p className="text-xs text-text-muted capitalize mt-0.5">{a.category}</p>
-                            <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
+              {/* Restaurants + cafes — compact, two-column on desktop, below the photo grid */}
+              {((ai?.topRestaurants && ai.topRestaurants.length > 0) ||
+                (ai?.topCafes && ai.topCafes.length > 0)) && (
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {ai?.topRestaurants && ai.topRestaurants.length > 0 && (
                     <div>
-                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1 z-[1]">
+                      <div className="flex items-center gap-2 mb-3">
                         <span className="h-2.5 w-2.5 rounded-full bg-green-500 shrink-0" />
-                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Restaurants</span>
+                        <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                          Restaurants
+                        </span>
                       </div>
                       <div className="space-y-1.5">
                         {ai.topRestaurants.map((r, i) => (
@@ -395,9 +393,7 @@ export default function TripDetailView({
                             rel="noopener noreferrer"
                             className="relative block w-full text-left rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2.5 transition-all group hover:border-primary-300 hover:bg-primary-50/50 dark:hover:bg-primary-900/10"
                           >
-                            <div className="flex items-center justify-between pr-6">
-                              <p className="font-semibold text-secondary-500 dark:text-white text-sm">{r.name}</p>
-                            </div>
+                            <p className="font-semibold text-secondary-500 dark:text-white text-sm pr-6">{r.name}</p>
                             <p className="text-xs text-text-muted mt-0.5">{r.cuisine}</p>
                             <MapPin className="absolute bottom-2.5 right-2.5 h-3.5 w-3.5 text-text-muted opacity-0 group-hover:opacity-70 group-hover:text-primary-500 transition-all" />
                           </a>
@@ -408,9 +404,11 @@ export default function TripDetailView({
 
                   {ai?.topCafes && ai.topCafes.length > 0 && (
                     <div>
-                      <div className="flex items-center gap-2 mb-2 sticky top-0 bg-neutral-50 dark:bg-background py-1 z-[1]">
+                      <div className="flex items-center gap-2 mb-3">
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0" />
-                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Cafes</span>
+                        <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                          Cafes
+                        </span>
                       </div>
                       <div className="space-y-1.5">
                         {ai.topCafes.map((c, i) => (
@@ -430,55 +428,95 @@ export default function TripDetailView({
                     </div>
                   )}
                 </div>
-              </div>
+              )}
             </section>
 
-            {/* Hotel card */}
+            {/* ── Your hotel — included in the package ── */}
             {trip.hotelName && (
-              <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary-50 dark:bg-secondary-900/20 text-secondary-500">
-                    <Hotel className="h-5 w-5" />
+              <section>
+                <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
+                  <div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-1">
+                      <Check className="h-3 w-3" /> Included in your trip
+                    </span>
+                    <h2 className="text-xl font-bold text-secondary-500 dark:text-white">Your hotel</h2>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-secondary-500">{trip.hotelName}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      {Array.from({ length: trip.hotelStars }).map((_, i) => (
-                        <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      ))}
-                      <span className="text-xs text-text-muted ml-1">{trip.hotelStars} stars</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('more-options');
+                      if (el) {
+                        setMoreOptionsTab('hotels');
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-primary-200 dark:border-primary-800/40 bg-primary-50 dark:bg-primary-900/20 px-3 py-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900/30 transition-colors"
+                  >
+                    Browse other hotels →
+                  </button>
+                </div>
+
+                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+                  {/* Header row */}
+                  <div className="p-5 flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary-50 dark:bg-secondary-900/20 text-secondary-500 shrink-0">
+                      <Hotel className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-secondary-500 dark:text-white text-base truncate">{trip.hotelName}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        {Array.from({ length: trip.hotelStars }).map((_, i) => (
+                          <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                        ))}
+                        <span className="text-xs text-text-muted ml-1">{trip.hotelStars}-star hotel</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-2xl font-extrabold text-primary-500 leading-none">
+                        {formatCurrency(trip.hotelPrice, src)}
+                      </p>
+                      <p className="text-xs text-text-muted mt-1">
+                        {formatCurrency(trip.hotelPricePerNight, src)} × {trip.nights} {trip.nights === 1 ? 'night' : 'nights'}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-bold text-primary-500">{formatCurrency(trip.hotelPricePerNight, src)}/night</p>
-                    <p className="text-xs text-text-muted">{trip.nights} nights total</p>
-                  </div>
+
+                  {/* Dates strip */}
+                  {trip.hotelCheckIn && (
+                    <div className="grid grid-cols-2 border-t border-neutral-100 dark:border-border-default">
+                      <div className="px-5 py-3">
+                        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Check-in</p>
+                        <p className="text-sm font-semibold text-text-primary mt-0.5">{trip.hotelCheckIn}</p>
+                        <p className="text-xs text-text-muted">From 15:00</p>
+                      </div>
+                      <div className="px-5 py-3 border-l border-neutral-100 dark:border-border-default">
+                        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Check-out</p>
+                        <p className="text-sm font-semibold text-text-primary mt-0.5">{trip.hotelCheckOut}</p>
+                        <p className="text-xs text-text-muted">By 11:00</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Amenities */}
+                  {trip.hotelAmenities && trip.hotelAmenities.length > 0 && (
+                    <div className="px-5 py-3 border-t border-neutral-100 dark:border-border-default">
+                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">What&apos;s included</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {trip.hotelAmenities.map((a) => (
+                          <span key={a} className="rounded-full bg-neutral-100 dark:bg-surface-elevated px-2.5 py-0.5 text-xs text-text-secondary">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {trip.hotelCheckIn && (
-                  <div className="flex flex-wrap gap-4 mt-4 text-xs text-text-muted">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" /> Check-in: {trip.hotelCheckIn}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" /> Check-out: {trip.hotelCheckOut}
-                    </span>
-                  </div>
-                )}
-                {trip.hotelAmenities && trip.hotelAmenities.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {trip.hotelAmenities.map((a) => (
-                      <span key={a} className="rounded-full bg-neutral-100 dark:bg-surface-elevated px-2.5 py-0.5 text-xs text-text-secondary">
-                        {a}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              </section>
             )}
 
             {/* More options: Hotels / Transfers */}
             {trip.destinationCode && trip.hotelCheckIn && trip.hotelCheckOut && (
-              <section>
+              <section id="more-options" className="scroll-mt-24">
                 <h2 className="text-xl font-bold text-secondary-500 mb-4">More options</h2>
                 <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
                   <div className="flex border-b border-neutral-100 dark:border-border-default">
@@ -579,20 +617,6 @@ export default function TripDetailView({
                     );
                   })}
                 </div>
-              </section>
-            )}
-
-            {/* Top Attractions */}
-            {ai?.topAttractions && ai.topAttractions.length > 0 && (
-              <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-4">Top Attractions</h2>
-                <AttractionPhotos
-                  names={ai.topAttractions.map((a) => a.name)}
-                  city={trip.destinationCity}
-                  descriptions={Object.fromEntries(ai.topAttractions.map((a) => [a.name, a.description]))}
-                  onSelectPlace={setSelectedPlace}
-                  selectedPlace={selectedPlace}
-                />
               </section>
             )}
 
