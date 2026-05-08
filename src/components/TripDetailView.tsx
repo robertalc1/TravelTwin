@@ -16,7 +16,7 @@ import { buildLegsFromTrip, buildStopsFromTrip } from '@/lib/itineraryHelpers';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import DestinationVideos from '@/components/DestinationVideos';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
-import { WeatherForecastCard } from '@/components/Weather/WeatherForecastCard';
+import StickyWeatherWidget from '@/components/Weather/StickyWeatherWidget';
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import TransfersTab from '@/components/TripDetail/TransfersTab';
@@ -620,19 +620,6 @@ export default function TripDetailView({
               </section>
             )}
 
-            {/* Weather forecast (when dates and coords are available) */}
-            {trip.departureDate && trip.destinationLat && trip.destinationLon && (
-              <section>
-                <WeatherForecastCard
-                  lat={trip.destinationLat}
-                  lon={trip.destinationLon}
-                  startDate={trip.departureDate}
-                  endDate={trip.returnDate || trip.departureDate}
-                  cityName={trip.destinationCity}
-                />
-              </section>
-            )}
-
             {/* Cost Breakdown — sourced from the live pricing store */}
             <section>
               <h2 className="text-xl font-bold text-secondary-500 mb-4">Cost Breakdown</h2>
@@ -763,6 +750,17 @@ export default function TripDetailView({
           </aside>
         </div>
       </div>
+
+      {/* Sticky compact weather — always visible while user scrolls */}
+      {trip.departureDate && trip.destinationLat && trip.destinationLon && (
+        <StickyWeatherWidget
+          lat={trip.destinationLat}
+          lon={trip.destinationLon}
+          startDate={trip.departureDate}
+          endDate={trip.returnDate || trip.departureDate}
+          cityName={trip.destinationCity}
+        />
+      )}
     </div>
   );
 }
