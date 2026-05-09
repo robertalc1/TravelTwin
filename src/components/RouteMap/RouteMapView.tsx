@@ -60,7 +60,9 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     max: 4,
   });
 
-  const directionsUrl = buildDirectionsEmbedUrl({
+  // Full multi-stop route (airport → 4 attractions) — used in the default
+  // (un-focused) state.
+  const fullRouteUrl = buildDirectionsEmbedUrl({
     apiKey,
     origin,
     destination,
@@ -68,20 +70,30 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     mode,
   });
 
-  // When the user clicks a sidebar item we switch to a place embed for that
-  // location — keeps the experience inside our app instead of bouncing to
-  // Google Maps in a new tab.
-  const focusedPlaceUrl = focusedPlace ? buildPlaceEmbedUrl(apiKey, focusedPlace) : null;
+  // When the user clicks a place we switch to a SINGLE-STOP directions
+  // embed (airport → focused place) so the iframe still draws an actual
+  // travel polyline and lets the user compare modes for that one trip.
+  const focusedDirectionsUrl = focusedPlace
+    ? buildDirectionsEmbedUrl({
+        apiKey,
+        origin,
+        destination: focusedPlace,
+        waypoints: [],
+        mode,
+      })
+    : null;
 
-  // Fallback when the directions URL is unavailable (no attractions yet).
+  // Last-ditch fallback if no API key / origin is available.
   const cityPlaceUrl = buildPlaceEmbedUrl(
     apiKey,
     `${trip.destinationCity}, ${trip.destinationCountry}`,
   );
 
-  const iframeSrc = focusedPlaceUrl ?? directionsUrl ?? cityPlaceUrl;
-  // Force reload the iframe whenever the rendered URL changes.
-  const iframeKey = focusedPlace ? `place:${focusedPlace}` : `route:${mode}`;
+  const iframeSrc = focusedDirectionsUrl ?? fullRouteUrl ?? cityPlaceUrl;
+  // Force reload the iframe whenever the rendered route changes.
+  const iframeKey = focusedPlace
+    ? `focus:${focusedPlace}:${mode}`
+    : `route:${mode}`;
 
   const airport = originCode ? getAirportCoord(originCode) : undefined;
   const airportLabel = airport
@@ -120,9 +132,10 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
   }
 
   function selectMode(next: TravelMode) {
+    // Mode now applies to BOTH the full route and the focused single-stop
+    // route, so we don't clear focus — the user can compare modes for the
+    // place they just tapped.
     setMode(next);
-    // Switching mode is only meaningful in route view — also clears focus.
-    setFocusedPlace(null);
   }
 
   return (
@@ -154,9 +167,13 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
         {/* Map column — comes second in DOM order on desktop, first on mobile */}
         <section className="order-1 lg:order-2 lg:flex-1 relative bg-neutral-100 dark:bg-neutral-900">
-          {/* Floating mode toggle (route mode only) */}
-          {!focusedPlace && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1 max-w-[calc(100%-1.5rem)]">
+          {/* Floating controls — mode toggle (always) + focused-place chip */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-[calc(100%-1.5rem)]">
+            {/* Mode toggle — always visible. Switching modes works for both
+                the full route and the focused single-stop route, so the user
+                can compare driving vs walking vs transit vs cycling for any
+                place they tapped. */}
+            <div className="flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1">
               {TRAVEL_MODES.map((id) => {
                 const { label, icon: Icon } = MODE_META[id];
                 const selected = mode === id;
@@ -178,31 +195,37 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 );
               })}
             </div>
-          )}
 
-          {/* Focused-place pill — replaces the mode toggle while focused */}
-          {focusedPlace && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 max-w-[calc(100%-1.5rem)]">
-              <MapPin className="h-3.5 w-3.5 text-primary-500 shrink-0" />
-              <span className="text-xs sm:text-sm font-semibold text-text-primary truncate">
-                {focusedPlace.split(',')[0]}
-              </span>
-              <button
-                type="button"
-                onClick={showFullRoute}
-                className="inline-flex items-center gap-1 rounded-full bg-primary-500 hover:bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow shrink-0"
-              >
-                <RouteIcon className="h-3 w-3" />
-                Full route
-              </button>
-            </div>
-          )}
+            {/* Focused-place chip — visible only when the user has tapped a
+                place. Tells them what the iframe is showing now and gives
+                them a one-tap escape back to the full multi-stop route. */}
+            {focusedPlace && (
+              <div className="flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 w-full max-w-full">
+                <MapPin className="h-3.5 w-3.5 text-primary-500 shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-text-primary truncate">
+                  Route to {focusedPlace.split(',')[0]}
+                </span>
+                <button
+                  type="button"
+                  onClick={showFullRoute}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary-500 hover:bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow shrink-0 ml-auto"
+                >
+                  <RouteIcon className="h-3 w-3" />
+                  Full route
+                </button>
+              </div>
+            )}
+          </div>
 
           <div className="h-[55vh] lg:h-[calc(100vh-4rem)]">
             {iframeSrc ? (
               <iframe
                 key={iframeKey}
-                title={focusedPlace ? `Map of ${focusedPlace}` : `Route to ${trip.destinationCity}`}
+                title={
+                  focusedPlace
+                    ? `Route to ${focusedPlace} (${mode})`
+                    : `Route to ${trip.destinationCity} (${mode})`
+                }
                 src={iframeSrc}
                 width="100%"
                 height="100%"
