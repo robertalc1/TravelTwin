@@ -311,12 +311,18 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
                 {attractions.map((a, i) => {
                   const isFocused = focusedPlace?.startsWith(a.name + ',');
+                  const isLast = i === attractions.length - 1;
+                  // The last stop is the route endpoint — render it as a
+                  // filled orange marker so the user can spot the
+                  // destination at a glance among the otherwise outlined
+                  // numbered stops.
+                  const filled = isFocused || isLast;
                   return (
                     <li key={a.name + i} className="relative flex items-start gap-3">
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold z-10 ${
-                          isFocused
-                            ? 'bg-primary-500 border-primary-500 text-white'
+                          filled
+                            ? 'bg-primary-500 border-primary-500 text-white shadow-md'
                             : 'bg-white dark:bg-surface border-primary-500 text-primary-600 dark:text-primary-400'
                         }`}
                       >
@@ -331,6 +337,11 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                           isFocused ? 'text-primary-500' : 'text-text-primary group-hover:text-primary-500'
                         }`}>
                           {a.name}
+                          {isLast && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 align-middle">
+                              Final
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{a.description}</p>
                       </button>
@@ -415,11 +426,6 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             >
               <ArrowLeft className="h-4 w-4" /> Back to your trip
             </Link>
-
-            <p className="text-[10px] text-text-muted text-center leading-relaxed pt-1">
-              Powered by Google Maps Embed — free of charge, switch modes as
-              often as you like.
-            </p>
           </div>
         </aside>
       </div>
