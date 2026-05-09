@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Plane, MapPin, Car, Footprints, Bus, Bike,
   Coffee, Utensils, Compass, ExternalLink, Route as RouteIcon,
+  Info,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import {
@@ -195,6 +196,22 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 );
               })}
             </div>
+
+            {/* Mode-availability notice — Google's transit and cycling data
+                isn't available for every city/route. When the iframe shows
+                no polyline for these modes, the user shouldn't think our app
+                is broken — surface a tiny hint nudging them to try driving
+                or walking instead. */}
+            {(mode === 'transit' || mode === 'bicycling') && (
+              <div className="flex items-start gap-1.5 bg-amber-50/95 dark:bg-amber-900/20 backdrop-blur-md rounded-xl border border-amber-200/60 dark:border-amber-800/40 px-3 py-1.5 max-w-full">
+                <Info className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200">
+                  {mode === 'transit'
+                    ? 'Public transit data depends on Google coverage for this city. If no bus routes appear, try driving or walking.'
+                    : 'Cycling routes depend on Google coverage. If the path is missing, try driving or walking.'}
+                </p>
+              </div>
+            )}
 
             {/* Focused-place chip — visible only when the user has tapped a
                 place. Tells them what the iframe is showing now and gives
@@ -398,6 +415,11 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             >
               <ArrowLeft className="h-4 w-4" /> Back to your trip
             </Link>
+
+            <p className="text-[10px] text-text-muted text-center leading-relaxed pt-1">
+              Powered by Google Maps Embed — free of charge, switch modes as
+              often as you like.
+            </p>
           </div>
         </aside>
       </div>
