@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Plane, MapPin, Car, Footprints, Bus, Bike,
-  Coffee, Utensils, Compass, ExternalLink, Route as RouteIcon,
+  Coffee, Utensils, Compass, ExternalLink,
   Info,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
@@ -213,23 +213,15 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
               </div>
             )}
 
-            {/* Focused-place chip — visible only when the user has tapped a
-                place. Tells them what the iframe is showing now and gives
-                them a one-tap escape back to the full multi-stop route. */}
+            {/* Focused-place chip — tells the user what the iframe is showing
+                now. Tap any other sidebar item (or the airport stop) to
+                switch the focus. */}
             {focusedPlace && (
               <div className="flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 w-full max-w-full">
                 <MapPin className="h-3.5 w-3.5 text-primary-500 shrink-0" />
                 <span className="text-xs sm:text-sm font-semibold text-text-primary truncate">
                   Route to {focusedPlace.split(',')[0]}
                 </span>
-                <button
-                  type="button"
-                  onClick={showFullRoute}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary-500 hover:bg-primary-600 px-3 py-1 text-xs font-bold text-white shadow shrink-0 ml-auto"
-                >
-                  <RouteIcon className="h-3 w-3" />
-                  Full route
-                </button>
               </div>
             )}
           </div>
@@ -273,20 +265,9 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
             {/* ROUTE STOPS */}
             <section>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted">
-                  Your route
-                </h2>
-                {focusedPlace && (
-                  <button
-                    type="button"
-                    onClick={showFullRoute}
-                    className="text-xs font-bold text-primary-500 hover:text-primary-600 inline-flex items-center gap-1"
-                  >
-                    <RouteIcon className="h-3 w-3" /> Show full route
-                  </button>
-                )}
-              </div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">
+                Your route
+              </h2>
               <ol className="relative space-y-2">
                 {/* Connector line */}
                 <span className="absolute left-[15px] top-3 bottom-3 w-px bg-neutral-200 dark:bg-border-default" aria-hidden />
@@ -297,8 +278,9 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                   </span>
                   <button
                     type="button"
-                    onClick={() => focusPlace(airportLabel)}
+                    onClick={showFullRoute}
                     className="min-w-0 pt-1 text-left flex-1 group"
+                    aria-label="Reset to full multi-stop route"
                   >
                     <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted leading-none">
                       Arrive at
