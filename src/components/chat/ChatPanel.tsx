@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Plane, Sparkles } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
@@ -35,9 +36,14 @@ const QUICK_PROMPTS = [
 ];
 
 export function ChatPanel() {
+  const pathname = usePathname();
   const isOpen = useChatStore(s => s.isOpen);
   const openChat = useChatStore(s => s.open);
   const closeChat = useChatStore(s => s.close);
+
+  // Hide on the full-page route map — the floating button collides with
+  // Google Maps' fullscreen control and the in-iframe controls.
+  const hidden = pathname?.endsWith('/map') ?? false;
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -116,6 +122,8 @@ export function ChatPanel() {
   }
 
   const showQuickPrompts = messages.length === 1 && !isLoading;
+
+  if (hidden) return null;
 
   return (
     <>
