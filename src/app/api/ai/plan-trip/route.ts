@@ -132,8 +132,9 @@ export async function POST(req: NextRequest) {
           .map((f) => normalizeFlight(f, origin, dest.iata, 'ECONOMY'))
           .filter((f): f is NormalizedFlight => f !== null);
 
+        // f.price is per-passenger; compare total trip cost against flightBudget.
         const affordableFlight =
-          normalizedFlights.find((f) => f.price <= flightBudget * totalAdults) ||
+          normalizedFlights.find((f) => f.price * totalAdults <= flightBudget) ||
           normalizedFlights[0] ||
           null;
 
@@ -158,7 +159,9 @@ export async function POST(req: NextRequest) {
     const packages: TripPackage[] = [];
 
     for (const { dest, flight: liveFlight, hotel: liveHotel } of searchResults) {
-      let flightPrice = liveFlight ? liveFlight.price : 0;
+      // Tripadvisor returns flight price per passenger — multiply by total
+      // travellers so the displayed package price covers everyone.
+      let flightPrice = liveFlight ? liveFlight.price * totalAdults : 0;
       let hotelPrice = liveHotel ? liveHotel.totalPrice : 0;
 
       const estimate = estimateTripPrice(origin, dest.iata, nights, budget);
