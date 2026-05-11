@@ -1,61 +1,9 @@
 import { NextResponse } from 'next/server';
-import { searchHotelsByCity, searchHotelOffers } from '@/lib/amadeus-client';
+import { searchHotelsByCity } from '@/lib/tripadvisor-client';
+import { normalizeHotel } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
-import { getCityFromIata } from '@/lib/iataMapping';
+import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
 import type { NormalizedHotel } from '@/lib/supabase/types';
-
-function normalizeAmadeusHotel(
-  offer: Record<string, unknown>,
-  cityCode: string
-): NormalizedHotel {
-  const hotel = offer.hotel as Record<string, unknown> | undefined;
-  const offers = (offer.offers as Record<string, unknown>[]) || [];
-  const firstOffer = offers[0] || {};
-  const price = firstOffer.price as Record<string, unknown> | undefined;
-  const room = firstOffer.room as Record<string, unknown> | undefined;
-  const roomDesc = room?.description as Record<string, unknown> | undefined;
-  const policies = firstOffer.policies as Record<string, unknown> | undefined;
-  const cancellation = policies?.cancellations as Record<string, unknown>[] | undefined;
-
-  const totalPrice = parseFloat(price?.total as string) || 0;
-  const checkIn = (firstOffer.checkInDate as string) || '';
-  const checkOut = (firstOffer.checkOutDate as string) || '';
-  const nights =
-    checkIn && checkOut
-      ? Math.max(1, Math.ceil((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
-      : 1;
-
-  const rawPricePerNight = totalPrice / nights;
-  const pricePerNight =
-    rawPricePerNight > 5000
-      ? Math.round(rawPricePerNight / 100)
-      : Math.round(rawPricePerNight * 100) / 100;
-
-  const correctedTotal = Math.round(pricePerNight * nights * 100) / 100;
-
-  return {
-    id: (hotel?.hotelId as string) || crypto.randomUUID(),
-    name: (hotel?.name as string) || 'Unknown Hotel',
-    cityCode,
-    cityName: getCityFromIata(cityCode),
-    address: ((hotel?.address as Record<string, unknown>)?.lines as string[])?.join(', ') || '',
-    rating: parseInt(hotel?.rating as string) || 3,
-    pricePerNight,
-    totalPrice: correctedTotal,
-    currency: (price?.currency as string) || 'EUR',
-    roomType:
-      (roomDesc?.text as string) ||
-      ((room?.typeEstimated as Record<string, unknown>)?.category as string) ||
-      'Standard Room',
-    amenities: ((hotel?.amenities as string[]) || []).slice(0, 6),
-    cancellationPolicy: cancellation?.[0]
-      ? `Free cancellation before ${(cancellation[0].deadline as string)?.split('T')[0] || 'check-in'}`
-      : 'Non-refundable',
-    source: 'live',
-    lastUpdated: new Date().toISOString(),
-  };
-}
 
 export async function GET(request: Request) {
   try {
@@ -73,35 +21,36 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Check cache (30 min TTL)
+    // 1. Check cache (60 min TTL)
     const cacheKey = `hotel:${cityCode}:${checkInDate}:${checkOutDate}:${adults}:${rooms}`;
     const cached = await getCached(cacheKey);
     if (cached) {
-      const hotels = (cached.data as NormalizedHotel[]).map((h) => ({ ...h, source: 'cached' as const }));
+      const hotels = (cached.data as NormalizedHotel[]).map((h) => ({
+        ...h,
+        source: 'cached' as const,
+      }));
       return NextResponse.json({ hotels, source: 'cached', count: hotels.length });
     }
 
-    // 2. Try Amadeus API (SDK with automatic REST fallback)
-    if (canMakeAmadeusCall()) {
+    // 2. Try Tripadvisor RapidAPI — one call resolves geoId (cached internally) + fetches hotels
+    if (canMakeRapidApiCall()) {
       try {
-        recordAmadeusCall();
-        const hotelList = await searchHotelsByCity(cityCode);
-        const hotelIds = (hotelList as Record<string, unknown>[])
-          .slice(0, 20)
-          .map((h) => h.hotelId as string)
-          .filter(Boolean);
+        recordRapidApiCall();
+        const rawHotels = await searchHotelsByCity({
+          cityCode,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          adults,
+          rooms,
+        });
 
-        if (hotelIds.length > 0) {
-          recordAmadeusCall();
-          const offersRaw = await searchHotelOffers(hotelIds, checkInDate, checkOutDate, adults);
-          const hotels: NormalizedHotel[] = (offersRaw as Record<string, unknown>[]).map((offer) =>
-            normalizeAmadeusHotel(offer, cityCode)
-          );
+        const hotels: NormalizedHotel[] = rawHotels.map((h) =>
+          normalizeHotel(h, cityCode, checkInDate, checkOutDate)
+        );
 
-          if (hotels.length > 0) {
-            await setCache(cacheKey, hotels, 60);
-            return NextResponse.json({ hotels, source: 'live', count: hotels.length });
-          }
+        if (hotels.length > 0) {
+          await setCache(cacheKey, hotels, 60);
+          return NextResponse.json({ hotels, source: 'live', count: hotels.length });
         }
 
         return NextResponse.json({
@@ -111,7 +60,7 @@ export async function GET(request: Request) {
           warning: `No hotels found in ${cityCode} for the selected dates. Try different dates.`,
         });
       } catch (err: unknown) {
-        console.error('[Hotels] Amadeus search failed:', (err as Error)?.message);
+        console.error('[Hotels] Tripadvisor search failed:', (err as Error)?.message);
       }
     }
 
