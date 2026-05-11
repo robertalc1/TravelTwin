@@ -34,6 +34,12 @@ const config: Record<DataSource, { label: string; dot: string; bg: string; text:
     bg: "bg-purple-50 dark:bg-purple-500/10",
     text: "text-purple-700 dark:text-purple-400",
   },
+  tripadvisor: {
+    label: "Live",
+    dot: "bg-green-500",
+    bg: "bg-green-50 dark:bg-green-500/10",
+    text: "text-green-700 dark:text-green-400",
+  },
 };
 
 interface SourceBadgeProps {

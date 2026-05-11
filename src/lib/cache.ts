@@ -39,7 +39,7 @@ export async function setCache(cacheKey: string, data: unknown, ttlMinutes: numb
       {
         cache_key: cacheKey,
         data,
-        source: 'amadeus',
+        source: 'tripadvisor',
         expires_at: expiresAt,
         hit_count: 0,
       },

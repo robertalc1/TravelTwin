@@ -130,8 +130,14 @@ export interface TripRecommendation {
     savingsPercent: number;
 }
 
-/* ── Normalized API types (Amadeus + static) ── */
-export type DataSource = 'live' | 'cached' | 'fallback' | 'aviationstack' | 'reference';
+/* ── Normalized API types (Tripadvisor + static) ── */
+export type DataSource =
+    | 'live'
+    | 'cached'
+    | 'fallback'
+    | 'aviationstack'
+    | 'reference'
+    | 'tripadvisor';
 
 export interface NormalizedFlight {
     id: string;

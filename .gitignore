@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude worktrees + reserved windows names
+.claude/worktrees/
+/NUL
