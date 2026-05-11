@@ -1,7 +1,7 @@
 /* GET /api/deals/from/[iata] — cheapest packages from origin, returned as TripPackage[] */
 
 import { NextResponse } from 'next/server';
-import { searchFlightInspirations } from '@/lib/amadeus-client';
+import { searchFlightInspirations } from '@/lib/tripadvisor-client';
 import { diversifyPackages } from '@/lib/diversify';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
@@ -173,18 +173,15 @@ export async function GET(
 
     try {
         const inspirations = await searchFlightInspirations(origin);
-        if (Array.isArray(inspirations) && inspirations.length > 0) {
+        if (inspirations.length > 0) {
             for (const insp of inspirations.slice(0, 20)) {
-                if (!insp || typeof insp !== 'object') continue;
-                const dest = (insp.destination as string) || '';
+                const dest = insp.destination;
                 if (!/^[A-Z]{3}$/.test(dest)) continue;
 
-                const priceObj = insp.price as Record<string, unknown> | undefined;
-                const amadeusFlightPrice = Math.round(parseFloat((priceObj?.total as string) || '0'));
+                const inspFlightPrice = Math.round(insp.price || 0);
                 const estimate = estimateTripPrice(origin, dest, nights, 999999);
 
-                // Use Amadeus departure date if available
-                const inspDepDate = (insp.departureDate as string) || departureDate;
+                const inspDepDate = insp.departureDate || departureDate;
                 const inspRetDate = new Date(inspDepDate);
                 inspRetDate.setDate(inspRetDate.getDate() + nights);
                 const inspRetDateStr = inspRetDate.toISOString().split('T')[0];
@@ -192,17 +189,17 @@ export async function GET(
                 const pkg = buildPackageForRoute(origin, dest, nights, inspDepDate, inspRetDateStr, currency);
                 if (!pkg) continue;
 
-                // Override with Amadeus price if it looks realistic (not a sandbox stub)
-                if (estimate && amadeusFlightPrice > 0 && amadeusFlightPrice >= estimate.flightRoundTrip * 0.4) {
-                    pkg.flight!.price = amadeusFlightPrice;
-                    pkg.totalPrice = Math.round(amadeusFlightPrice + estimate.hotelTotal + estimate.activitiesBudget);
+                // Override estimator with inspiration price when it looks realistic
+                if (estimate && inspFlightPrice > 0 && inspFlightPrice >= estimate.flightRoundTrip * 0.4) {
+                    pkg.flight!.price = inspFlightPrice;
+                    pkg.totalPrice = Math.round(inspFlightPrice + estimate.hotelTotal + estimate.activitiesBudget);
                 }
 
                 packages.push(pkg);
             }
         }
     } catch (e) {
-        console.warn('[deals] Inspiration API failed:', (e as Error).message);
+        console.warn('[deals] Inspiration source failed:', (e as Error).message);
     }
 
     // Always supplement with COMMON_ROUTES fallbacks to ensure variety

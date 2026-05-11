@@ -1,9 +1,31 @@
 import { NextResponse } from 'next/server';
-import { searchLocations } from '@/lib/amadeus-client';
+import { searchLocations } from '@/lib/tripadvisor-client';
+import { normalizeLocation } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeAmadeusCall, recordAmadeusCall } from '@/lib/rateLimiter';
-import { CITY_TO_IATA, getCityName, getCountryFromIata } from '@/lib/iataMapping';
+import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
+import {
+  CITY_TO_IATA,
+  getCityName,
+  getCountryFromIata,
+} from '@/lib/iataMapping';
 import type { LocationResult } from '@/lib/supabase/types';
+
+function localMatches(keyword: string): LocationResult[] {
+  const lower = keyword.toLowerCase();
+  return Object.entries(CITY_TO_IATA)
+    .filter(([city, iata]) => {
+      const c = city.toLowerCase();
+      const n = getCityName(city).toLowerCase();
+      return c.includes(lower) || n.includes(lower) || iata.toLowerCase() === lower;
+    })
+    .map(([city, iata]) => ({
+      iataCode: iata,
+      name: getCityName(city),
+      cityName: getCityName(city),
+      countryName: getCountryFromIata(iata),
+      type: 'CITY' as const,
+    }));
+}
 
 export async function GET(request: Request) {
   try {
@@ -21,50 +43,43 @@ export async function GET(request: Request) {
       return NextResponse.json({ locations: cached.data, source: 'cached' });
     }
 
-    // 2. Try Amadeus API (SDK with automatic REST fallback)
-    if (canMakeAmadeusCall()) {
+    // 2. Local IATA mapping FIRST — saves RapidAPI quota on common queries
+    const local = localMatches(keyword);
+    if (local.length >= 2) {
+      await setCache(cacheKey, local, 1440);
+      return NextResponse.json({ locations: local, source: 'fallback' });
+    }
+
+    // 3. Only ping Tripadvisor when local lookup returned 0–1 hits
+    if (canMakeRapidApiCall()) {
       try {
-        recordAmadeusCall();
-        const rawLocations = await searchLocations(keyword);
+        recordRapidApiCall();
+        const raw = await searchLocations(keyword);
+        const remote = raw.map(normalizeLocation).filter((l) => l.iataCode);
 
-        const locations: LocationResult[] = (rawLocations as Record<string, unknown>[]).map((loc) => {
-          const address = loc.address as Record<string, string> | undefined;
-          return {
-            iataCode: loc.iataCode as string,
-            name: loc.name as string,
-            cityName: address?.cityName || (loc.name as string),
-            countryName: address?.countryName || '',
-            type: (loc.subType as 'AIRPORT' | 'CITY') || 'CITY',
-          };
-        });
+        // Merge local + remote, dedup by IATA
+        const seen = new Set<string>();
+        const merged: LocationResult[] = [];
+        for (const l of [...local, ...remote]) {
+          if (seen.has(l.iataCode)) continue;
+          seen.add(l.iataCode);
+          merged.push(l);
+        }
 
-        if (locations.length > 0) {
-          await setCache(cacheKey, locations, 1440); // 24 hours
-          return NextResponse.json({ locations, source: 'live' });
+        if (merged.length > 0) {
+          await setCache(cacheKey, merged, 1440);
+          return NextResponse.json({
+            locations: merged,
+            source: remote.length > 0 ? 'live' : 'fallback',
+          });
         }
       } catch (err: unknown) {
-        console.warn('[Locations] Amadeus search failed:', (err as Error)?.message);
+        console.warn('[Locations] Tripadvisor search failed:', (err as Error)?.message);
       }
     }
 
-    // 3. Fallback to local IATA mapping (Brazilian cities)
-    const lower = keyword.toLowerCase();
-    const locations: LocationResult[] = Object.entries(CITY_TO_IATA)
-      .filter(
-        ([city, iata]) =>
-          city.toLowerCase().includes(lower) ||
-          getCityName(city).toLowerCase().includes(lower) ||
-          iata.toLowerCase().includes(lower)
-      )
-      .map(([city, iata]) => ({
-        iataCode: iata,
-        name: getCityName(city),
-        cityName: getCityName(city),
-        countryName: getCountryFromIata(iata),
-        type: 'CITY' as const,
-      }));
-
-    return NextResponse.json({ locations, source: 'fallback' });
+    // 4. Final fallback — just whatever local found (possibly empty)
+    return NextResponse.json({ locations: local, source: 'fallback' });
   } catch (error) {
     console.error('[Locations] Unexpected error:', error);
     return NextResponse.json({ locations: [], source: 'fallback' });

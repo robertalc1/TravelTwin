@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { searchFlightInspirations } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeAmadeusCall, recordAmadeusCall, canMakeAviationstackCall, recordAviationstackCall } from '@/lib/rateLimiter';
 import { getCityFromIata } from '@/lib/iataMapping';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import type { FlightInspiration } from '@/lib/supabase/types';
@@ -34,48 +32,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Missing required param: origin' }, { status: 400 });
     }
 
-    // 1. Check cache (15 min for inspirations)
+    // 1. Cache (24h — inspiration data is static)
     const cacheKey = `inspiration:${origin}`;
     const cached = await getCached(cacheKey);
     if (cached) {
       return NextResponse.json({
-        destinations: (cached.data as FlightInspiration[]).map((d) => ({ ...d, source: 'cached' })),
+        destinations: (cached.data as FlightInspiration[]).map((d) => ({
+          ...d,
+          source: 'cached',
+        })),
         source: 'cached',
       });
     }
 
-    // 2. Try Amadeus API
-    if (canMakeAmadeusCall()) {
-      try {
-        recordAmadeusCall();
-        const rawData = await searchFlightInspirations(origin);
-
-        const destinations: FlightInspiration[] = (rawData as Record<string, unknown>[]).map((d) => {
-          const price = d.price as Record<string, string> | undefined;
-          return {
-            destination: d.destination as string,
-            destinationCity: getCityFromIata(d.destination as string),
-            departureDate: d.departureDate as string,
-            returnDate: d.returnDate as string,
-            price: parseFloat(price?.total || '0'),
-            currency: 'EUR',
-            source: 'live' as const,
-          };
-        });
-
-        if (destinations.length > 0) {
-          await setCache(cacheKey, destinations, 60);
-          return NextResponse.json({ destinations, source: 'live' });
-        }
-      } catch (err: unknown) {
-        console.warn('[Inspiration] Amadeus search failed:', (err as Error)?.message);
-      }
-    }
-
-    // 3. Fall back to common routes for inspiration
+    // 2. Tripadvisor16 has no native flight-inspiration endpoint — build from
+    //    pre-priced COMMON_ROUTES table. Zero RapidAPI quota usage.
     const destinations = buildInspirationFromCommonRoutes(origin);
     if (destinations.length > 0) {
-      await setCache(cacheKey, destinations, 60 * 24); // 24h — static data, cache aggressively
+      await setCache(cacheKey, destinations, 60 * 24); // 24h
       return NextResponse.json({ destinations, source: 'reference' });
     }
 

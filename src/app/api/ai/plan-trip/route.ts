@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchDestinations, DestinationProfile } from '@/lib/destinations';
 import { diversifyPackages } from '@/lib/diversify';
-import { searchFlights, searchHotelsByCity, searchHotelOffers } from '@/lib/amadeus-client';
-import { CITY_FALLBACK_DATA } from '@/lib/cityFallbackData';
+import { searchFlights, searchHotelsByCity } from '@/lib/tripadvisor-client';
+import { normalizeFlight, normalizeHotel } from '@/lib/tripadvisor-normalize';
+import type { NormalizedFlight, NormalizedHotel } from '@/lib/supabase/types';
 import { estimateTripPrice, pickAirlineForRoute } from '@/lib/pricing';
 
 export interface TripPackage {
   id: string;
   destination: DestinationProfile;
   flight: {
-    outbound: any;
-    inbound?: any;
+    outbound: NormalizedFlight | null;
+    inbound?: NormalizedFlight | null;
     price: number;
     currency: string;
     airline: string;
@@ -103,56 +104,51 @@ export async function POST(req: NextRequest) {
     const flightBudget = budget * 0.40;
     const hotelBudget = budget * 0.45;
 
-    // 2. Search flights + hotels for each candidate in parallel (limit to 5)
+    // 2. Search flights + hotels for each candidate in parallel
     const searchPromises = candidates.map(async (dest) => {
       try {
-        // Search flights
-        const flightParams: Record<string, string> = {
-          originLocationCode: origin,
-          destinationLocationCode: dest.iata,
-          departureDate,
-          returnDate,
-          adults: String(totalAdults),
-          travelClass: 'ECONOMY',
-          currencyCode: currency,
-          max: '5',
-        };
-
-        const [flightResults, hotelList] = await Promise.allSettled([
-          searchFlights(flightParams),
-          searchHotelsByCity(dest.iata),
+        const [flightResults, hotelResults] = await Promise.allSettled([
+          searchFlights({
+            origin,
+            destination: dest.iata,
+            departureDate,
+            returnDate,
+            adults: String(totalAdults),
+            travelClass: 'ECONOMY',
+          }),
+          searchHotelsByCity({
+            cityCode: dest.iata,
+            checkIn: departureDate,
+            checkOut: returnDate,
+            adults: String(adults),
+            rooms: '1',
+          }),
         ]);
 
-        let flightData: any[] = flightResults.status === 'fulfilled' ? flightResults.value : [];
-        let hotelListData: any[] = hotelList.status === 'fulfilled' ? hotelList.value : [];
+        const flightsRaw = flightResults.status === 'fulfilled' ? flightResults.value : [];
+        const hotelsRaw = hotelResults.status === 'fulfilled' ? hotelResults.value : [];
 
-        // Filter affordable flights
-        const affordableFlight = flightData.find(f => {
-          const price = parseFloat(f.price?.total || f.price?.grandTotal || '999999');
-          return price <= flightBudget * totalAdults;
-        }) || flightData[0];
+        const normalizedFlights = flightsRaw
+          .map((f) => normalizeFlight(f, origin, dest.iata, 'ECONOMY'))
+          .filter((f): f is NormalizedFlight => f !== null);
 
-        // Get hotel offers if we have hotel IDs
-        let hotelOffer: any = null;
-        if (hotelListData.length > 0) {
-          const hotelIds = hotelListData.slice(0, 10).map((h: any) => h.hotelId).filter(Boolean);
-          if (hotelIds.length > 0) {
-            try {
-              const offers = await searchHotelOffers(hotelIds, departureDate, returnDate, String(adults));
-              hotelOffer = offers.find((o: any) => {
-                const price = parseFloat(o.offers?.[0]?.price?.total || '999999');
-                return price <= hotelBudget;
-              }) || offers[0];
-            } catch {
-              // hotel offers failed, continue without
-            }
-          }
-        }
+        const affordableFlight =
+          normalizedFlights.find((f) => f.price <= flightBudget * totalAdults) ||
+          normalizedFlights[0] ||
+          null;
 
-        return { dest, flightData: affordableFlight, hotelOffer };
+        const normalizedHotels: NormalizedHotel[] = hotelsRaw.map((h) =>
+          normalizeHotel(h, dest.iata, departureDate, returnDate),
+        );
+        const affordableHotel =
+          normalizedHotels.find((h) => h.totalPrice <= hotelBudget) ||
+          normalizedHotels[0] ||
+          null;
+
+        return { dest, flight: affordableFlight, hotel: affordableHotel };
       } catch (e) {
         console.warn(`[plan-trip] Failed searching ${dest.iata}:`, e);
-        return { dest, flightData: null, hotelOffer: null };
+        return { dest, flight: null, hotel: null };
       }
     });
 
@@ -161,21 +157,14 @@ export async function POST(req: NextRequest) {
     // 3. Score and build packages
     const packages: TripPackage[] = [];
 
-    for (const { dest, flightData, hotelOffer } of searchResults) {
-      // 1. Try real prices from Amadeus first
-      let flightPrice = flightData
-        ? parseFloat(flightData.price?.total || flightData.price?.grandTotal || '0')
-        : 0;
-      let hotelPrice = hotelOffer
-        ? parseFloat(hotelOffer.offers?.[0]?.price?.total || '0')
-        : 0;
+    for (const { dest, flight: liveFlight, hotel: liveHotel } of searchResults) {
+      let flightPrice = liveFlight ? liveFlight.price : 0;
+      let hotelPrice = liveHotel ? liveHotel.totalPrice : 0;
 
-      // 2. Validate Amadeus data is realistic — if it's fake/stub, replace with estimate
       const estimate = estimateTripPrice(origin, dest.iata, nights, budget);
-      if (!estimate) continue; // unknown airport, skip
+      if (!estimate) continue;
 
-      // If Amadeus gave us a flight price but it's suspiciously off vs the distance-based
-      // estimate (sandbox stubs), or it returned nothing, use the realistic estimate.
+      // Use estimator when live data is missing or implausibly low
       const realisticFlight = estimate.flightRoundTrip * totalAdults;
       if (flightPrice === 0 || flightPrice < realisticFlight * 0.4) {
         flightPrice = realisticFlight;
@@ -185,14 +174,21 @@ export async function POST(req: NextRequest) {
       }
 
       const totalPrice = flightPrice + hotelPrice;
-
-      // Strict budget filter — no more "within 15% over budget" cheating
       if (totalPrice > budget) continue;
 
-      // Build flight info: prefer real, fall back to estimate-based display
       const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
-      const flight = flightData
-        ? { ...buildFlightInfo(flightData), price: flightPrice }
+      const flight = liveFlight
+        ? {
+            outbound: liveFlight,
+            price: flightPrice,
+            currency: liveFlight.currency,
+            airline: liveFlight.airlineName,
+            airlineCode: liveFlight.airline,
+            duration: liveFlight.duration,
+            stops: liveFlight.stops,
+            departureTime: liveFlight.departureTime,
+            arrivalTime: liveFlight.arrivalTime,
+          }
         : {
             outbound: null,
             price: flightPrice,
@@ -205,9 +201,18 @@ export async function POST(req: NextRequest) {
             arrivalTime: '',
           };
 
-      // Build hotel info: prefer real, fall back to estimate
-      const hotel = hotelOffer
-        ? { ...buildHotelInfo(hotelOffer, nights), price: Math.round(hotelPrice), pricePerNight: Math.round(hotelPrice / Math.max(1, nights)) }
+      const hotel = liveHotel
+        ? {
+            id: liveHotel.id,
+            name: liveHotel.name,
+            stars: liveHotel.rating,
+            price: Math.round(hotelPrice),
+            pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
+            currency: liveHotel.currency,
+            checkIn: departureDate,
+            checkOut: returnDate,
+            amenities: liveHotel.amenities,
+          }
         : {
             id: `est-${dest.iata}`,
             name: `${dest.city} City Hotel`,
@@ -345,45 +350,11 @@ Return ONLY valid JSON (no markdown, no backticks):
     useFallback.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
 
     return NextResponse.json({ packages: topPackages, total: topPackages.length });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('[plan-trip] Error:', e);
-    return NextResponse.json({ error: e.message || 'Failed to plan trip' }, { status: 500 });
+    const message = e instanceof Error ? e.message : 'Failed to plan trip';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-function buildFlightInfo(f: any) {
-  const itinerary = f.itineraries?.[0];
-  const segment = itinerary?.segments?.[0];
-  const lastSeg = itinerary?.segments?.[itinerary.segments.length - 1];
-  const price = parseFloat(f.price?.total || f.price?.grandTotal || '0');
-  return {
-    outbound: f,
-    price,
-    currency: f.price?.currency || 'EUR',
-    airline: segment?.carrierCode || '',
-    airlineCode: segment?.carrierCode || '',
-    duration: itinerary?.duration || '',
-    stops: (itinerary?.segments?.length || 1) - 1,
-    departureTime: segment?.departure?.at || '',
-    arrivalTime: lastSeg?.arrival?.at || '',
-  };
-}
-
-function buildHotelInfo(offer: any, nights: number) {
-  const o = offer.offers?.[0];
-  const total = parseFloat(o?.price?.total || '0');
-  const pricePerNight = nights > 0 ? Math.round(total / nights) : total;
-  return {
-    id: offer.hotel?.hotelId || '',
-    name: offer.hotel?.name || 'Hotel',
-    stars: offer.hotel?.rating ? parseInt(offer.hotel.rating) : 3,
-    price: Math.round(total),
-    pricePerNight,
-    currency: o?.price?.currency || 'EUR',
-    checkIn: o?.checkInDate || '',
-    checkOut: o?.checkOutDate || '',
-    amenities: offer.hotel?.amenities?.slice(0, 5) || [],
-  };
 }
 
 
