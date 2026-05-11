@@ -20,15 +20,16 @@ import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import { useUser } from '@/hooks/useUser';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
-import TransfersTab from '@/components/TripDetail/TransfersTab';
+import RentalCarsTab from '@/components/TripDetail/RentalCarsTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import MobileBookBar from '@/components/TripDetail/MobileBookBar';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import type { NormalizedCar } from '@/app/api/cars/search/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
-import { getAirportCoord, haversineKm } from '@/lib/airportCoordinates';
+import { getAirportCoord } from '@/lib/airportCoordinates';
 
 const RouteMapTeaser = dynamic(() => import('@/components/RouteMap/RouteMapTeaser'), {
   ssr: false,
@@ -81,13 +82,12 @@ export default function TripDetailView({
   const [originCode, setOriginCode] = useState('');
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'transfers'>('hotels');
+  const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'cars'>('hotels');
   const [extraHotel, setExtraHotel] = useState<HotelOfferData | null>(null);
-  const [extraTransfer, setExtraTransfer] = useState<TransferOffer | null>(null);
+  const [extraCar, setExtraCar] = useState<NormalizedCar | null>(null);
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
   const seedHotelInStore = useTripPricing((s) => s.seedHotel);
-  const seedTransferInStore = useTripPricing((s) => s.seedTransfer);
   const pricingTotal = useTripPricing(
     (s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice + s.breakdown.extrasPrice,
   );
@@ -106,24 +106,9 @@ export default function TripDetailView({
       seedHotelInStore(trip.hotelName, trip.hotelPrice);
     }
 
-    // Default airport→city transfer estimate. Uses the DESTINATION airport
-    // (e.g. HER for Crete) to the destination city center — typically 5–50 km.
-    if (trip.destinationCode && trip.destinationLat && trip.destinationLon) {
-      const destAirport = getAirportCoord(trip.destinationCode);
-      if (destAirport) {
-        const rawDistance = haversineKm(
-          destAirport.lat,
-          destAirport.lng,
-          trip.destinationLat,
-          trip.destinationLon,
-        );
-        // Cap at 80 km — anything larger means the coords are mismatched
-        // (e.g. origin/destination swapped). Fall back to a 15 km city-center average.
-        const distanceKm = rawDistance > 80 ? 15 : Math.max(5, Math.round(rawDistance));
-        const sedanPrice = Math.round(Math.max(25, distanceKm * 1.8));
-        seedTransferInStore(`Airport sedan (~${distanceKm} km)`, sedanPrice);
-      }
-    }
+    // No auto-seeded airport transfer anymore — the user picks a car from the
+    // Car Rental tab when they want ground transport. Keeps the package price
+    // honest (flight + hotel only by default).
   }, [
     trip.id,
     trip.flightPrice,
@@ -135,7 +120,6 @@ export default function TripDetailView({
     originCode,
     initTripPricing,
     seedHotelInStore,
-    seedTransferInStore,
   ]);
 
   // Read origin from sessionStorage (populated by AI planner)
@@ -482,15 +466,15 @@ export default function TripDetailView({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setMoreOptionsTab('transfers')}
+                        onClick={() => setMoreOptionsTab('cars')}
                         className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors ${
-                          moreOptionsTab === 'transfers'
+                          moreOptionsTab === 'cars'
                             ? 'text-primary-500 border-b-2 border-primary-500 bg-primary-50/40 dark:bg-primary-900/10'
                             : 'text-text-secondary hover:text-text-primary'
                         }`}
                       >
-                        <span className="sm:hidden">🚗 Transfers</span>
-                        <span className="hidden sm:inline">🚗 Airport Transfers</span>
+                        <span className="sm:hidden">🚙 Car Rental</span>
+                        <span className="hidden sm:inline">🚙 Car Rental</span>
                       </button>
                     </div>
                     <div className="p-4 sm:p-5">
@@ -504,18 +488,12 @@ export default function TripDetailView({
                           selectedHotel={extraHotel}
                         />
                       ) : (
-                        <TransfersTab
-                          startLocationCode={trip.destinationCode}
-                          endLatitude={trip.destinationLat}
-                          endLongitude={trip.destinationLon}
-                          endCityName={trip.destinationCity}
-                          startDateTime={
-                            trip.arrivalTime ||
-                            (trip.hotelCheckIn ? `${trip.hotelCheckIn}T12:00:00` : new Date().toISOString().slice(0, 19))
-                          }
-                          adults={1}
-                          onTransferSelect={setExtraTransfer}
-                          selectedTransferId={extraTransfer?.id}
+                        <RentalCarsTab
+                          cityCode={trip.destinationCode}
+                          cityName={trip.destinationCity}
+                          pickUpDate={trip.hotelCheckIn}
+                          dropOffDate={trip.hotelCheckOut}
+                          onCarSelect={setExtraCar}
                         />
                       )}
                     </div>

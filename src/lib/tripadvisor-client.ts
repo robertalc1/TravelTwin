@@ -88,6 +88,35 @@ export interface TAInspiration {
   duration: number;
 }
 
+export interface TACarLocation {
+  locationId: string;
+  name: string;
+  shortName?: string;
+  cityName?: string;
+  countryName?: string;
+  searchHash?: string;
+}
+
+export interface TACar {
+  id: string;
+  vendor: string;
+  vendorLogo?: string;
+  vehicleType: string;
+  transmission: string;
+  airConditioning: boolean;
+  seatCount: number;
+  bagCount: number;
+  doorCount: number;
+  pictureUrl?: string;
+  pricePerDay: number;
+  totalPrice: number;
+  currency: string;
+  pickUpLocationName?: string;
+  dropOffLocationName?: string;
+  partner?: string;
+  bookingUrl?: string;
+}
+
 /* ── Search input types ──────────────────────────────────────── */
 
 export interface SearchFlightsParams {
@@ -374,6 +403,135 @@ export async function searchLocations(keyword: string): Promise<TALocation[]> {
       cityName: asString(item.cityName),
       countryCode: asString(item.countryCode),
       documentId: asString(item.documentId),
+    });
+  }
+  return result;
+}
+
+/* ── Rental cars ─────────────────────────────────────────────── */
+
+/**
+ * Resolve a city/airport keyword (typically IATA code or city name) to a
+ * Tripadvisor car-rental pickup location ID. Cached for 30 days.
+ */
+export async function searchCarLocations(query: string): Promise<TACarLocation[]> {
+  const raw = await tripadvisorFetch<unknown>('/api/v1/cars/searchLocation', { query });
+  if (!isRecord(raw)) return [];
+  const data = asArray((raw as Record<string, unknown>).data);
+
+  const result: TACarLocation[] = [];
+  for (const item of data) {
+    if (!isRecord(item)) continue;
+    const id =
+      asString(item.locationId) ||
+      asString(item.id) ||
+      asString(item.searchHash) ||
+      asString(item.documentId);
+    if (!id) continue;
+    result.push({
+      locationId: id,
+      name: asString(item.name) || asString(item.shortName) || id,
+      shortName: asString(item.shortName),
+      cityName: asString(item.cityName),
+      countryName: asString(item.countryName),
+      searchHash: asString(item.searchHash),
+    });
+  }
+  return result;
+}
+
+export async function getCarLocationId(cityCode: string): Promise<string | null> {
+  const code = cityCode.toUpperCase();
+  const cacheKey = `carLocId:${code}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'string') return cached.data;
+
+  const cityName = getCityFromIata(code) || code;
+  // Try IATA first (airport-specific results), then fall back to city name
+  let results = await searchCarLocations(code);
+  if (results.length === 0) {
+    results = await searchCarLocations(cityName);
+  }
+
+  const first = results[0];
+  if (!first) return null;
+
+  await setCache(cacheKey, first.locationId, 60 * 24 * 30);
+  return first.locationId;
+}
+
+export interface SearchCarsParams {
+  pickUpLocationId: string;
+  dropOffLocationId?: string;
+  pickUpDate: string;
+  dropOffDate: string;
+  pickUpTime?: string;
+  dropOffTime?: string;
+  driverAge?: number;
+}
+
+export async function searchCars(p: SearchCarsParams): Promise<TACar[]> {
+  const params: Record<string, string | number> = {
+    pickUpLocationId: p.pickUpLocationId,
+    dropOffLocationId: p.dropOffLocationId || p.pickUpLocationId,
+    pickUpDate: p.pickUpDate,
+    dropOffDate: p.dropOffDate,
+    pickUpTime: p.pickUpTime || '10:00',
+    dropOffTime: p.dropOffTime || '10:00',
+    driverAge: p.driverAge ?? 25,
+    currencyCode: 'EUR',
+  };
+
+  const path =
+    p.dropOffLocationId && p.dropOffLocationId !== p.pickUpLocationId
+      ? '/api/v1/cars/searchCarsDifferentDropOff'
+      : '/api/v1/cars/searchCarsSameDropOff';
+
+  const raw = await tripadvisorFetch<unknown>(path, params);
+  if (!isRecord(raw)) return [];
+  const data = isRecord(raw.data) ? raw.data : raw;
+  const carsArr = asArray((data as Record<string, unknown>).products || (data as Record<string, unknown>).cars || (data as Record<string, unknown>).data);
+
+  const result: TACar[] = [];
+  for (const c of carsArr) {
+    if (!isRecord(c)) continue;
+    const vendor = isRecord(c.vendor) ? c.vendor : isRecord(c.partnerSupplier) ? c.partnerSupplier : {};
+    const vehicle = isRecord(c.vehicle) ? c.vehicle : isRecord(c.vehicleInfo) ? c.vehicleInfo : c;
+    const totalAmount = isRecord(c.estimatedTotalAmount) ? c.estimatedTotalAmount : isRecord(c.totalPrice) ? c.totalPrice : isRecord(c.price) ? c.price : {};
+    const dailyAmount = isRecord(c.estimatedDailyAmount) ? c.estimatedDailyAmount : isRecord(c.dailyPrice) ? c.dailyPrice : {};
+
+    const totalPrice = asNumber(totalAmount.value ?? totalAmount.amount ?? totalAmount.total ?? c.totalPrice);
+    if (totalPrice <= 0) continue;
+
+    const dailyPrice = asNumber(dailyAmount.value ?? dailyAmount.amount ?? dailyAmount.daily);
+    const currency = asString(totalAmount.currency) || asString(dailyAmount.currency) || 'EUR';
+
+    result.push({
+      id:
+        asString(c.productCode) ||
+        asString(c.id) ||
+        asString(c.searchHash) ||
+        crypto.randomUUID(),
+      vendor: asString(vendor.name) || asString(vendor.displayName) || 'Car Rental',
+      vendorLogo: asString(vendor.logoUrl) || asString(vendor.logo),
+      vehicleType:
+        asString(vehicle.typeName) ||
+        asString(vehicle.category) ||
+        asString(vehicle.name) ||
+        'Standard',
+      transmission: asString(vehicle.transmission) || 'Automatic',
+      airConditioning: vehicle.airConditioning === true || vehicle.airConditioning === 'true',
+      seatCount: asNumber(vehicle.seatCount ?? vehicle.passengers ?? vehicle.seats) || 4,
+      bagCount: asNumber(vehicle.bagCount ?? vehicle.baggage ?? vehicle.bags) || 2,
+      doorCount: asNumber(vehicle.doorCount ?? vehicle.doors) || 4,
+      pictureUrl: asString(vehicle.pictureUrl) || asString(vehicle.imageUrl) || asString(c.imageUrl),
+      pricePerDay: dailyPrice > 0 ? dailyPrice : 0,
+      totalPrice,
+      currency,
+      pickUpLocationName: isRecord(c.pickUpLocation) ? asString(c.pickUpLocation.name) : undefined,
+      dropOffLocationName: isRecord(c.dropOffLocation) ? asString(c.dropOffLocation.name) : undefined,
+      partner: asString(c.partner) || asString(vendor.name),
+      bookingUrl: asString(c.deeplink) || asString(c.bookingUrl) || asString(c.url),
     });
   }
   return result;
