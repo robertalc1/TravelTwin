@@ -1,14 +1,9 @@
-import { NextResponse } from 'next/server';
-import { amadeusRest } from '@/lib/amadeus-client';
-import { getCached, setCache } from '@/lib/cache';
+/* Hotels-by-city list. Tripadvisor16's hotel search returns priced cards
+   directly, so this list endpoint now serves a curated fallback dataset
+   for the TripDetail hotels tab. Path kept for frontend compatibility. */
 
-interface HotelLocation {
-  hotelId: string;
-  name?: string;
-  iataCode?: string;
-  geoCode?: { latitude: number; longitude: number };
-  address?: { countryCode?: string };
-}
+import { NextResponse } from 'next/server';
+import { getCached, setCache } from '@/lib/cache';
 
 interface FallbackHotelLocation {
   hotelId: string;
@@ -100,7 +95,7 @@ export async function GET(req: Request) {
   if (!cityCode && (!latitude || !longitude)) {
     return NextResponse.json(
       { error: 'cityCode OR (latitude+longitude) required' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -113,28 +108,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ data: cached.data, source: 'cached' });
   }
 
-  try {
-    const path = cityCode
-      ? '/v1/reference-data/locations/hotels/by-city'
-      : '/v1/reference-data/locations/hotels/by-geocode';
-
-    const params: Record<string, string | number> = cityCode
-      ? { cityCode, radius, radiusUnit: 'KM', hotelSource: 'ALL' }
-      : { latitude: latitude!, longitude: longitude!, radius, radiusUnit: 'KM' };
-
-    const data = await amadeusRest(path, params);
-    const list = ((data as { data?: HotelLocation[] }).data || []).slice(0, 20);
-
-    if (list.length === 0) {
-      const fb = getFallbackList(cityCode || 'DEFAULT');
-      return NextResponse.json({ data: fb, source: 'fallback' });
-    }
-
-    await setCache(cacheKey, list, 60);
-    return NextResponse.json({ data: list, source: 'live' });
-  } catch (err) {
-    console.error('[Hotels list] error:', (err as Error)?.message);
-    const fb = getFallbackList(cityCode || 'DEFAULT');
-    return NextResponse.json({ data: fb, source: 'fallback' });
-  }
+  const fb = getFallbackList(cityCode || 'DEFAULT');
+  await setCache(cacheKey, fb, 60 * 24);
+  return NextResponse.json({ data: fb, source: 'fallback' });
 }

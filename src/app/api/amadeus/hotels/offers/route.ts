@@ -1,5 +1,8 @@
+/* Hotel offers endpoint. Tripadvisor16's hotel search returns priced cards
+   directly via /api/hotels/live — this route is retained for the TripDetail
+   hotels tab and serves a curated fallback dataset. */
+
 import { NextResponse } from 'next/server';
-import { searchHotelOffers } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
 
 interface CityHotelTemplate {
@@ -269,17 +272,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ data: cached.data, source: 'cached' });
   }
 
-  try {
-    const offers = await searchHotelOffers(hotelIds, checkInDate, checkOutDate, adults);
-    if (offers.length > 0) {
-      await setCache(cacheKey, offers, 30);
-      return NextResponse.json({ data: offers, source: 'live' });
-    }
-    const fb = await generateFallbackOffers(hotelIds, checkInDate, checkOutDate, cityCode);
-    return NextResponse.json({ data: fb, source: 'fallback' });
-  } catch (err) {
-    console.error('[Hotels offers] error:', (err as Error)?.message);
-    const fb = await generateFallbackOffers(hotelIds, checkInDate, checkOutDate, cityCode);
-    return NextResponse.json({ data: fb, source: 'fallback' });
-  }
+  const fb = await generateFallbackOffers(hotelIds, checkInDate, checkOutDate, cityCode);
+  await setCache(cacheKey, fb, 60);
+  return NextResponse.json({ data: fb, source: 'fallback' });
 }

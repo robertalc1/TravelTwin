@@ -1,5 +1,9 @@
+/* Airport transfer estimator. Tripadvisor16 does not offer a transfer-quotes
+   endpoint, so this route always returns a dynamic fallback computed from
+   real airport coordinates + haversine distance. Path kept at /api/amadeus/
+   transfers to avoid breaking existing frontend consumers. */
+
 import { NextResponse } from 'next/server';
-import { amadeusRest } from '@/lib/amadeus-client';
 import { getCached, setCache } from '@/lib/cache';
 import { getAirportCoord, haversineKm } from '@/lib/airportCoordinates';
 
@@ -38,31 +42,22 @@ function durationToISO(minutes: number): string {
   return `PT${m}M`;
 }
 
-/**
- * Build three transfer offers with prices/duration computed from the actual
- * airport↔destination distance. Avoids the previous "always €45 / €85 / €120
- * @ 25km / 35min" anti-pattern.
- */
 function buildDynamicFallback(
   startLocationCode: string,
   endCityName: string,
   endLat: number,
-  endLng: number
+  endLng: number,
 ): TransferOffer[] {
-  // Resolve the airport coordinate; if unknown, estimate a sensible offset
-  // (~25–30 km from city center, matching most international hubs).
   const airport = getAirportCoord(startLocationCode);
   const airportLat = airport?.lat ?? endLat + 0.3;
   const airportLng = airport?.lng ?? endLng + 0.2;
 
   const distanceKm = Math.max(5, Math.round(haversineKm(airportLat, airportLng, endLat, endLng)));
 
-  // Pricing model: floor of €25 + €1.8/km for sedans; business 1.9× / van 2.7×.
   const sedanPrice = Math.round(Math.max(25, distanceKm * 1.8));
   const businessPrice = Math.round(sedanPrice * 1.9);
   const vanPrice = Math.round(sedanPrice * 2.7);
 
-  // 45 km/h average urban-arterial speed; minimum 12 minutes.
   const durationMinutes = Math.max(12, Math.round((distanceKm / 45) * 60));
   const durationISO = durationToISO(durationMinutes);
 
@@ -134,23 +129,17 @@ export async function GET(req: Request) {
 
   const startLocationCode = searchParams.get('startLocationCode');
   const endGeoCode = searchParams.get('endGeoCode');
-  const endAddressLine = searchParams.get('endAddressLine') || 'City Center';
   const endCityName = searchParams.get('endCityName') || 'Destination';
-  const endCountryCode = searchParams.get('endCountryCode') || 'FR';
-  const endName = searchParams.get('endName') || endCityName;
-  const endZipCode = searchParams.get('endZipCode') || '00000';
   const startDateTime = searchParams.get('startDateTime');
   const adults = searchParams.get('adults') || '1';
 
   if (!startLocationCode || !endGeoCode || !startDateTime) {
     return NextResponse.json(
       { error: 'Missing required parameters: startLocationCode, endGeoCode, startDateTime' },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  // Parse the destination coordinates from "lat,lng" so the fallback can
-  // compute a real distance even when Amadeus is unreachable.
   const [endLatStr, endLngStr] = endGeoCode.split(',');
   const endLat = Number(endLatStr);
   const endLng = Number(endLngStr);
@@ -162,41 +151,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ data: cached.data, source: 'cached' });
   }
 
-  try {
-    const data = await amadeusRest('/v1/shopping/transfer-offers', {
-      startLocationCode,
-      endAddressLine,
-      endCityName,
-      endZipCode,
-      endCountryCode,
-      endName,
-      endGeoCode,
-      transferType: 'PRIVATE',
-      startDateTime,
-      adults,
-    });
-
-    const offers = ((data as { data?: TransferOffer[] }).data || []).map((o) => ({
-      ...o,
-      source: 'live' as const,
-    }));
-
-    if (offers.length > 0) {
-      await setCache(cacheKey, offers, 30);
-      return NextResponse.json({ data: offers, source: 'live' });
-    }
-
-    if (haveEndCoords) {
-      const fb = buildDynamicFallback(startLocationCode, endCityName, endLat, endLng);
-      return NextResponse.json({ data: fb, source: 'fallback' });
-    }
-    return NextResponse.json({ data: [], source: 'fallback' });
-  } catch (err) {
-    console.error('[Transfers] error:', (err as Error)?.message);
-    if (haveEndCoords) {
-      const fb = buildDynamicFallback(startLocationCode, endCityName, endLat, endLng);
-      return NextResponse.json({ data: fb, source: 'fallback' });
-    }
+  if (!haveEndCoords) {
     return NextResponse.json({ data: [], source: 'fallback' });
   }
+
+  const offers = buildDynamicFallback(startLocationCode, endCityName, endLat, endLng);
+  await setCache(cacheKey, offers, 60 * 24); // 24h — purely static math
+  return NextResponse.json({ data: offers, source: 'fallback' });
 }
