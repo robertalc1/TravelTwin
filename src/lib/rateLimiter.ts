@@ -21,16 +21,6 @@ export function recordRapidApiCall(): void {
   rapidApiTimestamps.push(Date.now());
 }
 
-// @deprecated — kept temporarily during Tripadvisor migration so existing
-// Amadeus route imports compile. Removed after all routes migrate.
-export function canMakeAmadeusCall(): boolean {
-  return canMakeRapidApiCall();
-}
-
-export function recordAmadeusCall(): void {
-  recordRapidApiCall();
-}
-
 // AviationStack rate limiter — 90 req/month budget (soft cap, cache is primary guard)
 let aviationstackMonthlyCount = 0;
 const MAX_AVIATIONSTACK_MONTHLY = 90;
