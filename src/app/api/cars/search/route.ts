@@ -76,16 +76,20 @@ export async function GET(req: Request) {
 
   try {
     recordRapidApiCall();
+    console.log(`[cars/search] resolving location for ${cityCode}`);
     const locationId = await getCarLocationId(cityCode);
     if (!locationId) {
+      console.warn(`[cars/search] no locationId for ${cityCode}`);
       return NextResponse.json({
         cars: [],
         source: 'fallback',
         count: 0,
-        warning: `No car-rental locations found for ${cityCode}.`,
+        warning: `Couldn't find a car-rental location for ${cityCode}. Tripadvisor returned no match.`,
+        debug: { step: 'searchLocation', cityCode },
       });
     }
 
+    console.log(`[cars/search] locationId=${locationId}, searching cars`);
     recordRapidApiCall();
     const taCars = await searchCars({
       pickUpLocationId: locationId,
@@ -95,6 +99,7 @@ export async function GET(req: Request) {
       dropOffTime,
       driverAge,
     });
+    console.log(`[cars/search] got ${taCars.length} raw cars from Tripadvisor`);
 
     const cars = taCars
       .filter((c) => c.totalPrice > 0)
@@ -108,6 +113,7 @@ export async function GET(req: Request) {
         count: 0,
         warning: `No rental cars available in ${cityCode} for those dates.`,
         cityName: getCityFromIata(cityCode),
+        debug: { step: 'searchCars', locationId, rawCount: taCars.length },
       });
     }
 
@@ -119,12 +125,14 @@ export async function GET(req: Request) {
       cityName: getCityFromIata(cityCode),
     });
   } catch (err: unknown) {
-    console.error('[cars/search] Tripadvisor failed:', (err as Error)?.message);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[cars/search] Tripadvisor failed:', message);
     return NextResponse.json({
       cars: [],
       source: 'error',
       count: 0,
-      warning: 'Unable to fetch car-rental offers right now.',
+      warning: `Unable to fetch car-rental offers: ${message}`,
+      debug: { error: message },
     });
   }
 }
