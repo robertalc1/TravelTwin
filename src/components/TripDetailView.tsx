@@ -106,17 +106,20 @@ export default function TripDetailView({
       seedHotelInStore(trip.hotelName, trip.hotelPrice);
     }
 
-    // Default airport→hotel transfer — distance-based estimate.
-    if (originCode && trip.destinationLat && trip.destinationLon) {
-      const airport = getAirportCoord(originCode);
-      // If we don't know the origin airport, skip — user can pick a real transfer
-      // from the Transfers tab later.
-      if (airport) {
-        const distanceKm = Math.max(
-          5,
-          Math.round(haversineKm(airport.lat, airport.lng, trip.destinationLat, trip.destinationLon)),
+    // Default airport→city transfer estimate. Uses the DESTINATION airport
+    // (e.g. HER for Crete) to the destination city center — typically 5–50 km.
+    if (trip.destinationCode && trip.destinationLat && trip.destinationLon) {
+      const destAirport = getAirportCoord(trip.destinationCode);
+      if (destAirport) {
+        const rawDistance = haversineKm(
+          destAirport.lat,
+          destAirport.lng,
+          trip.destinationLat,
+          trip.destinationLon,
         );
-        // Same model as /api/amadeus/transfers buildDynamicFallback (sedan tier).
+        // Cap at 80 km — anything larger means the coords are mismatched
+        // (e.g. origin/destination swapped). Fall back to a 15 km city-center average.
+        const distanceKm = rawDistance > 80 ? 15 : Math.max(5, Math.round(rawDistance));
         const sedanPrice = Math.round(Math.max(25, distanceKm * 1.8));
         seedTransferInStore(`Airport sedan (~${distanceKm} km)`, sedanPrice);
       }
