@@ -135,7 +135,6 @@ export type DataSource =
     | 'live'
     | 'cached'
     | 'fallback'
-    | 'aviationstack'
     | 'reference'
     | 'tripadvisor';
 

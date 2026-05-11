@@ -212,11 +212,16 @@ export async function GET(
         packages = [...packages, ...fallbacks];
     }
 
-    if (packages.length === 0 && origin !== 'OTP') {
-        packages = COMMON_ROUTES
-            .filter(r => r.from === 'OTP')
+    // Variety boost: when an origin has few direct COMMON_ROUTES (e.g. CND has only
+    // 2), supplement with OTP's popular destinations. Pricing is recalculated for
+    // the actual origin distance via estimateTripPrice, so CND→LHR stays correct.
+    if (packages.length < 8 && origin !== 'OTP') {
+        const seen = new Set(packages.map(p => p.destination.iata));
+        const otpFallbacks = COMMON_ROUTES
+            .filter(r => r.from === 'OTP' && !seen.has(r.to) && r.to !== origin)
             .map(r => buildPackageForRoute(origin, r.to, nights, departureDate, returnDate, r.currency || currency))
             .filter((p): p is TripPackage => p !== null);
+        packages = [...packages, ...otpFallbacks];
     }
 
     packages.sort((a, b) => a.totalPrice - b.totalPrice);

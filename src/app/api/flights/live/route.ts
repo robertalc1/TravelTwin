@@ -2,27 +2,8 @@ import { NextResponse } from 'next/server';
 import { searchFlights } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
-import {
-  canMakeRapidApiCall,
-  recordRapidApiCall,
-  canMakeAviationstackCall,
-  recordAviationstackCall,
-} from '@/lib/rateLimiter';
-import {
-  fetchAviationstackFlights,
-  normalizeAviationstackFlight,
-} from '@/lib/aviationstack';
+import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
 import type { NormalizedFlight } from '@/lib/supabase/types';
-
-function deduplicateFlights(flights: NormalizedFlight[]): NormalizedFlight[] {
-  const seen = new Set<string>();
-  return flights.filter((f) => {
-    const key = `${f.airline}-${f.departureTime}-${f.origin}-${f.destination}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 export async function GET(request: Request) {
   try {
@@ -53,9 +34,8 @@ export async function GET(request: Request) {
     }
 
     let flights: NormalizedFlight[] = [];
-    let primarySource: NormalizedFlight['source'] = 'tripadvisor';
 
-    // 2. Try Tripadvisor RapidAPI (primary source)
+    // 2. Tripadvisor RapidAPI — sole live source
     if (canMakeRapidApiCall()) {
       try {
         recordRapidApiCall();
@@ -75,33 +55,14 @@ export async function GET(request: Request) {
       }
     }
 
-    // 3. If Tripadvisor returned < 5 results, supplement with AviationStack (real-time tracking)
-    if (flights.length < 5 && canMakeAviationstackCall()) {
-      try {
-        recordAviationstackCall();
-        const asFlights = await fetchAviationstackFlights(origin, destination);
-        const normalized = asFlights.map((f) =>
-          normalizeAviationstackFlight(f, departureDate)
-        );
-        const before = flights.length;
-        flights = deduplicateFlights([...flights, ...normalized]);
-        if (normalized.length > 0 && before === 0) {
-          primarySource = 'aviationstack';
-        }
-      } catch (err: unknown) {
-        console.warn('[Flights] AviationStack failed:', (err as Error)?.message);
-      }
-    }
-
-    // 4. Sort by price
     flights.sort((a, b) => a.price - b.price);
 
     if (flights.length > 0) {
       await setCache(cacheKey, flights, 30);
-      return NextResponse.json({ flights, source: primarySource, count: flights.length });
+      return NextResponse.json({ flights, source: 'tripadvisor', count: flights.length });
     }
 
-    // Strict mode: no reference fallback for flights. Empty result = empty result.
+    // Strict mode: no fallback. Empty result = empty result.
     return NextResponse.json({
       flights: [],
       source: 'live',

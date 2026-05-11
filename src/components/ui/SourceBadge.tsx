@@ -22,12 +22,6 @@ const config: Record<DataSource, { label: string; dot: string; bg: string; text:
     bg: "bg-orange-50 dark:bg-orange-500/10",
     text: "text-orange-700 dark:text-orange-400",
   },
-  aviationstack: {
-    label: "Tracked",
-    dot: "bg-blue-500",
-    bg: "bg-blue-50 dark:bg-blue-500/10",
-    text: "text-blue-700 dark:text-blue-400",
-  },
   reference: {
     label: "Est. Price",
     dot: "bg-purple-500",

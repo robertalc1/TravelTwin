@@ -1,6 +1,6 @@
 // Tripadvisor RapidAPI rate limiter — sliding window 24h, 100 calls cap.
 // Free-tier on Tripadvisor16 is ~500 req/month; 100/day leaves comfortable
-// headroom and degrades gracefully (cache + AviationStack take over).
+// headroom and degrades gracefully (cache takes over).
 const rapidApiTimestamps: number[] = [];
 const MAX_RAPIDAPI_PER_DAY = 100;
 
@@ -19,18 +19,4 @@ export function canMakeRapidApiCall(): boolean {
 
 export function recordRapidApiCall(): void {
   rapidApiTimestamps.push(Date.now());
-}
-
-// AviationStack rate limiter — 90 req/month budget (soft cap, cache is primary guard)
-let aviationstackMonthlyCount = 0;
-const MAX_AVIATIONSTACK_MONTHLY = 90;
-
-export function canMakeAviationstackCall(): boolean {
-  if (!process.env.AVIATIONSTACK_API_KEY) return false;
-  return aviationstackMonthlyCount < MAX_AVIATIONSTACK_MONTHLY;
-}
-
-export function recordAviationstackCall(): void {
-  aviationstackMonthlyCount++;
-  console.log(`[RateLimiter] AviationStack calls this session: ${aviationstackMonthlyCount}`);
 }
