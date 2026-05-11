@@ -125,7 +125,7 @@ export default function TripDetailView({
   // Read origin from sessionStorage (populated by AI planner)
   useEffect(() => {
     try {
-      const pr = sessionStorage.getItem('planResults');
+      const pr = sessionStorage.getItem('planResults_v2');
       if (pr) {
         const parsed: { params?: { originIata?: string; originDisplay?: string } } = JSON.parse(pr);
         setOriginCity(parsed.params?.originDisplay?.split(' (')[0] ?? '');
@@ -184,7 +184,7 @@ export default function TripDetailView({
     sessionStorage.setItem('bookingTrip', JSON.stringify(bookingPayload));
     try {
       let originCityName = '';
-      const pr = sessionStorage.getItem('planResults');
+      const pr = sessionStorage.getItem('planResults_v2');
       if (pr) {
         const parsed = JSON.parse(pr);
         originCityName = parsed.params?.originDisplay?.split(' (')[0] || parsed.params?.originIata || '';

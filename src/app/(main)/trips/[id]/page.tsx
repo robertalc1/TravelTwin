@@ -165,7 +165,7 @@ export default function TripDetailPage() {
 
     // 2. Try planResults
     if (!rawData) {
-      const pr = sessionStorage.getItem('planResults');
+      const pr = sessionStorage.getItem('planResults_v2');
       if (pr) {
         const { packages } = JSON.parse(pr);
         const found = packages?.find((p: any) => p.id === id); // eslint-disable-line @typescript-eslint/no-explicit-any

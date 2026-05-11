@@ -55,8 +55,8 @@ export async function getRates(): Promise<Record<string, number>> {
   }
 }
 
-/** Snapshot from 2026-04 — used only when network fails. */
-const FALLBACK_RATES: Record<string, number> = {
+/** Snapshot from 2026-04 — used when network fails or for server-side conversion. */
+export const FALLBACK_RATES: Record<string, number> = {
   EUR: 1,
   USD: 1.08,
   RON: 4.97,

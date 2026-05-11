@@ -40,7 +40,7 @@ export default function PlanResultsPage() {
 
   useEffect(() => {
     try {
-      const stored = sessionStorage.getItem("planResults");
+      const stored = sessionStorage.getItem("planResults_v2");
       if (!stored) {
         // Don't bounce silently — let the user see why they're empty.
         setMissing(true);

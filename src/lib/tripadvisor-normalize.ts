@@ -8,11 +8,22 @@ import type { TAFlight, TAHotel, TALocation } from './tripadvisor-client';
 import { extractFlightPrice } from './tripadvisor-client';
 import { getCityFromIata, getCountryFromIata } from './iataMapping';
 import { AIRLINE_NAMES } from './commonRoutes';
+import { convertAmount, FALLBACK_RATES } from './currencyService';
 import type {
   NormalizedFlight,
   NormalizedHotel,
   LocationResult,
 } from './supabase/types';
+
+/**
+ * Convert any amount in any supported currency to EUR using the static
+ * fallback rate snapshot. Server-side conversion is intentionally coarse —
+ * the frontend re-converts to the user's display currency with live rates.
+ */
+function toEur(amount: number, fromCurrency: string): number {
+  if (!amount || fromCurrency === 'EUR') return amount;
+  return convertAmount(amount, fromCurrency, 'EUR', FALLBACK_RATES);
+}
 
 /** Convert minutes → ISO 8601 duration string compatible with formatDuration */
 export function minutesToISO8601(min: number): string {
@@ -80,6 +91,10 @@ export function normalizeFlight(
   const arrivalTime =
     (last.arrivalDateTime || '').split('T')[1]?.substring(0, 5) || '';
 
+  // Always normalize to EUR so downstream consumers don't have to track
+  // per-record currency — frontend re-converts to user's display currency.
+  const priceEur = Math.round(toEur(pricing.price, pricing.currency) * 100) / 100;
+
   return {
     id: `ta-${airlineCode}-${origin}-${destination}-${departureDate}-${departureTime}`,
     origin: origin.toUpperCase(),
@@ -94,8 +109,8 @@ export function normalizeFlight(
     stops,
     airline: airlineCode,
     airlineName,
-    price: pricing.price,
-    currency: pricing.currency,
+    price: priceEur,
+    currency: 'EUR',
     travelClass: (travelClass || 'ECONOMY').toUpperCase(),
     source: 'live',
     lastUpdated: new Date().toISOString(),
@@ -115,7 +130,7 @@ export function normalizeHotel(
 ): NormalizedHotel {
   const priceStr = h.priceForDisplay || h.strikethroughPrice || '';
   const totalOrNightly = parsePriceForDisplay(priceStr);
-  const currency = detectCurrency(priceStr);
+  const sourceCurrency = detectCurrency(priceStr);
 
   const nights = Math.max(
     1,
@@ -126,9 +141,12 @@ export function normalizeHotel(
 
   const detailsLower = (h.priceDetails || '').toLowerCase();
   const isPerNight = detailsLower.includes('per night') || detailsLower.includes('/ night');
+  // Convert from whatever currency Tripadvisor returned (often USD for non-EU
+  // properties despite our currencyCode=EUR request) into EUR.
+  const totalOrNightlyEur = toEur(totalOrNightly, sourceCurrency);
   const pricePerNight = isPerNight
-    ? Math.round(totalOrNightly * 100) / 100
-    : Math.round((totalOrNightly / nights) * 100) / 100;
+    ? Math.round(totalOrNightlyEur * 100) / 100
+    : Math.round((totalOrNightlyEur / nights) * 100) / 100;
   const totalPrice = Math.round(pricePerNight * nights * 100) / 100;
 
   const ratingFloat = h.bubbleRating?.rating ?? 0;
@@ -146,7 +164,7 @@ export function normalizeHotel(
     rating: stars,
     pricePerNight,
     totalPrice,
-    currency,
+    currency: 'EUR',
     roomType: 'Standard Room',
     amenities,
     cancellationPolicy: 'Check provider for cancellation terms',

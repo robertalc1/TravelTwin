@@ -5,6 +5,7 @@ import { searchFlights, searchHotelsByCity } from '@/lib/tripadvisor-client';
 import { normalizeFlight, normalizeHotel } from '@/lib/tripadvisor-normalize';
 import type { NormalizedFlight, NormalizedHotel } from '@/lib/supabase/types';
 import { estimateTripPrice, pickAirlineForRoute } from '@/lib/pricing';
+import { convertAmount, FALLBACK_RATES } from '@/lib/currencyService';
 
 export interface TripPackage {
   id: string;
@@ -100,9 +101,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No destinations matched your preferences' }, { status: 400 });
     }
 
-    // Budget allocation: 40% flights, 45% hotel, 15% activities
-    const flightBudget = budget * 0.40;
-    const hotelBudget = budget * 0.45;
+    // Tripadvisor + estimator both work in EUR, so convert the user's budget
+    // (which may be in RON/USD/GBP/...) before doing any comparisons. The
+    // package totals are also returned in EUR so the frontend can convert
+    // back to the user's display currency with live rates.
+    const budgetEur = convertAmount(budget, currency, 'EUR', FALLBACK_RATES);
+
+    // Budget allocation: 40% flights, 45% hotel, 15% activities (all in EUR)
+    const flightBudget = budgetEur * 0.40;
+    const hotelBudget = budgetEur * 0.45;
 
     // 2. Search flights + hotels for each candidate in parallel
     const searchPromises = candidates.map(async (dest) => {
@@ -164,7 +171,7 @@ export async function POST(req: NextRequest) {
       let flightPrice = liveFlight ? liveFlight.price * totalAdults : 0;
       let hotelPrice = liveHotel ? liveHotel.totalPrice : 0;
 
-      const estimate = estimateTripPrice(origin, dest.iata, nights, budget);
+      const estimate = estimateTripPrice(origin, dest.iata, nights, budgetEur);
       if (!estimate) continue;
 
       // Use estimator when live data is missing or implausibly low
@@ -176,15 +183,16 @@ export async function POST(req: NextRequest) {
         hotelPrice = estimate.hotelTotal;
       }
 
+      // All comparisons in EUR — convert user's budget so it lines up.
       const totalPrice = flightPrice + hotelPrice;
-      if (totalPrice > budget) continue;
+      if (totalPrice > budgetEur) continue;
 
       const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
       const flight = liveFlight
         ? {
             outbound: liveFlight,
             price: flightPrice,
-            currency: liveFlight.currency,
+            currency: 'EUR',
             airline: liveFlight.airlineName,
             airlineCode: liveFlight.airline,
             duration: liveFlight.duration,
@@ -195,7 +203,7 @@ export async function POST(req: NextRequest) {
         : {
             outbound: null,
             price: flightPrice,
-            currency,
+            currency: 'EUR',
             airline: airlineCode,
             airlineCode,
             duration: estimate.durationISO,
@@ -211,7 +219,7 @@ export async function POST(req: NextRequest) {
             stars: liveHotel.rating,
             price: Math.round(hotelPrice),
             pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
-            currency: liveHotel.currency,
+            currency: 'EUR',
             checkIn: departureDate,
             checkOut: returnDate,
             amenities: liveHotel.amenities,
@@ -222,17 +230,17 @@ export async function POST(req: NextRequest) {
             stars: 3,
             price: Math.round(hotelPrice),
             pricePerNight: Math.round(hotelPrice / nights),
-            currency,
+            currency: 'EUR',
             checkIn: departureDate,
             checkOut: returnDate,
             amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
           };
 
-      // Score packages
+      // Score packages (budgetEur for consistent EUR comparisons)
       let score = 0;
-      if (totalPrice <= budget * 0.6) score += 40;      // way under budget = big win
-      else if (totalPrice <= budget * 0.8) score += 25;
-      else if (totalPrice <= budget) score += 10;
+      if (totalPrice <= budgetEur * 0.6) score += 40;
+      else if (totalPrice <= budgetEur * 0.8) score += 25;
+      else if (totalPrice <= budgetEur) score += 10;
       if (flight.stops === 0) score += 15;
       if (hotel.stars >= 4) score += 10;
       score += (dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10);
@@ -243,7 +251,7 @@ export async function POST(req: NextRequest) {
         flight,
         hotel,
         totalPrice: Math.round(totalPrice),
-        currency,
+        currency: 'EUR',
         nights,
         aiContent: null,
         score,
@@ -266,7 +274,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         packages: [],
         total: 0,
-        warning: `No destinations found within €${budget}. Try increasing your budget — typical European city breaks start around €300, while long-haul trips need €1200+.`,
+        warning: `No destinations found within €${Math.round(budgetEur)} EUR. Try increasing your budget — typical European city breaks start around €300, while long-haul trips need €1200+.`,
       });
     }
 
@@ -278,7 +286,7 @@ export async function POST(req: NextRequest) {
     if (apiKey && needAi.length > 0) {
       await Promise.all(needAi.map(async (pkg) => {
         try {
-          const activityBudget = Math.round(budget - pkg.totalPrice);
+          const activityBudget = Math.round(budgetEur - pkg.totalPrice);
           const prompt = `You are a travel expert. Generate a trip itinerary for this trip:
 
 Destination: ${pkg.destination.city}, ${pkg.destination.country}

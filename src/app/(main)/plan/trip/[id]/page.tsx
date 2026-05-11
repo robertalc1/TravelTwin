@@ -63,7 +63,7 @@ export default function TripDetailPage() {
     }
 
     // 2. Fallback: look in planResults (only populated by planner, not homepage)
-    const results = sessionStorage.getItem("planResults");
+    const results = sessionStorage.getItem("planResults_v2");
     if (results) {
       try {
         const { packages } = JSON.parse(results);

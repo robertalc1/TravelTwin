@@ -64,7 +64,7 @@ export default function TripMapPage() {
       } catch { /* ignore */ }
     } else {
       // 2. fallback to planResults
-      const results = sessionStorage.getItem('planResults');
+      const results = sessionStorage.getItem('planResults_v2');
       if (results) {
         try {
           const { packages } = JSON.parse(results);
@@ -76,7 +76,7 @@ export default function TripMapPage() {
 
     // Origin (from planner)
     try {
-      const pr = sessionStorage.getItem('planResults');
+      const pr = sessionStorage.getItem('planResults_v2');
       if (pr) {
         const parsed: { params?: { originIata?: string; originDisplay?: string } } = JSON.parse(pr);
         setOriginCity(parsed.params?.originDisplay?.split(' (')[0] ?? '');

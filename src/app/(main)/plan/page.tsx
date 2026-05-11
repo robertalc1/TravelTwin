@@ -269,7 +269,7 @@ export default function PlanPage() {
       setLoadingProgress(100);
 
       // Store results in sessionStorage
-      sessionStorage.setItem("planResults", JSON.stringify({ packages: data.packages, params: state, warning: data.warning || null }));
+      sessionStorage.setItem("planResults_v2", JSON.stringify({ packages: data.packages, params: state, warning: data.warning || null }));
 
       setTimeout(() => router.push("/plan/results"), 500);
     } catch (e: any) {
