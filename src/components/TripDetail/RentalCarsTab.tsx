@@ -142,9 +142,9 @@ export default function RentalCarsTab({
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white dark:bg-surface border border-neutral-200 dark:border-border-default group-hover:border-primary-400 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 transition-colors">
         <Plus className="h-5 w-5 text-text-muted group-hover:text-primary-600 transition-colors" />
       </span>
-      <span className="text-base font-bold">Add rental car</span>
+      <span className="text-base font-bold">Find a rental car</span>
       <span className="text-xs text-text-muted text-center max-w-xs">
-        Compare cars in {cityName} — quota only used when you open the search.
+        Compare cars in {cityName} via our partner Rentalcars.com — opens in a new tab.
       </span>
     </button>
   );
