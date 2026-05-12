@@ -445,7 +445,36 @@ export default function TripDetailView({
                   </button>
                 </div>
 
-                <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+                <div
+                  role={storeSelectedHotel ? 'button' : undefined}
+                  tabIndex={storeSelectedHotel ? 0 : undefined}
+                  onClick={() => {
+                    if (!storeSelectedHotel) return;
+                    const total = storeSelectedHotel.offers[0]?.price.total ?? '';
+                    const qs = new URLSearchParams({
+                      cityCode: trip.destinationCode,
+                      checkIn: trip.hotelCheckIn,
+                      checkOut: trip.hotelCheckOut,
+                    });
+                    if (total) qs.set('total', total);
+                    if (storeSelectedHotel.hotel.name) qs.set('name', storeSelectedHotel.hotel.name);
+                    router.push(
+                      `/plan/trip/${encodeURIComponent(trip.id)}/hotel/${encodeURIComponent(
+                        storeSelectedHotel.hotel.hotelId,
+                      )}?${qs.toString()}`,
+                    );
+                  }}
+                  onKeyDown={(e) => {
+                    if (!storeSelectedHotel) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      (e.currentTarget as HTMLDivElement).click();
+                      e.preventDefault();
+                    }
+                  }}
+                  className={`bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden ${
+                    storeSelectedHotel ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+                  }`}
+                >
                   {/* Header row */}
                   <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
                     <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">

@@ -40,6 +40,23 @@ export default function HotelsTab({
     router.push(`/hotels/search?${qs.toString()}`);
   }
 
+  function openSelectedHotel() {
+    if (!selectedHotel || !tripId) return;
+    const total = selectedHotel.offers[0]?.price.total ?? '';
+    const qs = new URLSearchParams({
+      cityCode: destinationCityCode,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
+    });
+    if (total) qs.set('total', total);
+    if (selectedHotel.hotel.name) qs.set('name', selectedHotel.hotel.name);
+    router.push(
+      `/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+        selectedHotel.hotel.hotelId,
+      )}?${qs.toString()}`,
+    );
+  }
+
   // Show the picked hotel inline instead of the CTA. The user can swap or
   // clear it without leaving the trip page.
   if (selectedHotel) {
@@ -54,9 +71,27 @@ export default function HotelsTab({
       stars,
     );
     const imageUrl = apiImage || fallbackImage;
+    const canOpen = Boolean(tripId);
 
     return (
-      <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden">
+      <div
+        role={canOpen ? 'button' : undefined}
+        tabIndex={canOpen ? 0 : undefined}
+        onClick={canOpen ? openSelectedHotel : undefined}
+        onKeyDown={
+          canOpen
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  openSelectedHotel();
+                }
+              }
+            : undefined
+        }
+        className={`rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden ${
+          canOpen ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
+        }`}
+      >
         <div className="flex flex-col md:flex-row">
           <div className="relative h-44 md:h-auto md:w-56 md:shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -92,7 +127,10 @@ export default function HotelsTab({
               </div>
               <button
                 type="button"
-                onClick={removeHotel}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeHotel();
+                }}
                 aria-label="Remove hotel"
                 className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
               >
@@ -111,7 +149,10 @@ export default function HotelsTab({
               </div>
               <button
                 type="button"
-                onClick={openSearch}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openSearch();
+                }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-border-default px-3 py-2 text-xs font-bold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
               >
                 <Pencil className="h-3.5 w-3.5" />

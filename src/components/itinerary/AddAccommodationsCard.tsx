@@ -57,6 +57,19 @@ export default function AddAccommodationsCard({
     router.push(`/hotels/search?${qs.toString()}`);
   }
 
+  function openSelectedHotel() {
+    if (!selectedHotel || !tripId) return;
+    const total = selectedHotel.offers[0]?.price.total ?? '';
+    const qs = new URLSearchParams({ cityCode, checkIn, checkOut });
+    if (total) qs.set('total', total);
+    if (selectedHotel.hotel.name) qs.set('name', selectedHotel.hotel.name);
+    router.push(
+      `/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+        selectedHotel.hotel.hotelId,
+      )}?${qs.toString()}`,
+    );
+  }
+
   if (selectedHotel) {
     const hotel = selectedHotel.hotel;
     const offer = selectedHotel.offers[0];
@@ -80,7 +93,18 @@ export default function AddAccommodationsCard({
     const perNight = nights > 0 ? total / nights : 0;
 
     return (
-      <div className="my-3 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={openSelectedHotel}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openSelectedHotel();
+          }
+        }}
+        className="my-3 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
+      >
         <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-neutral-100 dark:border-border-default">
           <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-secondary">
             <BedDouble className="h-4 w-4 text-primary-500" />
@@ -89,7 +113,10 @@ export default function AddAccommodationsCard({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={openSearch}
+              onClick={(e) => {
+                e.stopPropagation();
+                openSearch();
+              }}
               className="inline-flex items-center gap-1.5 rounded-full border border-primary-500 px-3 py-1 text-xs font-bold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
             >
               <Pencil className="h-3 w-3" />
@@ -97,7 +124,10 @@ export default function AddAccommodationsCard({
             </button>
             <button
               type="button"
-              onClick={removeHotel}
+              onClick={(e) => {
+                e.stopPropagation();
+                removeHotel();
+              }}
               aria-label="Remove accommodation"
               className="flex h-7 w-7 items-center justify-center rounded-full text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
