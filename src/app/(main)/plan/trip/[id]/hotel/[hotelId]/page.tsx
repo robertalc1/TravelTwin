@@ -5,7 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight,
-  Navigation, Check, BedDouble,
+  Navigation,
 } from "lucide-react";
 import { useCurrencyStore } from "@/stores/currencyStore";
 import { useToastStore } from "@/stores/toastStore";
@@ -38,40 +38,10 @@ interface FavoriteRow {
 const SECTIONS = [
   { id: "images", label: "Images" },
   { id: "details", label: "Details" },
-  { id: "rooms", label: "Rooms" },
-  { id: "features", label: "Features" },
   { id: "location", label: "Location" },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
-
-function prettifyAmenity(a: string): string {
-  return a
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Map common amenity keywords to a curated set of "what's in your room" tags
- *  — Tripadvisor16 doesn't return granular room data, so we synthesize the
- *  list from whatever amenities the hotel exposes plus sensible defaults. */
-function pickRoomAmenities(amenities: string[]): string[] {
-  const norm = amenities.map((a) => a.toLowerCase());
-  const has = (kw: string) => norm.some((a) => a.includes(kw));
-  const out: string[] = [];
-  out.push("Shower");
-  if (has("air condition") || has("a/c") || has("ac ")) out.push("Air conditioning");
-  out.push("Private bathroom");
-  out.push("Toilet");
-  if (has("wifi") || has("internet")) out.push("Free WiFi");
-  if (has("tv") || has("television")) out.push("TV");
-  if (has("heat")) out.push("Heating");
-  if (has("iron")) out.push("Iron");
-  if (has("fan")) out.push("Fan");
-  if (has("safe")) out.push("Safe");
-  if (has("desk")) out.push("Desk");
-  return out.slice(0, 8);
-}
 
 function HotelDetailContent() {
   const params = useParams();
@@ -107,8 +77,6 @@ function HotelDetailContent() {
   const sectionRefs = useRef<Record<SectionId, HTMLElement | null>>({
     images: null,
     details: null,
-    rooms: null,
-    features: null,
     location: null,
   });
 
@@ -210,10 +178,6 @@ function HotelDetailContent() {
   const fallbackImg = getHotelImage(displayName, cityCode, stars);
   const photos = hotel?.photos?.length ? hotel.photos : [fallbackImg];
   const heroPhoto = photos[photoIndex] || photos[0];
-  const breakfastIncluded = (hotel?.amenities || []).some((a) =>
-    /breakfast/i.test(a),
-  );
-  const roomAmenities = pickRoomAmenities(hotel?.amenities || []);
 
   function scrollToSection(sec: SectionId) {
     const el = sectionRefs.current[sec];
@@ -595,80 +559,6 @@ function HotelDetailContent() {
                 </div>
               )}
             </section>
-
-            {/* ── Your Room (synthesized) ── */}
-            <section
-              id="rooms"
-              ref={setSectionRef("rooms")}
-              className="scroll-mt-[120px]"
-            >
-              <h3 className="text-lg font-bold text-text-primary mb-3">
-                Your Room
-              </h3>
-              <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
-                <div className="bg-gradient-to-r from-red-500 to-orange-500 px-4 py-2 flex items-center gap-2">
-                  <Check className="h-4 w-4 text-white" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-white">
-                    Included
-                  </span>
-                </div>
-                <div className="p-5">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-900/20 text-primary-500 shrink-0">
-                      <BedDouble className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-text-primary">
-                        Standard Room
-                      </p>
-                      <p className="text-xs text-text-muted">
-                        Up to {nights}-night stay
-                      </p>
-                    </div>
-                  </div>
-                  {breakfastIncluded && (
-                    <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300 mb-4">
-                      Breakfast available
-                    </span>
-                  )}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    {roomAmenities.map((a) => (
-                      <div
-                        key={a}
-                        className="flex items-center gap-2 text-sm text-text-secondary"
-                      >
-                        <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                        <span>{a}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* ── Features (amenities) ── */}
-            {hotel?.amenities && hotel.amenities.length > 0 && (
-              <section
-                id="features"
-                ref={setSectionRef("features")}
-                className="scroll-mt-[120px]"
-              >
-                <h3 className="text-lg font-bold text-text-primary mb-3">
-                  Property features
-                </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {hotel.amenities.map((a) => (
-                    <div
-                      key={a}
-                      className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2 text-sm text-text-secondary"
-                    >
-                      <Check className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      <span className="truncate">{prettifyAmenity(a)}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {/* ── Location ── */}
             {(mapEmbedUrl || hotel?.address) && (
