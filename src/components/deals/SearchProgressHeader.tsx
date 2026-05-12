@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
+import { useLocale } from 'next-intl'
 import { useSearchMessages } from '@/hooks/useSearchMessages'
 
 type Props = {
@@ -13,12 +14,14 @@ type Props = {
 }
 
 export function SearchProgressHeader({ isLoading, progress, city, resultsCount, totalCount }: Props) {
+  const locale = useLocale()
+  const isRo = locale === 'ro'
   const message = useSearchMessages(isLoading)
 
   return (
     <div className="mb-6">
       <h2 className="text-h2 text-secondary-500">
-        Cheapest deals from {city}
+        {isRo ? `Cele mai ieftine oferte din ${city}` : `Cheapest deals from ${city}`}
       </h2>
 
       <AnimatePresence mode="wait">
@@ -54,7 +57,7 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount, 
               aria-valuenow={progress}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label="Searching for deals"
+              aria-label={isRo ? 'Caut oferte' : 'Searching for deals'}
             >
               <motion.div
                 className="h-full rounded-full bg-gradient-to-r from-primary-400 to-primary-600"
@@ -66,7 +69,7 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount, 
 
             {/* Percent label */}
             <div className="mt-1.5 text-right text-caption text-text-muted tabular-nums">
-              Searching... {progress}%
+              {isRo ? 'Se caută...' : 'Searching...'} {progress}%
             </div>
           </motion.div>
         ) : resultsCount !== undefined && resultsCount > 0 ? (
@@ -78,8 +81,12 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount, 
             className="text-body-sm text-text-secondary mt-1"
           >
             {totalCount !== undefined && totalCount > (resultsCount ?? 0)
-              ? `Showing ${resultsCount} of ${totalCount} deals`
-              : `${resultsCount} ready-to-book package${resultsCount !== 1 ? 's' : ''}, sorted by price & variety`}
+              ? (isRo
+                  ? `Afișez ${resultsCount} din ${totalCount} oferte`
+                  : `Showing ${resultsCount} of ${totalCount} deals`)
+              : (isRo
+                  ? `${resultsCount} ${resultsCount === 1 ? 'pachet gata de rezervat' : 'pachete gata de rezervat'}, sortate după preț și varietate`
+                  : `${resultsCount} ready-to-book package${resultsCount !== 1 ? 's' : ''}, sorted by price & variety`)}
           </motion.p>
         ) : null}
       </AnimatePresence>
