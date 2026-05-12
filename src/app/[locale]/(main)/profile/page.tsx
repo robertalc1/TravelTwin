@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     User,
@@ -49,6 +50,7 @@ const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
 
 export default function ProfilePage() {
     const router = useRouter();
+    const locale = useLocale();
     const { user, profile, loading: userLoading, displayName } = useUser();
     const openAuthModal = useAuthModal((s) => s.open);
     const showToast = useToastStore((s) => s.show);
@@ -172,7 +174,7 @@ export default function ProfilePage() {
                     transition={{ duration: 0.2 }}
                 >
                     {activeTab === "personal" && <PersonalInfoTab onSaved={() => showToast("Profile saved", "success")} />}
-                    {activeTab === "trips" && <TripsTab onPlanClick={() => router.push("/plan")} />}
+                    {activeTab === "trips" && <TripsTab onPlanClick={() => router.push(`/${locale}/plan`)} />}
                     {activeTab === "favorites" && <FavoritesTab />}
                     {activeTab === "settings" && <SettingsTab />}
                 </motion.div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -76,6 +77,7 @@ export default function TripDetailView({
   isSharedView = false,
 }: Props) {
   const router = useRouter();
+  const locale = useLocale();
   const { profile } = useUser();
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const [originCity, setOriginCity] = useState('');
@@ -263,7 +265,7 @@ export default function TripDetailView({
         originCity: originCityName,
       }));
     } catch { /* ignore */ }
-    router.push('/booking/simulate');
+    router.push(`/${locale}/booking/simulate`);
   }
 
   return (
@@ -405,7 +407,7 @@ export default function TripDetailView({
                 destinationCity={trip.destinationCity}
                 destinationLat={trip.destinationLat}
                 destinationLon={trip.destinationLon}
-                href={`/plan/trip/${trip.id}/map`}
+                href={`/${locale}/plan/trip/${trip.id}/map`}
               />
 
               {/* Top Attractions — photo grid still belongs on the trip page */}
@@ -467,7 +469,7 @@ export default function TripDetailView({
                     if (total) qs.set('total', total);
                     if (storeSelectedHotel.hotel.name) qs.set('name', storeSelectedHotel.hotel.name);
                     router.push(
-                      `/plan/trip/${encodeURIComponent(trip.id)}/hotel/${encodeURIComponent(
+                      `/${locale}/plan/trip/${encodeURIComponent(trip.id)}/hotel/${encodeURIComponent(
                         storeSelectedHotel.hotel.hotelId,
                       )}?${qs.toString()}`,
                     );
@@ -709,16 +711,24 @@ export default function TripDetailView({
                 <div className="bg-gradient-to-br from-primary-50 to-secondary-50 dark:from-primary-900/20 dark:to-secondary-900/20 rounded-2xl border border-primary-200 dark:border-primary-800/40 p-6 space-y-4">
                   <div className="text-center">
                     <div className="text-3xl mb-3">✈️</div>
-                    <h3 className="font-bold text-secondary-500 mb-1">Planning a similar trip?</h3>
-                    <p className="text-sm text-text-secondary">Let our AI find you the perfect package from Bucharest.</p>
+                    <h3 className="font-bold text-secondary-500 mb-1">
+                      {locale === "ro" ? "Planifici o călătorie similară?" : "Planning a similar trip?"}
+                    </h3>
+                    <p className="text-sm text-text-secondary">
+                      {locale === "ro"
+                        ? "Lasă AI-ul nostru să-ți găsească pachetul perfect din București."
+                        : "Let our AI find you the perfect package from Bucharest."}
+                    </p>
                   </div>
                   <Link
-                    href="/plan"
+                    href={`/${locale}/plan`}
                     className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary-500 px-6 py-4 font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
                   >
-                    Start Planning Here →
+                    {locale === "ro" ? "Începe să planifici aici →" : "Start Planning Here →"}
                   </Link>
-                  <p className="text-xs text-text-muted text-center">Free · No account required</p>
+                  <p className="text-xs text-text-muted text-center">
+                    {locale === "ro" ? "Gratuit · Fără cont necesar" : "Free · No account required"}
+                  </p>
                 </div>
                 <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 text-sm space-y-3">
                   <div className="flex justify-between">

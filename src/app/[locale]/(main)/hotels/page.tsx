@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Search, Calendar, Loader2, Hotel as HotelIcon, AlertCircle } from "lucide-react";
 import { HotelCard } from "@/components/features/hotels/HotelCard";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
@@ -21,6 +22,9 @@ const POPULAR_CITIES: Array<[string, string]> = [
 ];
 
 export default function HotelsPage() {
+    const locale = useLocale();
+    const t = useTranslations("hotels");
+    const isRo = locale === "ro";
     const [cityIata, setCityIata] = useState("");
     const [cityDisplay, setCityDisplay] = useState("");
     const [checkInDate, setCheckInDate] = useState("");
@@ -78,7 +82,7 @@ export default function HotelsPage() {
             setHotels(data.hotels || []);
             if (data.warning) setWarning(data.warning);
         } catch {
-            setWarning("Search failed. Please try again.");
+            setWarning(t("errorGeneric"));
         } finally {
             setLoading(false);
         }
@@ -99,10 +103,14 @@ export default function HotelsPage() {
                 <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8 py-12 lg:py-16">
                     <div className="flex items-center gap-3 mb-2">
                         <HotelIcon className="h-7 w-7" />
-                        <h1 className="text-3xl md:text-4xl font-extrabold">Search Worldwide Hotels</h1>
+                        <h1 className="text-3xl md:text-4xl font-extrabold">
+                            {isRo ? "Caută hoteluri din toată lumea" : "Search Worldwide Hotels"}
+                        </h1>
                     </div>
                     <p className="text-white/90 mb-8 max-w-xl">
-                        Live availability and real prices from thousands of hotels — from boutique stays to 5-star resorts.
+                        {isRo
+                            ? "Disponibilitate live și prețuri reale din mii de hoteluri — de la cazări boutique la resort-uri de 5 stele."
+                            : "Live availability and real prices from thousands of hotels — from boutique stays to 5-star resorts."}
                     </p>
 
                     {/* Search card */}
@@ -111,18 +119,18 @@ export default function HotelsPage() {
                         className="bg-white dark:bg-surface text-text-primary rounded-2xl shadow-xl p-4 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-3"
                     >
                         <div className="md:col-span-5">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Destination</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("destination")}</label>
                             <LocationAutocomplete
                                 value={cityIata}
                                 displayValue={cityDisplay}
                                 onSelect={(code, display) => { setCityIata(code); setCityDisplay(display); }}
-                                placeholder="City or airport"
+                                placeholder={isRo ? "Oraș sau aeroport" : "City or airport"}
                                 icon="destination"
                             />
                         </div>
 
                         <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Check-in</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("checkIn")}</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
                                 <input
@@ -136,7 +144,7 @@ export default function HotelsPage() {
                         </div>
 
                         <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Check-out</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("checkOut")}</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
                                 <input
@@ -155,7 +163,7 @@ export default function HotelsPage() {
                                 type="submit"
                                 disabled={loading || !cityIata}
                                 className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-2.5 transition-colors"
-                                aria-label="Search hotels"
+                                aria-label={t("searchCta")}
                             >
                                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                             </button>
@@ -177,12 +185,16 @@ export default function HotelsPage() {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div>
                             <h2 className="text-2xl font-bold text-text-primary">
-                                {cityDisplay ? `Hotels in ${cityDisplay}` : "Hotel Search Results"}
+                                {cityDisplay
+                                    ? (isRo ? `Hoteluri în ${cityDisplay}` : `Hotels in ${cityDisplay}`)
+                                    : (isRo ? "Rezultate căutare hoteluri" : "Hotel Search Results")}
                             </h2>
                             <p className="text-sm text-text-muted mt-1">
                                 {loading
-                                    ? "Searching..."
-                                    : `${hotels.length} hotel${hotels.length !== 1 ? "s" : ""} found · ${nights} night${nights !== 1 ? "s" : ""}`}
+                                    ? (isRo ? "Se caută..." : "Searching...")
+                                    : isRo
+                                        ? `${hotels.length} ${hotels.length === 1 ? "hotel găsit" : "hoteluri găsite"} · ${nights} ${nights === 1 ? "noapte" : "nopți"}`
+                                        : `${hotels.length} hotel${hotels.length !== 1 ? "s" : ""} found · ${nights} night${nights !== 1 ? "s" : ""}`}
                             </p>
                         </div>
                     </div>
@@ -193,9 +205,13 @@ export default function HotelsPage() {
                         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
                             <HotelIcon className="h-8 w-8 text-primary-500" />
                         </div>
-                        <h2 className="text-xl font-bold text-text-primary mb-2">Where do you want to stay?</h2>
+                        <h2 className="text-xl font-bold text-text-primary mb-2">
+                            {isRo ? "Unde vrei să stai?" : "Where do you want to stay?"}
+                        </h2>
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
-                            Enter a city above to find hotels with live availability. Supports any city worldwide.
+                            {isRo
+                                ? "Introdu un oraș mai sus pentru a găsi hoteluri cu disponibilitate live. Funcționează cu orice oraș din lume."
+                                : "Enter a city above to find hotels with live availability. Supports any city worldwide."}
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {POPULAR_CITIES.map(([code, label]) => (
@@ -242,16 +258,16 @@ export default function HotelsPage() {
                                     cancellationPolicy={hotel.cancellationPolicy}
                                     badges={
                                         hotel.pricePerNight < 80
-                                            ? ["Great Value"]
+                                            ? [isRo ? "Preț excelent" : "Great Value"]
                                             : hotel.rating >= 5
-                                              ? ["Luxury"]
+                                              ? [isRo ? "Lux" : "Luxury"]
                                               : []
                                     }
                                 />
                                 <div className="px-4 pb-3 pt-2 flex items-center justify-between text-xs text-text-muted rounded-b-2xl border border-t-0 border-neutral-200 dark:border-border-default bg-white dark:bg-surface -mt-2">
-                                    <span>{hotel.roomType || "Standard Room"} · {nights} night{nights !== 1 ? "s" : ""}</span>
+                                    <span>{hotel.roomType || (isRo ? "Cameră standard" : "Standard Room")} · {isRo ? `${nights} ${nights === 1 ? "noapte" : "nopți"}` : `${nights} night${nights !== 1 ? "s" : ""}`}</span>
                                     <span className="font-mono font-semibold text-primary-500">
-                                        Total: {formatCurrency(hotel.pricePerNight * nights, hotel.currency || 'EUR')}
+                                        {isRo ? "Total" : "Total"}: {formatCurrency(hotel.pricePerNight * nights, hotel.currency || 'EUR')}
                                     </span>
                                 </div>
                             </div>
@@ -263,11 +279,13 @@ export default function HotelsPage() {
                             <HotelIcon className="h-7 w-7 text-primary-500" />
                         </div>
                         <h3 className="text-lg font-bold text-text-primary mb-2">
-                            We couldn&apos;t fetch hotels for this city
+                            {isRo ? "Nu am putut obține hoteluri pentru acest oraș" : "We couldn’t fetch hotels for this city"}
                         </h3>
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-5">
                             {warning ||
-                                "Some cities have limited availability in our test environment. Try one of these popular destinations:"}
+                                (isRo
+                                    ? "Unele orașe au disponibilitate limitată în mediul nostru de test. Încearcă una dintre aceste destinații populare:"
+                                    : "Some cities have limited availability in our test environment. Try one of these popular destinations:")}
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {[

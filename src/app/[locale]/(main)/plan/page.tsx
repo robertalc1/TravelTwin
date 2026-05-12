@@ -297,7 +297,7 @@ export default function PlanPage() {
       // Store results in sessionStorage
       sessionStorage.setItem("planResults_v2", JSON.stringify({ packages: data.packages, params: state, warning: data.warning || null }));
 
-      setTimeout(() => router.push("/plan/results"), 500);
+      setTimeout(() => router.push(`/${locale}/plan/results`), 500);
     } catch (e: any) {
       clearInterval(stepInterval);
       clearInterval(progressInterval);

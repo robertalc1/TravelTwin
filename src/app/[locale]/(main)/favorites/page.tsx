@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLocale } from "next-intl";
 import { Heart, Trash2, Loader2, MapPin, Clock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -9,6 +10,8 @@ import { useUser } from "@/hooks/useUser";
 import type { Favorite } from "@/lib/supabase/types";
 
 export default function FavoritesPage() {
+    const locale = useLocale();
+    const isRo = locale === "ro";
     const { user, loading: userLoading } = useUser();
     const [favorites, setFavorites] = useState<Favorite[]>([]);
     const [loading, setLoading] = useState(true);
@@ -83,12 +86,14 @@ export default function FavoritesPage() {
             {favorites.length === 0 ? (
                 <div className="text-center py-24 rounded-radius-xl bg-surface-sunken border border-border-default">
                     <Heart className="h-14 w-14 text-text-muted mx-auto mb-4 opacity-30" />
-                    <h3 className="text-h3 text-text-primary mb-2">No favorites yet</h3>
+                    <h3 className="text-h3 text-text-primary mb-2">{isRo ? "Niciun favorit încă" : "No favorites yet"}</h3>
                     <p className="text-body text-text-muted max-w-md mx-auto mb-6">
-                        Explore our destinations and save your favorites to access them quickly later.
+                        {isRo
+                            ? "Explorează destinațiile noastre și salvează-ți favoritele ca să le accesezi rapid mai târziu."
+                            : "Explore our destinations and save your favorites to access them quickly later."}
                     </p>
-                    <Button variant="primary" size="lg" onClick={() => window.location.href = "/flights"}>
-                        Search Flights
+                    <Button variant="primary" size="lg" onClick={() => window.location.href = `/${locale}/flights`}>
+                        {isRo ? "Caută zboruri" : "Search Flights"}
                     </Button>
                 </div>
             ) : (

@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Search, ChevronDown, Loader2, Plane, Calendar, AlertCircle } from "lucide-react";
 import { FlightResultCard } from "@/components/features/flights/FlightResultCard";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { NormalizedFlight } from "@/lib/supabase/types";
 
-const flightClassOptions = [
-    { value: "", label: "All Classes" },
-    { value: "ECONOMY", label: "Economy" },
-    { value: "PREMIUM_ECONOMY", label: "Premium Economy" },
-    { value: "BUSINESS", label: "Business" },
-    { value: "FIRST", label: "First Class" },
+const FLIGHT_CLASS_OPTIONS = [
+    { value: "", en: "All Classes", ro: "Toate clasele" },
+    { value: "ECONOMY", en: "Economy", ro: "Economic" },
+    { value: "PREMIUM_ECONOMY", en: "Premium Economy", ro: "Premium Economy" },
+    { value: "BUSINESS", en: "Business", ro: "Business" },
+    { value: "FIRST", en: "First Class", ro: "First Class" },
 ];
 
 const POPULAR_ROUTES: Array<[string, string, string]> = [
@@ -25,6 +26,10 @@ const POPULAR_ROUTES: Array<[string, string, string]> = [
 ];
 
 export default function FlightsPage() {
+    const locale = useLocale();
+    const t = useTranslations("flights");
+    const tCommon = useTranslations("common");
+    const isRo = locale === "ro";
     const [originIata, setOriginIata] = useState("");
     const [originDisplay, setOriginDisplay] = useState("");
     const [destIata, setDestIata] = useState("");
@@ -78,7 +83,7 @@ export default function FlightsPage() {
             setResponseSource(data.source || "");
             if (data.warning) setWarning(data.warning);
         } catch {
-            setWarning("Search failed. Please try again.");
+            setWarning(t("errorGeneric"));
         } finally {
             setLoading(false);
         }
@@ -99,10 +104,14 @@ export default function FlightsPage() {
                 <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8 py-12 lg:py-16">
                     <div className="flex items-center gap-3 mb-2">
                         <Plane className="h-7 w-7" />
-                        <h1 className="text-3xl md:text-4xl font-extrabold">Search Worldwide Flights</h1>
+                        <h1 className="text-3xl md:text-4xl font-extrabold">
+                            {isRo ? "Caută zboruri din toată lumea" : "Search Worldwide Flights"}
+                        </h1>
                     </div>
                     <p className="text-white/90 mb-8 max-w-xl">
-                        Compare live prices from 500+ airlines. Real-time fares, transparent stops, no hidden fees.
+                        {isRo
+                            ? "Compară prețuri live de la peste 500 de companii. Tarife în timp real, escale transparente, fără taxe ascunse."
+                            : "Compare live prices from 500+ airlines. Real-time fares, transparent stops, no hidden fees."}
                     </p>
 
                     {/* Search card */}
@@ -111,29 +120,29 @@ export default function FlightsPage() {
                         className="bg-white dark:bg-surface text-text-primary rounded-2xl shadow-xl p-4 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-3"
                     >
                         <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">From</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("from")}</label>
                             <LocationAutocomplete
                                 value={originIata}
                                 displayValue={originDisplay}
                                 onSelect={(code, display) => { setOriginIata(code); setOriginDisplay(display); }}
-                                placeholder="City or airport"
+                                placeholder={isRo ? "Oraș sau aeroport" : "City or airport"}
                                 icon="origin"
                             />
                         </div>
 
                         <div className="md:col-span-3">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">To</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("to")}</label>
                             <LocationAutocomplete
                                 value={destIata}
                                 displayValue={destDisplay}
                                 onSelect={(code, display) => { setDestIata(code); setDestDisplay(display); }}
-                                placeholder="City or airport"
+                                placeholder={isRo ? "Oraș sau aeroport" : "City or airport"}
                                 icon="destination"
                             />
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Departure</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{t("departure")}</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
                                 <input
@@ -147,7 +156,7 @@ export default function FlightsPage() {
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Return (optional)</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{isRo ? "Întoarcere (opțional)" : "Return (optional)"}</label>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
                                 <input
@@ -161,15 +170,15 @@ export default function FlightsPage() {
                         </div>
 
                         <div className="md:col-span-2">
-                            <label className="block text-xs font-semibold text-text-muted mb-1">Class</label>
+                            <label className="block text-xs font-semibold text-text-muted mb-1">{isRo ? "Clasă" : "Class"}</label>
                             <div className="relative">
                                 <select
                                     value={flightClass}
                                     onChange={(e) => setFlightClass(e.target.value)}
                                     className="w-full appearance-none px-3 pr-9 py-2.5 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated text-text-primary text-sm focus:border-primary-500 outline-none"
                                 >
-                                    {flightClassOptions.map(({ value, label }) => (
-                                        <option key={value} value={value}>{label}</option>
+                                    {FLIGHT_CLASS_OPTIONS.map(({ value, en, ro }) => (
+                                        <option key={value} value={value}>{isRo ? ro : en}</option>
                                     ))}
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted pointer-events-none" />
@@ -183,7 +192,7 @@ export default function FlightsPage() {
                                 className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 transition-colors"
                             >
                                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                                {loading ? "Searching..." : "Search Flights"}
+                                {loading ? (isRo ? "Se caută..." : "Searching...") : t("searchCta")}
                             </button>
                         </div>
                     </form>
@@ -195,14 +204,18 @@ export default function FlightsPage() {
                 {hasSearched && !loading && flights.length > 0 && responseSource === "live" && (
                     <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        Prices shown are from the Amadeus test environment and may not reflect current market prices.
+                        {isRo
+                            ? "Prețurile afișate provin din mediul de test Amadeus și pot să nu reflecte prețurile actuale ale pieței."
+                            : "Prices shown are from the Amadeus test environment and may not reflect current market prices."}
                     </div>
                 )}
 
                 {hasSearched && !loading && flights.length > 0 && responseSource === "reference" && (
                     <div className="mb-4 flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 px-4 py-3 text-sm text-purple-800 dark:text-purple-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        Showing estimated prices based on typical route costs. Live pricing may differ.
+                        {isRo
+                            ? "Afișăm prețuri estimate pe baza costurilor tipice de rută. Prețurile live pot diferi."
+                            : "Showing estimated prices based on typical route costs. Live pricing may differ."}
                     </div>
                 )}
 
@@ -216,10 +229,14 @@ export default function FlightsPage() {
                 {hasSearched && (
                     <div className="mb-6">
                         <h2 className="text-2xl font-bold text-text-primary">
-                            {originDisplay && destDisplay ? `${originDisplay} → ${destDisplay}` : "Flight Search Results"}
+                            {originDisplay && destDisplay ? `${originDisplay} → ${destDisplay}` : (isRo ? "Rezultate căutare zboruri" : "Flight Search Results")}
                         </h2>
                         <p className="text-sm text-text-muted mt-1">
-                            {loading ? "Searching live prices..." : `${flights.length} flight${flights.length !== 1 ? "s" : ""} found`}
+                            {loading
+                                ? (isRo ? "Caut prețuri live..." : "Searching live prices...")
+                                : (isRo
+                                    ? `${flights.length} ${flights.length === 1 ? "zbor găsit" : "zboruri găsite"}`
+                                    : `${flights.length} flight${flights.length !== 1 ? "s" : ""} found`)}
                         </p>
                     </div>
                 )}
@@ -229,9 +246,13 @@ export default function FlightsPage() {
                         <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
                             <Plane className="h-8 w-8 text-primary-500" />
                         </div>
-                        <h2 className="text-xl font-bold text-text-primary mb-2">Where would you like to fly?</h2>
+                        <h2 className="text-xl font-bold text-text-primary mb-2">
+                            {isRo ? "Unde vrei să zbori?" : "Where would you like to fly?"}
+                        </h2>
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
-                            Enter departure and destination above. Supports any city or airport worldwide.
+                            {isRo
+                                ? "Introdu plecarea și destinația mai sus. Suportă orice oraș sau aeroport din lume."
+                                : "Enter departure and destination above. Supports any city or airport worldwide."}
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {POPULAR_ROUTES.map(([from, to, label]) => (
@@ -266,9 +287,9 @@ export default function FlightsPage() {
                 ) : (
                     <div className="text-center py-16 rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default">
                         <Plane className="h-12 w-12 text-text-muted mx-auto mb-4 opacity-40" />
-                        <h3 className="text-lg font-bold text-text-primary mb-2">No flights found</h3>
+                        <h3 className="text-lg font-bold text-text-primary mb-2">{t("noResults")}</h3>
                         <p className="text-sm text-text-muted max-w-md mx-auto">
-                            {warning || "Try different cities, dates, or flight class."}
+                            {warning || (isRo ? "Încearcă alte orașe, date sau clasa de zbor." : "Try different cities, dates, or flight class.")}
                         </p>
                     </div>
                 )}

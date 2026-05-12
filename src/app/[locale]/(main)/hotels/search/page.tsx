@@ -2,11 +2,13 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useLocale } from "next-intl";
 import { ArrowLeft, Filter, RotateCcw, Star } from "lucide-react";
 import HotelCard, { type HotelOfferData } from "@/components/Hotels/HotelCard";
 
 function HotelsSearchContent() {
   const router = useRouter();
+  const locale = useLocale();
   const search = useSearchParams();
   const cityCode = (search.get("cityCode") || "").toUpperCase();
   const cityName = search.get("cityName") || cityCode;
@@ -117,11 +119,11 @@ function HotelsSearchContent() {
     // Hotel detail lives under the trip context. Without a tripId there's no
     // package to attach the choice to, so we bounce back to /plan.
     if (!tripId) {
-      router.push("/plan");
+      router.push(`/${locale}/plan`);
       return;
     }
     router.push(
-      `/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+      `/${locale}/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
         h.hotel.hotelId,
       )}?${qs.toString()}`,
     );

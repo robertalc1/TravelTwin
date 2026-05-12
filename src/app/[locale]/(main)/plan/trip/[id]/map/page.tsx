@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import type { TripPackage } from '@/app/api/ai/plan-trip/route';
 import { TripDetail } from '@/lib/tripDetail';
 import RouteMapView from '@/components/RouteMap/RouteMapView';
@@ -48,6 +49,7 @@ function packageToTripDetail(pkg: TripPackage): TripDetail {
 export default function TripMapPage() {
   const params = useParams();
   const router = useRouter();
+  const locale = useLocale();
   const id = params?.id as string;
 
   const [trip, setTrip] = useState<TripDetail | null>(null);
@@ -92,17 +94,17 @@ export default function TripMapPage() {
   useEffect(() => {
     if (!id) return;
     const t = setTimeout(() => {
-      if (!trip) router.push(`/plan/trip/${id}`);
+      if (!trip) router.push(`/${locale}/plan/trip/${id}`);
     }, 600);
     return () => clearTimeout(t);
-  }, [id, trip, router]);
+  }, [id, trip, router, locale]);
 
   if (!trip) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
           <div className="text-4xl mb-4 animate-bounce">🗺️</div>
-          <p className="text-text-secondary">Loading your route…</p>
+          <p className="text-text-secondary">{locale === "ro" ? "Se încarcă traseul tău…" : "Loading your route…"}</p>
         </div>
       </div>
     );

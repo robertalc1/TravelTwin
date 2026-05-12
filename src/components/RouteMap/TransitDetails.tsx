@@ -6,6 +6,7 @@ import {
   Footprints, Car, Bike, ArrowRight, ChevronRight,
   Clock, AlertCircle, ExternalLink, Loader2,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import type {
   DirectionsResponse, DirectionsRoute, DirectionsStep, TravelMode,
 } from '@/app/api/directions/route';
@@ -86,6 +87,7 @@ function VehicleBadge({ step }: { step: DirectionsStep }) {
 }
 
 function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) {
+  const t = useTranslations('transit');
   const [expanded, setExpanded] = useState(index === 0);
 
   // Build the compact ribbon shown when collapsed: shows every transit step as
@@ -112,7 +114,7 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
               <p className="text-sm font-bold text-text-primary truncate">
                 {route.departureTime && route.arrivalTime
                   ? `${route.departureTime} – ${route.arrivalTime}`
-                  : route.summary || 'Rută alternativă'}
+                  : route.summary || t('altRoute')}
               </p>
               {(route.durationText || route.distanceText) && (
                 <p className="text-xs text-text-muted flex items-center gap-1.5">
@@ -157,7 +159,7 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
                       </p>
                       {step.transit.departureTime && (
                         <p className="text-xs text-text-muted">
-                          Plecare {step.transit.departureTime}
+                          {t('departure', { time: step.transit.departureTime })}
                         </p>
                       )}
                       <div className="my-1.5 flex items-center gap-1.5 text-xs text-text-secondary">
@@ -165,7 +167,7 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
                         <span>
                           {step.transit.line.name || step.transit.line.shortName}
                           {step.transit.headsign && ` → ${step.transit.headsign}`}
-                          {step.transit.numStops != null && ` · ${step.transit.numStops} stații`}
+                          {step.transit.numStops != null && ` · ${t('stopsCount', { count: step.transit.numStops })}`}
                         </span>
                       </div>
                       <p className="font-semibold text-text-primary leading-tight">
@@ -173,14 +175,14 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
                       </p>
                       {step.transit.arrivalTime && (
                         <p className="text-xs text-text-muted">
-                          Sosire {step.transit.arrivalTime}
+                          {t('arrival', { time: step.transit.arrivalTime })}
                         </p>
                       )}
                     </div>
                   ) : (
                     <div>
                       <p className="text-text-secondary leading-snug">
-                        {stripHtml(step.instructionsHtml) || (step.travelMode === 'WALKING' ? 'Mergi pe jos' : 'Continuă')}
+                        {stripHtml(step.instructionsHtml) || (step.travelMode === 'WALKING' ? t('walkOnFoot') : t('continue'))}
                       </p>
                       {(step.durationText || step.distanceText) && (
                         <p className="text-xs text-text-muted mt-0.5">
@@ -202,7 +204,7 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
             className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            Deschide ruta în Google Maps
+            {t('openInGoogleMaps')}
           </a>
         </div>
       )}
@@ -211,6 +213,7 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
 }
 
 export default function TransitDetails({ origin, destination, mode, label }: Props) {
+  const t = useTranslations('transit');
   const [data, setData] = useState<DirectionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -252,13 +255,13 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
   return (
     <section>
       <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
-        <Bus className="h-3.5 w-3.5" /> {label || 'Detalii rută transit'}
+        <Bus className="h-3.5 w-3.5" /> {label || t('title')}
       </h2>
 
       {loading && (
         <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-3 text-sm text-text-secondary">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Caut rute cu transportul public…
+          {t('loading')}
         </div>
       )}
 
@@ -268,7 +271,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="font-semibold text-amber-900 dark:text-amber-200">
-                Nu am putut găsi detalii pentru transit
+                {t('noRoutesError')}
               </p>
               <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">{error}</p>
             </div>
@@ -280,7 +283,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            Vezi ruta în Google Maps
+            {t('viewInGoogleMaps')}
           </a>
         </div>
       )}
@@ -288,7 +291,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
       {!loading && !error && data && data.routes.length === 0 && (
         <div className="rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-3 text-sm">
           <p className="text-text-secondary mb-2">
-            Nu există rute de transport public pentru acest traseu (acoperire Google limitată).
+            {t('noData')}
           </p>
           <a
             href={fallbackGoogleUrl}
@@ -297,7 +300,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
           >
             <ExternalLink className="h-3 w-3" />
-            Încearcă în Google Maps
+            {t('tryInGoogleMaps')}
           </a>
         </div>
       )}

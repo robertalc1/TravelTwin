@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import { TripDetail } from "@/lib/tripDetail";
 import TripDetailView from "@/components/TripDetailView";
@@ -44,12 +45,16 @@ function packageToTripDetail(pkg: TripPackage): TripDetail {
 export default function TripDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const locale = useLocale();
+  const isRo = locale === "ro";
   const [tripDetail, setTripDetail] = useState<TripDetail | null>(null);
 
   const id = params?.id as string;
   const isHomepageDeal = id?.startsWith('deal-');
-  const backHref = isHomepageDeal ? '/' : '/plan/results';
-  const backLabel = isHomepageDeal ? 'Back to home' : 'Back to results';
+  const backHref = isHomepageDeal ? `/${locale}` : `/${locale}/plan/results`;
+  const backLabel = isHomepageDeal
+    ? (isRo ? 'Înapoi acasă' : 'Back to home')
+    : (isRo ? 'Înapoi la rezultate' : 'Back to results');
 
   useEffect(() => {
     if (!id) return;
@@ -79,18 +84,18 @@ export default function TripDetailPage() {
 
     // 3. Not found — redirect based on source
     if (id.startsWith('deal-')) {
-      router.push('/');
+      router.push(`/${locale}`);
     } else {
-      router.push('/plan');
+      router.push(`/${locale}/plan`);
     }
-  }, [id, router]);
+  }, [id, router, locale]);
 
   if (!tripDetail) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
           <div className="text-4xl mb-4 animate-bounce">✈️</div>
-          <p className="text-text-secondary">Loading your itinerary...</p>
+          <p className="text-text-secondary">{isRo ? "Se încarcă itinerariul tău..." : "Loading your itinerary..."}</p>
         </div>
       </div>
     );

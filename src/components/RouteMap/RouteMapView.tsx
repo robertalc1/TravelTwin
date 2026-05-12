@@ -18,6 +18,7 @@ import {
 } from './buildEmbedUrl';
 import { getAirportCoord } from '@/lib/airportCoordinates';
 import { useTripPricing } from '@/stores/tripPricingStore';
+import { useLocale, useTranslations } from 'next-intl';
 import TransitDetails from './TransitDetails';
 
 /** Tripadvisor-backed restaurant. Falls back to the AI restaurant shape
@@ -49,6 +50,9 @@ function googleMapsSearchUrl(name: string, city: string): string {
 
 export default function RouteMapView({ trip, originCity, originCode }: Props) {
   const router = useRouter();
+  const locale = useLocale();
+  const tTransit = useTranslations('transit');
+  const tMap = useTranslations('plan.tripMap');
   const [mode, setMode] = useState<TravelMode>('driving');
   /**
    * When non-null, the iframe shows just this place (Embed API "place" mode)
@@ -174,7 +178,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
-      router.push(`/plan/trip/${trip.id}`);
+      router.push(`/${locale}/plan/trip/${trip.id}`);
     }
   };
 
@@ -212,10 +216,10 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
           </button>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-wider text-text-muted leading-none">
-              Plan your day
+              {tMap('header')}
             </p>
             <h1 className="text-base sm:text-xl font-extrabold text-text-primary truncate mt-1">
-              Route in {trip.destinationCity}
+              {tMap('routeIn', { city: trip.destinationCity })}
             </h1>
           </div>
         </div>
@@ -323,19 +327,19 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 ribbon of vehicle badges and an expandable step-by-step list. */}
             {mode === 'transit' && (
               <TransitDetails
-                origin={focusedPlace ? origin : origin}
+                origin={origin}
                 destination={focusedPlace || destination}
                 mode="transit"
                 label={focusedPlace
-                  ? `Transit către ${focusedPlace.split(',')[0]}`
-                  : `Transit ${originCity || originCode} → ${trip.destinationCity}`}
+                  ? tTransit('headerLocal', { place: focusedPlace.split(',')[0] })
+                  : tTransit('headerMajor', { origin: originCity || originCode, destination: trip.destinationCity })}
               />
             )}
 
             {/* ROUTE STOPS */}
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">
-                Your route
+                {tMap('yourRoute')}
               </h2>
               <ol className="relative space-y-2">
                 {/* Connector line */}
@@ -352,7 +356,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                     aria-label="Reset to full multi-stop route"
                   >
                     <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted leading-none">
-                      Arrive at
+                      {tMap('arriveAt')}
                     </p>
                     <p className="text-sm font-semibold text-text-primary group-hover:text-primary-500 transition-colors mt-0.5 truncate">
                       {airportLabel}
@@ -389,7 +393,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                         {selectedHotel.hotel.name}
                       </p>
                       <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
-                        {selectedHotel.hotel.address?.lines?.[0] || 'Your hotel'}
+                        {selectedHotel.hotel.address?.lines?.[0] || (locale === 'ro' ? 'Hotelul tău' : 'Your hotel')}
                       </p>
                     </button>
                   </li>
@@ -425,7 +429,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                           {a.name}
                           {isLast && (
                             <span className="ml-1.5 inline-flex items-center rounded-full bg-primary-100 dark:bg-primary-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary-600 dark:text-primary-400 align-middle">
-                              Final
+                              {tMap('final')}
                             </span>
                           )}
                         </p>
@@ -437,7 +441,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
               </ol>
               {attractions.length === 0 && (
                 <p className="text-xs text-text-muted">
-                  No attractions data yet — open the trip detail page to fetch the day plan.
+                  {tMap('noAttractions')}
                 </p>
               )}
             </section>
@@ -447,14 +451,14 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             {selectedHotel && (
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
-                  <BedDouble className="h-3.5 w-3.5" /> Accommodation
+                  <BedDouble className="h-3.5 w-3.5" /> {tMap('accommodation')}
                 </h2>
                 <ul className="space-y-1.5">
                   <PlaceItem
                     name={selectedHotel.hotel.name}
                     sub={
                       selectedHotel.hotel.address?.lines?.[0] ||
-                      `${trip.destinationCity} · Your hotel`
+                      `${trip.destinationCity} · ${locale === 'ro' ? 'Hotelul tău' : 'Your hotel'}`
                     }
                     city={trip.destinationCity}
                     isFocused={
@@ -470,7 +474,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             {restaurants.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
-                  <Utensils className="h-3.5 w-3.5" /> Restaurants
+                  <Utensils className="h-3.5 w-3.5" /> {tMap('restaurantsHeader')}
                 </h2>
                 <ul className="space-y-1.5">
                   {restaurants.map((r) => (
@@ -491,7 +495,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             {cafes.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
-                  <Coffee className="h-3.5 w-3.5" /> Cafés
+                  <Coffee className="h-3.5 w-3.5" /> {tMap('cafesHeader')}
                 </h2>
                 <ul className="space-y-1.5">
                   {cafes.map((c) => (
@@ -512,7 +516,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
             {attractions.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
-                  <Compass className="h-3.5 w-3.5" /> Things to do
+                  <Compass className="h-3.5 w-3.5" /> {tMap('thingsToDo')}
                 </h2>
                 <ul className="space-y-1.5">
                   {attractions.map((a) => (
@@ -531,10 +535,10 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
             {/* Back to trip */}
             <Link
-              href={`/plan/trip/${trip.id}`}
+              href={`/${locale}/plan/trip/${trip.id}`}
               className="inline-flex items-center justify-center gap-2 w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-4 py-3 text-sm font-semibold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-sunken transition-colors"
             >
-              <ArrowLeft className="h-4 w-4" /> Back to your trip
+              <ArrowLeft className="h-4 w-4" /> {tMap('backToTrip')}
             </Link>
           </div>
         </aside>
