@@ -282,6 +282,7 @@ export default function PlanPage() {
           priorities: state.priorities,
           destinationIata: isSpecific ? state.destinationIata : undefined,
           destinationName: isSpecific ? state.destinationDisplay : undefined,
+          locale,
         }),
       });
 

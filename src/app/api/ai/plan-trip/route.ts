@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
       priorities = [],
       destinationIata,
       destinationName,
+      locale: rawLocale,
     } = body as {
       origin?: string;
       budget?: number;
@@ -144,7 +145,10 @@ export async function POST(req: NextRequest) {
       priorities?: string[];
       destinationIata?: string;
       destinationName?: string;
+      locale?: string;
     };
+
+    const locale: 'en' | 'ro' = rawLocale === 'ro' ? 'ro' : 'en';
 
     if (!origin || !budget || !departureDate || !returnDate) {
       return NextResponse.json({ error: 'Missing required fields: origin, budget, departureDate, returnDate' }, { status: 400 });
@@ -166,7 +170,7 @@ export async function POST(req: NextRequest) {
     // Skips quota burn for repeated runs of the same wizard config.
     const sortedStyles = [...travelStyles].sort().join(',');
     const destSegment = destinationIata ? destinationIata.toUpperCase() : 'any';
-    const cacheKey = `planTrip:${origin}:${destSegment}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
+    const cacheKey = `planTrip:${locale}:${origin}:${destSegment}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
     const cached = await getCached(cacheKey);
     if (cached) {
       const cachedData = cached.data as { packages: TripPackage[]; total: number; mode?: string };
@@ -190,6 +194,7 @@ export async function POST(req: NextRequest) {
         returnDate,
         travelStyles,
         cacheKey,
+        locale,
       });
     }
 
@@ -307,6 +312,9 @@ export async function POST(req: NextRequest) {
       await Promise.all(needAi.map(async (pkg) => {
         try {
           const activityBudget = Math.round(budgetEur - pkg.totalPrice);
+          const languageInstruction = locale === 'ro'
+            ? `LANGUAGE: Reply entirely in Romanian (limba română). All description text, day titles, activity descriptions, restaurant/cafe descriptions and localTips must be in Romanian. Keep proper place names (e.g. "Sagrada Familia") in their original form.`
+            : `LANGUAGE: Reply entirely in English.`;
           const prompt = `You are a travel expert. Generate a trip itinerary for this trip:
 
 Destination: ${pkg.destination.city}, ${pkg.destination.country}
@@ -314,6 +322,8 @@ Dates: ${departureDate} to ${returnDate} (${nights} nights)
 Budget remaining for activities: €${activityBudget}
 Travel styles: ${travelStyles.join(', ')}
 Group: ${adults} adults, ${children} children
+
+${languageInstruction}
 
 IMPORTANT: Use REAL, specific place names that actually exist in ${pkg.destination.city}. Do NOT use generic names like "Local Museum", "City Center Restaurant", or "Artisan Café". Use actual well-known restaurants, cafes, and attractions that a local or travel guide would recommend.
 
@@ -749,13 +759,14 @@ interface BuildVariantsInput {
   returnDate: string;
   travelStyles: string[];
   cacheKey: string;
+  locale: 'en' | 'ro';
 }
 
 async function buildSingleDestinationVariants(input: BuildVariantsInput): Promise<Response> {
   const {
     origin, destinationIata, destinationName,
     nights, totalAdults, adults, children,
-    budgetEur, departureDate, returnDate, travelStyles, cacheKey,
+    budgetEur, departureDate, returnDate, travelStyles, cacheKey, locale,
   } = input;
 
   if (origin === destinationIata) {
@@ -845,7 +856,7 @@ async function buildSingleDestinationVariants(input: BuildVariantsInput): Promis
     };
   });
 
-  await generateVariantAiContent(packages, { adults, children, nights, departureDate, returnDate, budgetEur, travelStyles });
+  await generateVariantAiContent(packages, { adults, children, nights, departureDate, returnDate, budgetEur, travelStyles, locale });
 
   const response = {
     packages,
@@ -866,6 +877,7 @@ interface AiContentContext {
   returnDate: string;
   budgetEur: number;
   travelStyles: string[];
+  locale: 'en' | 'ro';
 }
 
 async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentContext): Promise<void> {
@@ -924,6 +936,15 @@ function buildVariantPrompt(pkg: TripPackage, spec: VariantSpec, ctx: AiContentC
       ? 'classic €€ restaurants, mid-range museums, mix of transport modes'
       : 'fine dining €€€, rooftop bars, romantic viewpoints, taxis or private transfers';
 
+  const languageInstruction = ctx.locale === 'ro'
+    ? `LANGUAGE: Reply entirely in Romanian (limba română).
+- All free-text fields (description, whyThisTrip, day titles, all activity descriptions, restaurant/cafe descriptions, localTips) must be written in Romanian.
+- Keep proper place names (e.g. "Sagrada Familia", "Louvre", "Trevi Fountain") in their original form, but write surrounding sentences in Romanian.
+- Categories must use these exact Romanian translations:
+  type: "transport" | "sightseeing" | "dining" | "shopping" | "culture" → keep as English codes for the API contract.
+  category: write "muzeu", "reper", "parc", "altele" instead of museum/landmark/park/other.`
+    : `LANGUAGE: Reply entirely in English.`;
+
   return `You are a travel expert. Generate a trip itinerary tailored to a specific traveler tier:
 
 Destination: ${pkg.destination.city}, ${pkg.destination.country}
@@ -937,6 +958,8 @@ VARIANT FOCUS: ${spec.themeEN} (${spec.tier} tier).
 - topRestaurants should reflect price tier: ${priceTierHint}
 - localTips should suit a ${spec.tier} traveler
 - Recommend a ${spec.targetStars}-star style hotel area: ${spec.zoneHint}
+
+${languageInstruction}
 
 IMPORTANT: Use REAL, specific place names that actually exist in ${pkg.destination.city}. Do NOT use generic names like "Local Museum" or "City Center Restaurant".
 
