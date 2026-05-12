@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { setRequestLocale, getMessages } from "next-intl/server";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { routing, type Locale } from "@/i18n/routing";
+import LocaleCurrencySync from "@/components/LocaleCurrencySync";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -22,6 +23,7 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages}>
+      <LocaleCurrencySync />
       {children}
     </NextIntlClientProvider>
   );

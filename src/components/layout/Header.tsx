@@ -10,20 +10,26 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useUser } from "@/hooks/useUser";
 import { CurrencySelector } from "@/components/CurrencySelector";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { useAuthModalStore } from "@/stores/authModalStore";
 import { useChatStore } from "@/stores/chatStore";
 import { AvatarMenu } from "./AvatarMenu";
+import { useLocale, useTranslations } from "next-intl";
 
 export function Header() {
     const pathname = usePathname();
     const router = useRouter();
+    const locale = useLocale();
+    const t = useTranslations("nav");
+    const tCommon = useTranslations("common");
     const [loggingOut, setLoggingOut] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const { user, loading, displayName } = useUser();
     const openAuthModal = useAuthModalStore((s) => s.open);
     const openChat = useChatStore((s) => s.open);
 
-    const isHome = pathname === "/";
+    const lp = (path: string) => `/${locale}${path === "/" ? "" : path}`;
+    const isHome = pathname === `/${locale}` || pathname === `/${locale}/`;
 
     useEffect(() => {
         setMenuOpen(false);
@@ -43,7 +49,7 @@ export function Header() {
         setLoggingOut(true);
         try {
             await fetch("/auth/logout", { method: "POST" });
-            router.push("/");
+            router.push(lp("/"));
             router.refresh();
         } catch {
             setLoggingOut(false);
@@ -65,7 +71,7 @@ export function Header() {
 
                         {/* Left — logo */}
                         <Link
-                            href="/"
+                            href={lp("/")}
                             className="flex items-center leading-none"
                         >
                             <span className={cn(
@@ -81,7 +87,7 @@ export function Header() {
                         <div className="flex items-center gap-2 sm:gap-3">
                             {/* Plan a Trip — desktop only */}
                             <Link
-                                href="/plan"
+                                href={lp("/plan")}
                                 className={cn(
                                     "hidden sm:flex items-center gap-2 rounded-full px-5 py-2 text-sm font-semibold transition-all duration-200",
                                     isHome
@@ -90,7 +96,7 @@ export function Header() {
                                 )}
                             >
                                 <Sparkles className="h-4 w-4" />
-                                Plan a Trip
+                                {t("planTrip")}
                             </Link>
 
                             {/* Live Agent — desktop only — opens AI chat widget */}
@@ -101,14 +107,15 @@ export function Header() {
                                     "hidden md:flex items-center gap-2 text-sm font-medium cursor-pointer transition-colors",
                                     isHome ? "text-white/90 hover:text-white" : "text-text-secondary hover:text-text-primary"
                                 )}
-                                aria-label="Open AI travel assistant"
+                                aria-label={t("liveAgent")}
                             >
                                 <Headphones className="h-4 w-4" />
-                                Live Agent
+                                {t("liveAgent")}
                             </button>
 
-                            {/* Currency selector — visible on tablet+ */}
-                            <div className="hidden sm:block">
+                            {/* Language + Currency selectors — visible on tablet+ */}
+                            <div className="hidden sm:flex items-center gap-2">
+                                <LanguageSelector />
                                 <CurrencySelector />
                             </div>
 
@@ -134,10 +141,10 @@ export function Header() {
                                             ? "bg-white text-secondary-500 hover:bg-white/90"
                                             : "bg-primary-500 text-white hover:bg-primary-600"
                                     )}
-                                    title="Log in"
+                                    title={t("signIn")}
                                 >
                                     <User className="h-4 w-4" />
-                                    <span>Log In</span>
+                                    <span>{t("signIn")}</span>
                                 </button>
                             )}
 
@@ -150,7 +157,7 @@ export function Header() {
                                         ? "text-white/80 hover:bg-white/10 hover:text-white"
                                         : "text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
                                 )}
-                                aria-label="Open menu"
+                                aria-label={tCommon("close")}
                             >
                                 <Menu className="h-5 w-5" />
                             </button>
@@ -181,7 +188,7 @@ export function Header() {
                     <button
                         onClick={() => setMenuOpen(false)}
                         className="flex items-center justify-center h-9 w-9 rounded-full hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors text-text-secondary"
-                        aria-label="Close menu"
+                        aria-label={tCommon("close")}
                     >
                         <ChevronLeft className="h-5 w-5" />
                     </button>
@@ -191,17 +198,21 @@ export function Header() {
                 <div className="px-5 pb-6">
                     <div className="rounded-2xl bg-neutral-50 dark:bg-surface-elevated p-5 flex items-center gap-4">
                         <div className="flex-1 min-w-0">
-                            <h3 className="text-base font-bold text-text-primary mb-1">Join The Community!</h3>
+                            <h3 className="text-base font-bold text-text-primary mb-1">
+                                {locale === "ro" ? "Alătură-te comunității!" : "Join The Community!"}
+                            </h3>
                             <p className="text-sm text-text-secondary leading-snug">
-                                Exclusive discounts, manage bookings and much more.
+                                {locale === "ro"
+                                    ? "Reduceri exclusive, gestionează rezervări și multe altele."
+                                    : "Exclusive discounts, manage bookings and much more."}
                             </p>
                             {user ? (
                                 <Link
-                                    href="/profile"
+                                    href={lp("/profile")}
                                     onClick={() => setMenuOpen(false)}
                                     className="text-sm font-semibold text-primary-500 hover:text-primary-600 mt-1 inline-block"
                                 >
-                                    View profile
+                                    {locale === "ro" ? "Vezi profilul" : "View profile"}
                                 </Link>
                             ) : (
                                 <button
@@ -212,7 +223,7 @@ export function Header() {
                                     }}
                                     className="text-sm font-semibold text-primary-500 hover:text-primary-600 mt-1 inline-block"
                                 >
-                                    Log in here
+                                    {locale === "ro" ? "Conectează-te aici" : "Log in here"}
                                 </button>
                             )}
                         </div>
@@ -226,21 +237,21 @@ export function Header() {
                 {/* ── Main Navigation ── */}
                 <nav className="py-2 px-5">
                     <MenuLink
-                        href="/plan"
+                        href={lp("/plan")}
                         icon={<Sparkles className="h-5 w-5" />}
-                        label="Plan a Trip"
+                        label={t("planTrip")}
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/flights"
+                        href={lp("/flights")}
                         icon={<Search className="h-5 w-5" />}
-                        label="Search Flights"
+                        label={locale === "ro" ? "Caută zboruri" : "Search Flights"}
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/hotels"
+                        href={lp("/hotels")}
                         icon={<Hotel className="h-5 w-5" />}
-                        label="Search Hotels"
+                        label={locale === "ro" ? "Caută hoteluri" : "Search Hotels"}
                         onClick={() => setMenuOpen(false)}
                     />
                 </nav>
@@ -250,28 +261,35 @@ export function Header() {
 
                 {/* ── My Account ── */}
                 <div className="px-5 pt-6 pb-2">
-                    <h4 className="text-lg font-bold text-text-primary mb-1">My Account</h4>
+                    <h4 className="text-lg font-bold text-text-primary mb-1">{t("myAccount")}</h4>
                 </div>
                 <nav className="px-5 pb-2">
                     <MenuLink
-                        href="/trips"
+                        href={lp("/trips")}
                         icon={<CalendarDays className="h-5 w-5" />}
-                        label="My Trips"
+                        label={t("myTrips")}
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/favorites"
+                        href={lp("/favorites")}
                         icon={<Heart className="h-5 w-5" />}
-                        label="Favorites"
+                        label={t("favorites")}
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink
-                        href="/profile"
+                        href={lp("/profile")}
                         icon={<User className="h-5 w-5" />}
-                        label="Profile"
+                        label={t("profile")}
                         onClick={() => setMenuOpen(false)}
                     />
                 </nav>
+
+                {/* ── Mobile language + currency selectors ── */}
+                <div className="h-px bg-neutral-200 dark:bg-border-default mx-5" />
+                <div className="px-5 py-4 sm:hidden flex items-center gap-2">
+                    <LanguageSelector />
+                    <CurrencySelector />
+                </div>
 
                 {/* ── Sign out (only if logged in) ── */}
                 {!loading && user && (
@@ -284,7 +302,7 @@ export function Header() {
                                 className="flex items-center gap-3 w-full rounded-xl px-4 py-3 text-base font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                             >
                                 {loggingOut ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
-                                Sign Out
+                                {t("signOut")}
                             </button>
                         </div>
                     </>

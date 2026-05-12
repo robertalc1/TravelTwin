@@ -17,7 +17,9 @@ const COUNTRY_CURRENCY: Record<string, CurrencyCode> = {
 const GEO_DONE_KEY = "geo-currency-v2";
 
 export default function CurrencyAutoDetect() {
-  const setCurrency = useCurrencyStore((s) => s.setCurrency);
+  // Auto-detect must NOT override an explicit user choice — use setCurrencyAuto
+  // which respects the `currencyManuallySet` flag from the store.
+  const setCurrencyAuto = useCurrencyStore((s) => s.setCurrencyAuto);
   const loadRates = useCurrencyStore((s) => s.loadRates);
 
   useEffect(() => {
@@ -32,14 +34,14 @@ export default function CurrencyAutoDetect() {
       .then((data: { country?: string }) => {
         const cc = data.country?.toLowerCase().trim();
         const currency: CurrencyCode = (cc && COUNTRY_CURRENCY[cc]) ? COUNTRY_CURRENCY[cc]! : "EUR";
-        setCurrency(currency);
+        setCurrencyAuto(currency);
         loadRates();
       })
       .catch(() => { /* ignore — keep default EUR */ })
       .finally(() => {
         localStorage.setItem(GEO_DONE_KEY, "1");
       });
-  }, [setCurrency, loadRates]);
+  }, [setCurrencyAuto, loadRates]);
 
   return null;
 }
