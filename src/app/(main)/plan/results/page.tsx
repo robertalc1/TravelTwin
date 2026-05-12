@@ -19,6 +19,7 @@ import {
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import { handleDestinationImageError, handleAirlineLogoError } from "@/lib/imageFallback";
 import { useCurrency } from "@/hooks/useCurrency";
+import SimilarDestinations from "@/components/SimilarDestinations";
 
 interface PlanParams {
   originIata?: string;
@@ -172,6 +173,17 @@ export default function PlanResultsPage() {
             <PackageCard key={pkg.id} pkg={pkg} index={i} />
           ))}
         </div>
+
+        {/* Similar destinations strip — leverages the top-recommended IATA + the user's budget. */}
+        {packages[0]?.destination?.iata && (
+          <div className="mt-12">
+            <SimilarDestinations
+              referenceIata={packages[0].destination.iata}
+              maxBudget={params?.budget ?? undefined}
+              subtitle={`Similar to ${packages[0].destination.city} — same vibe, often cheaper.`}
+            />
+          </div>
+        )}
       </main>
     </div>
   );

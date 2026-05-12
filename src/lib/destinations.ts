@@ -34,6 +34,78 @@ export const DESTINATIONS: DestinationProfile[] = [
   { city: "Marrakech", country: "Morocco", iata: "RAK", tags: ["culture", "adventure", "food"], climate: "warm", budgetLevel: "budget", bestMonths: [3,4,5,10,11], imageId: "photo-1489749798305-4fea3ae63d43", latitude: 31.6295, longitude: -7.9811 },
 ];
 
+/**
+ * Find destinations similar to a reference IATA. Scores by tag overlap,
+ * climate match, optional budget filter, optional month bonus, and great-circle
+ * geographic proximity. Used by the "You might also like" strip across
+ * /plan/results, /plan/trip/[id], and /explore.
+ *
+ * Example: findSimilarDestinations({ referenceIata: "JTR", maxBudget: 1000 })
+ * → top results are Crete (HER) and Antalya (AYT) for the Santorini → Crete /
+ * Antalya use case from the product brief.
+ */
+export interface SimilarDestinationOptions {
+  referenceIata: string;
+  /** Filter to destinations whose budgetLevel is ≤ inferred from this budget. */
+  maxBudget?: number;
+  /** Max results to return (default 6). */
+  limit?: number;
+  /** Travel month (1-12); destinations with matching bestMonths get a bonus. */
+  month?: number;
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+export function findSimilarDestinations(
+  opts: SimilarDestinationOptions,
+): DestinationProfile[] {
+  const ref = DESTINATIONS.find(
+    (d) => d.iata === opts.referenceIata.toUpperCase(),
+  );
+  if (!ref) return [];
+
+  const limit = opts.limit ?? 6;
+  const budgetLevel: 'budget' | 'mid' | 'luxury' | null =
+    opts.maxBudget == null
+      ? null
+      : opts.maxBudget < 800
+        ? 'budget'
+        : opts.maxBudget < 2000
+          ? 'mid'
+          : 'luxury';
+
+  return DESTINATIONS.filter((d) => d.iata !== ref.iata)
+    .map((d) => {
+      const tagOverlap = d.tags.filter((t) => ref.tags.includes(t)).length;
+      let score = tagOverlap * 30;
+      if (d.climate === ref.climate) score += 15;
+      if (budgetLevel) {
+        if (d.budgetLevel === budgetLevel) score += 20;
+        else if (budgetLevel === 'mid' && d.budgetLevel === 'budget') score += 10;
+        else if (budgetLevel === 'luxury' && d.budgetLevel === 'mid') score += 10;
+        else if (budgetLevel === 'budget' && d.budgetLevel !== 'budget') score -= 25;
+      }
+      if (opts.month && d.bestMonths.includes(opts.month)) score += 10;
+      const km = haversineKm(ref.latitude, ref.longitude, d.latitude, d.longitude);
+      if (km < 1500) score += 15;
+      else if (km < 3000) score += 5;
+      return { d, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.d);
+}
+
 export function matchDestinations(
   travelStyles: string[],
   climate: string,

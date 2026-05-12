@@ -25,6 +25,7 @@ import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import MobileBookBar from '@/components/TripDetail/MobileBookBar';
 import SessionTimeoutModal from '@/components/SessionTimeoutModal';
+import SimilarDestinations from '@/components/SimilarDestinations';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
@@ -771,6 +772,17 @@ export default function TripDetailView({
             )}
           </aside>
         </div>
+
+        {/* You might also like — similar destinations based on the trip's IATA + total price */}
+        {trip.destinationCode && (
+          <div className="mt-12">
+            <SimilarDestinations
+              referenceIata={trip.destinationCode}
+              maxBudget={trip.totalPrice || undefined}
+              subtitle={`Similar to ${trip.destinationCity} — same vibe, often cheaper.`}
+            />
+          </div>
+        )}
       </div>
 
       {/* Mobile-only sticky Book Now bar — visible <lg, hidden on desktop where the sidebar holds the CTA */}
