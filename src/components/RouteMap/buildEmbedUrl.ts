@@ -68,12 +68,17 @@ export function buildStaticPreviewUrl(
 
 /**
  * Build the route description from a list of attractions: returns
- * `{ origin, destination, waypoints }` ready for `buildDirectionsEmbedUrl`.
+ * `{ origin, destination, waypoints, hotelStop }` ready for
+ * `buildDirectionsEmbedUrl`.
  *
- *   stops = [airport, attractions[0..N]]
+ *   stops = [airport, (optional hotel), attractions[0..N]]
  *   origin     = airport label
  *   destination= last attraction (or "{city} city center" if no attractions)
- *   waypoints  = attractions[0..N-1] (capped to 3 by the embed builder)
+ *   waypoints  = (hotel if present) + attractions[0..N-1]
+ *
+ * Google Maps Embed Directions API caps at 3 waypoints, so when a hotel is
+ * supplied we trim the attraction waypoints down to 2 (hotel + 2 = 3) and the
+ * last attraction stays as the destination.
  */
 export function buildRouteStops(opts: {
   originCity: string;
@@ -82,7 +87,14 @@ export function buildRouteStops(opts: {
   attractions: Attraction[];
   /** Max attractions to include as stops (origin counts separately). Default 4. */
   max?: number;
-}): { origin: string; destination: string; waypoints: string[] } {
+  /** Optional accommodation to drop in as the first waypoint after the airport. */
+  hotel?: { name: string; address?: string } | null;
+}): {
+  origin: string;
+  destination: string;
+  waypoints: string[];
+  hotelStop: string | null;
+} {
   const max = opts.max ?? 4;
   const top = opts.attractions.slice(0, max);
 
@@ -91,12 +103,31 @@ export function buildRouteStops(opts: {
       ? `${opts.originCity} airport (${opts.originCode})`
       : opts.originCity || `${opts.destinationCity} airport`;
 
+  const hotelStop = opts.hotel
+    ? `${opts.hotel.name}, ${opts.destinationCity}`
+    : null;
+
   if (top.length === 0) {
-    return { origin, destination: `${opts.destinationCity} city center`, waypoints: [] };
+    return {
+      origin,
+      destination: hotelStop ?? `${opts.destinationCity} city center`,
+      waypoints: [],
+      hotelStop,
+    };
   }
 
   const destination = `${top[top.length - 1].name}, ${opts.destinationCity}`;
-  const waypoints = top.slice(0, -1).map((a) => `${a.name}, ${opts.destinationCity}`);
+  // When a hotel takes a waypoint slot, trim attractions to 2 intermediates so
+  // total waypoints stay <= 3 (Embed API hard cap).
+  const intermediateCap = hotelStop ? 2 : Infinity;
+  const attractionWaypoints = top
+    .slice(0, -1)
+    .slice(0, intermediateCap)
+    .map((a) => `${a.name}, ${opts.destinationCity}`);
 
-  return { origin, destination, waypoints };
+  const waypoints = hotelStop
+    ? [hotelStop, ...attractionWaypoints]
+    : attractionWaypoints;
+
+  return { origin, destination, waypoints, hotelStop };
 }

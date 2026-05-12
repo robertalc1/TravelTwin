@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Plane, MapPin, Car, Footprints, Bus, Bike,
   Coffee, Utensils, Compass, ExternalLink,
-  Info,
+  Info, BedDouble,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import {
@@ -17,6 +17,7 @@ import {
   type TravelMode,
 } from './buildEmbedUrl';
 import { getAirportCoord } from '@/lib/airportCoordinates';
+import { useTripPricing } from '@/stores/tripPricingStore';
 
 /** Tripadvisor-backed restaurant. Falls back to the AI restaurant shape
  *  when the live endpoint is unavailable. */
@@ -96,6 +97,16 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
           priceRange: r.priceRange,
         }));
 
+  // Subscribe to the trip-pricing store so the route updates the moment the
+  // user picks (or removes) a hotel — no manual reload needed.
+  const selectedHotel = useTripPricing((s) => s.selectedHotel);
+  const hotelForRoute = selectedHotel
+    ? {
+        name: selectedHotel.hotel.name,
+        address: selectedHotel.hotel.address?.lines?.[0],
+      }
+    : null;
+
   // Build route stops + URLs
   const { origin, destination, waypoints } = buildRouteStops({
     originCity,
@@ -103,6 +114,7 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     destinationCity: trip.destinationCity,
     attractions,
     max: 4,
+    hotel: hotelForRoute,
   });
 
   // Full multi-stop route (airport → 4 attractions) — used in the default
@@ -135,10 +147,11 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
   );
 
   const iframeSrc = focusedDirectionsUrl ?? fullRouteUrl ?? cityPlaceUrl;
-  // Force reload the iframe whenever the rendered route changes.
+  // Force reload the iframe whenever the rendered route changes. Include the
+  // hotel id so swapping the selected accommodation reloads the embed.
   const iframeKey = focusedPlace
     ? `focus:${focusedPlace}:${mode}`
-    : `route:${mode}`;
+    : `route:${selectedHotel?.hotel.hotelId ?? 'none'}:${mode}`;
 
   const airport = originCode ? getAirportCoord(originCode) : undefined;
   const airportLabel = airport
@@ -335,6 +348,41 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                   </button>
                 </li>
 
+                {/* Hotel stop — sits between the airport and the numbered
+                    attractions when a hotel is selected. Click focuses the
+                    iframe on the airport→hotel single-stop directions. */}
+                {selectedHotel && (
+                  <li className="relative flex items-start gap-3">
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full z-10 ${
+                        focusedPlace?.startsWith(selectedHotel.hotel.name + ',')
+                          ? 'bg-primary-500 text-white shadow-md'
+                          : 'bg-white dark:bg-surface border-2 border-primary-500 text-primary-600 dark:text-primary-400'
+                      }`}
+                    >
+                      <BedDouble className="h-4 w-4" />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => focusPlace(selectedHotel.hotel.name)}
+                      className="min-w-0 pt-1 text-left flex-1 group"
+                    >
+                      <p
+                        className={`text-sm font-semibold transition-colors truncate ${
+                          focusedPlace?.startsWith(selectedHotel.hotel.name + ',')
+                            ? 'text-primary-500'
+                            : 'text-text-primary group-hover:text-primary-500'
+                        }`}
+                      >
+                        {selectedHotel.hotel.name}
+                      </p>
+                      <p className="text-xs text-text-muted mt-0.5 line-clamp-1">
+                        {selectedHotel.hotel.address?.lines?.[0] || 'Your hotel'}
+                      </p>
+                    </button>
+                  </li>
+                )}
+
                 {attractions.map((a, i) => {
                   const isFocused = focusedPlace?.startsWith(a.name + ',');
                   const isLast = i === attractions.length - 1;
@@ -381,6 +429,30 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
                 </p>
               )}
             </section>
+
+            {/* ACCOMMODATION — only when a hotel is picked. Click focuses the
+                iframe on a single-stop directions render (airport → hotel). */}
+            {selectedHotel && (
+              <section>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
+                  <BedDouble className="h-3.5 w-3.5" /> Accommodation
+                </h2>
+                <ul className="space-y-1.5">
+                  <PlaceItem
+                    name={selectedHotel.hotel.name}
+                    sub={
+                      selectedHotel.hotel.address?.lines?.[0] ||
+                      `${trip.destinationCity} · Your hotel`
+                    }
+                    city={trip.destinationCity}
+                    isFocused={
+                      focusedPlace?.startsWith(selectedHotel.hotel.name + ',') ?? false
+                    }
+                    onFocus={() => focusPlace(selectedHotel.hotel.name)}
+                  />
+                </ul>
+              </section>
+            )}
 
             {/* RESTAURANTS */}
             {restaurants.length > 0 && (

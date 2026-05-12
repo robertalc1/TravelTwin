@@ -327,19 +327,6 @@ function HotelDetailContent() {
   // forward-compat handle for future operations.
   void favoriteRowId;
 
-  const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const mapEmbedUrl = (() => {
-    if (!mapsApiKey) return null;
-    if (hotel?.latitude && hotel?.longitude) {
-      return `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${hotel.latitude},${hotel.longitude}&zoom=15`;
-    }
-    if (hotel?.address) {
-      return `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${encodeURIComponent(
-        `${displayName}, ${hotel.address}`,
-      )}&zoom=15`;
-    }
-    return null;
-  })();
   const directionsUrl =
     hotel?.latitude && hotel?.longitude
       ? `https://www.google.com/maps/dir/?api=1&destination=${hotel.latitude},${hotel.longitude}`
@@ -561,54 +548,46 @@ function HotelDetailContent() {
             </section>
 
             {/* ── Location ── */}
-            {(mapEmbedUrl || hotel?.address) && (
-              <section
-                id="location"
-                ref={setSectionRef("location")}
-                className="scroll-mt-[120px]"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-text-primary">
-                    Property location
-                  </h3>
-                  {directionsUrl && (
-                    <a
-                      href={directionsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-500 hover:underline"
-                    >
-                      <Navigation className="h-3.5 w-3.5" />
-                      Open in Google Maps
-                    </a>
-                  )}
-                </div>
-                {hotel?.address && (
-                  <p className="text-sm text-text-secondary mb-3 flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
-                    {hotel.address}
-                  </p>
+            <section
+              id="location"
+              ref={setSectionRef("location")}
+              className="scroll-mt-[120px]"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-text-primary">
+                  Property location
+                </h3>
+                {directionsUrl && (
+                  <a
+                    href={directionsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary-500 hover:underline"
+                  >
+                    <Navigation className="h-3.5 w-3.5" />
+                    Open in Google Maps
+                  </a>
                 )}
-                {mapEmbedUrl ? (
-                  <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default aspect-[16/9] bg-neutral-100 dark:bg-surface-elevated">
-                    <iframe
-                      title={`Map of ${displayName}`}
-                      src={mapEmbedUrl}
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-neutral-200 dark:border-border-default px-4 py-6 text-center text-sm text-text-muted">
-                    Map preview requires a Google Maps API key.
-                  </div>
-                )}
-              </section>
-            )}
+              </div>
+              {hotel?.address && (
+                <p className="text-sm text-text-secondary mb-3 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
+                  {hotel.address}
+                </p>
+              )}
+              {/* The unified trip map carries the hotel pin now — keep the
+                  detail page lean and point the user at the integrated view
+                  instead of rendering a duplicate small embed here. */}
+              {tripId && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/plan/trip/${tripId}/map`)}
+                  className="w-full rounded-2xl border border-neutral-200 dark:border-border-default bg-neutral-50 dark:bg-surface-elevated px-4 py-6 text-sm font-semibold text-primary-500 hover:bg-primary-50 dark:hover:bg-primary-900/10 transition-colors flex items-center justify-center gap-2"
+                >
+                  View on trip map →
+                </button>
+              )}
+            </section>
           </div>
 
           {/* ── Sticky sidebar — Your stay ── */}
