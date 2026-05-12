@@ -140,15 +140,22 @@ export default function TripDetailView({
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { hotels?: HotelOfferData[] } | null) => {
         if (cancelled || !data?.hotels?.length) return;
-        const cheapest = [...data.hotels].sort(
-          (a, b) =>
-            parseFloat(a.offers[0]?.price.total || '0') -
-            parseFloat(b.offers[0]?.price.total || '0'),
-        )[0];
-        const total = parseFloat(cheapest?.offers[0]?.price.total || '0');
-        if (cheapest && total > 0) {
-          selectHotelInStore(cheapest, total);
-        }
+        const priceOf = (h: HotelOfferData) =>
+          parseFloat(h.offers[0]?.price.total || '0');
+        // Match the price band shown on /plan/results: pick the live hotel
+        // closest to the estimator's hotelPrice instead of the absolute cheapest
+        // — otherwise a €2500 package can balloon to €4000 just from a
+        // luxury-leaning Tripadvisor sort. Falls back to absolute cheapest when
+        // no estimator target exists.
+        const target = trip.hotelPrice > 0 ? trip.hotelPrice : 0;
+        const sorted = target > 0
+          ? [...data.hotels].sort(
+              (a, b) =>
+                Math.abs(priceOf(a) - target) - Math.abs(priceOf(b) - target),
+            )
+          : [...data.hotels].sort((a, b) => priceOf(a) - priceOf(b));
+        const chosen = sorted.find((h) => priceOf(h) > 0);
+        if (chosen) selectHotelInStore(chosen, priceOf(chosen));
       })
       .catch(() => {
         /* silent — leave the estimator placeholder in place */
