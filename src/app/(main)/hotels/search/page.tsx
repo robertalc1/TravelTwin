@@ -112,10 +112,19 @@ function HotelsSearchContent() {
     if (checkIn) qs.set("checkIn", checkIn);
     if (checkOut) qs.set("checkOut", checkOut);
     if (cityCode) qs.set("cityCode", cityCode);
-    if (tripId) qs.set("tripId", tripId);
     if (h.offers[0]?.price.total) qs.set("total", h.offers[0].price.total);
     if (h.hotel.name) qs.set("name", h.hotel.name);
-    router.push(`/hotels/${encodeURIComponent(h.hotel.hotelId)}?${qs.toString()}`);
+    // Hotel detail lives under the trip context. Without a tripId there's no
+    // package to attach the choice to, so we bounce back to /plan.
+    if (!tripId) {
+      router.push("/plan");
+      return;
+    }
+    router.push(
+      `/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+        h.hotel.hotelId,
+      )}?${qs.toString()}`,
+    );
   }
 
   return (

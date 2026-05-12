@@ -34,14 +34,17 @@ export interface HotelOfferData {
 
 interface HotelCardProps {
   hotelOffer: HotelOfferData;
-  /** Optional click handler. When omitted, the card navigates to
-   *  /hotels/[id] with the relevant check-in/out query string. */
+  /** Optional click handler. When omitted, the card navigates to the hotel
+   *  detail page under the supplied trip. */
   onSelect?: (hotel: HotelOfferData) => void;
   nights?: number;
   /** Passed through to the hotel-detail URL so the page can re-fetch
    *  prices for the same date range without a fresh search. */
   checkIn?: string;
   checkOut?: string;
+  /** Trip the card is being shown inside. Required for navigation —
+   *  hotel detail lives at /plan/trip/[tripId]/hotel/[hotelId]. */
+  tripId?: string;
 }
 
 function prettyAmenity(amenity: string): string {
@@ -57,6 +60,7 @@ export default function HotelCard({
   nights = 1,
   checkIn,
   checkOut,
+  tripId,
 }: HotelCardProps) {
   const router = useRouter();
   const { hotel, offers } = hotelOffer;
@@ -77,13 +81,21 @@ export default function HotelCard({
       onSelect(hotelOffer);
       return;
     }
+    if (!tripId) {
+      // Cards rendered outside a trip context have no detail page to open.
+      return;
+    }
     const qs = new URLSearchParams();
     if (checkIn) qs.set('checkIn', checkIn);
     if (checkOut) qs.set('checkOut', checkOut);
     if (hotel.cityCode) qs.set('cityCode', hotel.cityCode);
     if (bestOffer?.price.total) qs.set('total', bestOffer.price.total);
     if (hotel.name) qs.set('name', hotel.name);
-    router.push(`/hotels/${encodeURIComponent(hotel.hotelId)}?${qs.toString()}`);
+    router.push(
+      `/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+        hotel.hotelId,
+      )}?${qs.toString()}`,
+    );
   }
 
   return (

@@ -132,6 +132,25 @@ export default function TripDetailView({
   const formatCurrency = useCurrencyStore((s) => s.format);
   const src = trip.currency || 'EUR';
 
+  // Store-first display values for the "Your hotel" section. When the user picks
+  // a hotel via /plan/trip/[id]/hotel/[hotelId] -> Select Stay, the trip prop
+  // still carries the original package hotel; the store has the live choice.
+  const displayHotelName =
+    storeSelectedHotel?.hotel?.name || breakdown.hotelLabel || trip.hotelName;
+  const displayHotelStars = storeSelectedHotel?.hotel?.rating
+    ? parseInt(storeSelectedHotel.hotel.rating, 10) || trip.hotelStars
+    : trip.hotelStars;
+  const displayHotelTotal =
+    breakdown.hotelPrice > 0 ? breakdown.hotelPrice : trip.hotelPrice;
+  const displayHotelPerNight =
+    displayHotelTotal > 0 && trip.nights > 0
+      ? Math.round(displayHotelTotal / trip.nights)
+      : trip.hotelPricePerNight;
+  const displayHotelAmenities =
+    storeSelectedHotel?.hotel?.amenities && storeSelectedHotel.hotel.amenities.length > 0
+      ? storeSelectedHotel.hotel.amenities
+      : trip.hotelAmenities;
+
   const heroUrl = resolveHeroUrl(trip);
   const ai = trip.aiContent;
   const activitiesEstimate = ai?.estimatedDailyExpenses
@@ -351,7 +370,7 @@ export default function TripDetailView({
             </section>
 
             {/* ── Your hotel — included in the package ── */}
-            {trip.hotelName && (
+            {displayHotelName && (
               <section>
                 <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
                   <div>
@@ -383,21 +402,21 @@ export default function TripDetailView({
                         <Hotel className="h-5 w-5 sm:h-6 sm:w-6" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-secondary-500 dark:text-white text-base">{trip.hotelName}</p>
+                        <p className="font-bold text-secondary-500 dark:text-white text-base">{displayHotelName}</p>
                         <div className="flex items-center gap-1 mt-1 flex-wrap">
-                          {Array.from({ length: trip.hotelStars }).map((_, i) => (
+                          {Array.from({ length: displayHotelStars }).map((_, i) => (
                             <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
                           ))}
-                          <span className="text-xs text-text-muted ml-1">{trip.hotelStars}-star hotel</span>
+                          <span className="text-xs text-text-muted ml-1">{displayHotelStars}-star hotel</span>
                         </div>
                       </div>
                     </div>
                     <div className="sm:text-right shrink-0 sm:pl-2">
                       <p className="text-xl sm:text-2xl font-extrabold text-primary-500 leading-none">
-                        {formatCurrency(trip.hotelPrice, src)}
+                        {formatCurrency(displayHotelTotal, src)}
                       </p>
                       <p className="text-xs text-text-muted mt-1">
-                        {formatCurrency(trip.hotelPricePerNight, src)} × {trip.nights} {trip.nights === 1 ? 'night' : 'nights'}
+                        {formatCurrency(displayHotelPerNight, src)} × {trip.nights} {trip.nights === 1 ? 'night' : 'nights'}
                       </p>
                     </div>
                   </div>
@@ -419,11 +438,11 @@ export default function TripDetailView({
                   )}
 
                   {/* Amenities */}
-                  {trip.hotelAmenities && trip.hotelAmenities.length > 0 && (
+                  {displayHotelAmenities && displayHotelAmenities.length > 0 && (
                     <div className="px-5 py-3 border-t border-neutral-100 dark:border-border-default">
                       <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">What&apos;s included</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {trip.hotelAmenities.map((a) => (
+                        {displayHotelAmenities.slice(0, 8).map((a) => (
                           <span key={a} className="rounded-full bg-neutral-100 dark:bg-surface-elevated px-2.5 py-0.5 text-xs text-text-secondary">
                             {a}
                           </span>

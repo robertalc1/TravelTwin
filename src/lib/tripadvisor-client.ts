@@ -623,9 +623,31 @@ export async function getHotelDetails(
     if (url) photos.push(url);
   }
 
-  const reviewsRaw =
-    asArray(data.reviews) ||
-    (isRecord(data.reviewSummary) ? asArray((data.reviewSummary as Record<string, unknown>).reviews) : []);
+  // Tripadvisor16 has shifted the reviews payload between releases — fall
+  // through several candidate fields, then log the raw keys in dev when we
+  // come up empty so we can adapt the parser quickly.
+  function pickReviews(): unknown[] {
+    const candidates: unknown[] = [
+      data.reviews,
+      data.userReviews,
+      data.reviewListings,
+      isRecord(data.reviewSummary) ? (data.reviewSummary as Record<string, unknown>).reviews : null,
+      isRecord(data.reviewSummary) ? (data.reviewSummary as Record<string, unknown>).reviewsListing : null,
+      isRecord(data.reviewSummary) ? (data.reviewSummary as Record<string, unknown>).highlights : null,
+    ];
+    for (const c of candidates) {
+      const arr = asArray(c);
+      if (arr.length > 0) return arr;
+    }
+    return [];
+  }
+  const reviewsRaw = pickReviews();
+  if (reviewsRaw.length === 0 && process.env.NODE_ENV !== 'production') {
+    console.warn(
+      '[getHotelDetails] no reviews extracted — raw keys:',
+      Object.keys(data).slice(0, 30),
+    );
+  }
   const reviews: TAReview[] = [];
   for (const r of reviewsRaw.slice(0, 6)) {
     if (!isRecord(r)) continue;
@@ -633,10 +655,15 @@ export async function getHotelDetails(
     reviews.push({
       id: asString(r.id),
       title: asString(r.title),
-      text: asString(r.text) || asString(r.content),
-      rating: asNumber(r.rating) || asNumber(r.score),
-      publishedDate: asString(r.publishedDate) || asString(r.createdAt),
-      authorName: asString(user.username) || asString(user.displayName) || asString(r.authorName),
+      text: asString(r.text) || asString(r.content) || asString(r.body),
+      rating: asNumber(r.rating) || asNumber(r.score) || asNumber(r.bubbleRating),
+      publishedDate:
+        asString(r.publishedDate) || asString(r.createdAt) || asString(r.publishedOn),
+      authorName:
+        asString(user.username) ||
+        asString(user.displayName) ||
+        asString(r.authorName) ||
+        asString(r.username),
     });
   }
 
