@@ -18,6 +18,7 @@ import {
 } from './buildEmbedUrl';
 import { getAirportCoord } from '@/lib/airportCoordinates';
 import { useTripPricing } from '@/stores/tripPricingStore';
+import TransitDetails from './TransitDetails';
 
 /** Tripadvisor-backed restaurant. Falls back to the AI restaurant shape
  *  when the live endpoint is unavailable. */
@@ -254,18 +255,14 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
               })}
             </div>
 
-            {/* Mode-availability notice — Google's transit and cycling data
-                isn't available for every city/route. When the iframe shows
-                no polyline for these modes, the user shouldn't think our app
-                is broken — surface a tiny hint nudging them to try driving
-                or walking instead. */}
-            {(mode === 'transit' || mode === 'bicycling') && (
+            {/* Cycling-only notice — transit now has a dedicated sidebar
+                panel (TransitDetails) below the route, so it doesn't need
+                the in-map hint anymore. */}
+            {mode === 'bicycling' && (
               <div className="flex items-start gap-1.5 bg-amber-50/95 dark:bg-amber-900/20 backdrop-blur-md rounded-xl border border-amber-200/60 dark:border-amber-800/40 px-3 py-1.5 max-w-full">
                 <Info className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200">
-                  {mode === 'transit'
-                    ? 'Public transit data depends on Google coverage for this city. If no bus routes appear, try driving or walking.'
-                    : 'Cycling routes depend on Google coverage. If the path is missing, try driving or walking.'}
+                  Cycling routes depend on Google coverage. If the path is missing, try driving or walking.
                 </p>
               </div>
             )}
@@ -319,6 +316,21 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
         {/* Sidebar — comes first in DOM (it's the explanatory column) */}
         <aside className="order-2 lg:order-1 lg:w-[420px] lg:shrink-0 lg:overflow-y-auto lg:h-[calc(100vh-4rem)] border-t lg:border-t-0 lg:border-r border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
           <div className="p-4 sm:p-5 space-y-6">
+
+            {/* TRANSIT DETAILS — Google Directions API steps with line names,
+                durations and transfers. Mirrors the Google Maps directions
+                panel: shows up to 4 alternative routes, each with a compact
+                ribbon of vehicle badges and an expandable step-by-step list. */}
+            {mode === 'transit' && (
+              <TransitDetails
+                origin={focusedPlace ? origin : origin}
+                destination={focusedPlace || destination}
+                mode="transit"
+                label={focusedPlace
+                  ? `Transit către ${focusedPlace.split(',')[0]}`
+                  : `Transit ${originCity || originCode} → ${trip.destinationCity}`}
+              />
+            )}
 
             {/* ROUTE STOPS */}
             <section>
