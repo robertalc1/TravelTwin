@@ -8,6 +8,7 @@ import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
 import { getCityImageByIata } from '@/lib/cityImages';
 import { getCached, setCache } from '@/lib/cache';
+import { VARIANT_SPECS, type VariantSpec, type VariantTier } from '@/lib/variants';
 
 /** Build a DestinationProfile from an IATA code — uses DESTINATIONS row when
  *  available, falls back to iata-derived metadata so any airport works. */
@@ -105,6 +106,13 @@ export interface TripPackage {
   /** True when totalPrice exceeds the user's submitted budget. Frontend
    *  renders a subtle "Over budget" badge — package is still shown. */
   isOverBudget?: boolean;
+  /** Only set in "single-destination" mode (user picked a specific city in the
+   *  wizard). Three packages are returned, one per tier. */
+  variant?: VariantTier;
+  /** Romanian badge label paired with `variant`. */
+  variantLabel?: 'Buget' | 'Standard' | 'Premium';
+  /** Romanian theme line ("Relax & Plajă", "Cultură & Gastronomie", "Romantic & Lux"). */
+  variantTheme?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -121,7 +129,22 @@ export async function POST(req: NextRequest) {
       travelStyles = [],
       climate = 'no-preference',
       priorities = [],
-    } = body;
+      destinationIata,
+      destinationName,
+    } = body as {
+      origin?: string;
+      budget?: number;
+      currency?: string;
+      departureDate?: string;
+      returnDate?: string;
+      adults?: number;
+      children?: number;
+      travelStyles?: string[];
+      climate?: string;
+      priorities?: string[];
+      destinationIata?: string;
+      destinationName?: string;
+    };
 
     if (!origin || !budget || !departureDate || !returnDate) {
       return NextResponse.json({ error: 'Missing required fields: origin, budget, departureDate, returnDate' }, { status: 400 });
@@ -142,11 +165,32 @@ export async function POST(req: NextRequest) {
     // Response cache — same search returns instantly from Supabase api_cache.
     // Skips quota burn for repeated runs of the same wizard config.
     const sortedStyles = [...travelStyles].sort().join(',');
-    const cacheKey = `planTrip:${origin}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
+    const destSegment = destinationIata ? destinationIata.toUpperCase() : 'any';
+    const cacheKey = `planTrip:${origin}:${destSegment}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
     const cached = await getCached(cacheKey);
     if (cached) {
-      const cachedData = cached.data as { packages: TripPackage[]; total: number };
+      const cachedData = cached.data as { packages: TripPackage[]; total: number; mode?: string };
       return NextResponse.json({ ...cachedData, source: 'cached' });
+    }
+
+    // Single-destination mode — user picked a specific city in the wizard,
+    // so return 3 budget/standard/premium variants for THAT city instead of
+    // the standard discovery output.
+    if (destinationIata) {
+      return await buildSingleDestinationVariants({
+        origin,
+        destinationIata: destinationIata.toUpperCase(),
+        destinationName,
+        nights,
+        totalAdults,
+        adults,
+        children,
+        budgetEur,
+        departureDate,
+        returnDate,
+        travelStyles,
+        cacheKey,
+      });
     }
 
     // 1. Candidate destinations — combine 3 sources to guarantee 20+ candidates,
@@ -684,4 +728,249 @@ function generateFallbackContent(dest: DestinationProfile, nights: number, style
     ],
     estimatedDailyExpenses: { food: 35, transport: 15, activities: 25 }
   };
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Single-destination mode — returns 3 budget/standard/premium variants for
+// a specific city instead of the discovery output.
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface BuildVariantsInput {
+  origin: string;
+  destinationIata: string;
+  destinationName: string | undefined;
+  nights: number;
+  totalAdults: number;
+  adults: number;
+  children: number;
+  budgetEur: number;
+  departureDate: string;
+  returnDate: string;
+  travelStyles: string[];
+  cacheKey: string;
+}
+
+async function buildSingleDestinationVariants(input: BuildVariantsInput): Promise<Response> {
+  const {
+    origin, destinationIata, destinationName,
+    nights, totalAdults, adults, children,
+    budgetEur, departureDate, returnDate, travelStyles, cacheKey,
+  } = input;
+
+  if (origin === destinationIata) {
+    return NextResponse.json(
+      { error: 'Originea și destinația sunt identice. Alege un alt oraș destinație.' },
+      { status: 400 },
+    );
+  }
+
+  const dest = destinationForIata(destinationIata);
+  if (!dest) {
+    return NextResponse.json(
+      { error: `Destinație necunoscută (${destinationIata}). Încearcă alt oraș.` },
+      { status: 400 },
+    );
+  }
+
+  const estimate = estimateTripPrice(origin, destinationIata, nights, budgetEur);
+  if (!estimate) {
+    return NextResponse.json(
+      { error: `Nu putem estima prețul pentru ${dest.city}. Încearcă altă origine sau destinație.` },
+      { status: 400 },
+    );
+  }
+
+  const airlineCode = pickAirlineForRoute(origin, destinationIata, estimate.distanceKm);
+  const baseFlightPerPax = estimate.flightRoundTrip;
+  const baseHotelPerNight = Math.max(1, Math.round(estimate.hotelTotal / Math.max(1, nights)));
+  const baseStops = estimate.stops;
+
+  const packages: TripPackage[] = VARIANT_SPECS.map((spec) => {
+    const hotelPricePerNight = Math.max(20, Math.round(baseHotelPerNight * spec.priceMultiplier));
+    const hotelPrice = hotelPricePerNight * nights;
+
+    let flightMultiplier = 1.0;
+    let flightStops = baseStops;
+    if (spec.flightPref === 'direct') {
+      flightStops = 0;
+      flightMultiplier = 1.18;
+    } else if (spec.flightPref === 'cheapest') {
+      flightStops = baseStops > 0 ? Math.max(1, baseStops) : 0;
+      flightMultiplier = 0.92;
+    }
+
+    const flightPrice = Math.round(baseFlightPerPax * totalAdults * flightMultiplier);
+    const totalPrice = flightPrice + hotelPrice;
+
+    const flight: TripPackage['flight'] = {
+      outbound: null,
+      price: flightPrice,
+      currency: 'EUR',
+      airline: airlineCode,
+      airlineCode,
+      duration: estimate.durationISO,
+      stops: flightStops,
+      departureTime: '',
+      arrivalTime: '',
+    };
+
+    const hotel: TripPackage['hotel'] = {
+      id: `var-${destinationIata}-${spec.tier}`,
+      name: `${dest.city} ${spec.zoneLabel} Hotel`,
+      stars: spec.targetStars,
+      price: hotelPrice,
+      pricePerNight: hotelPricePerNight,
+      currency: 'EUR',
+      checkIn: departureDate,
+      checkOut: returnDate,
+      amenities: spec.amenities,
+    };
+
+    return {
+      id: `${destinationIata}-${spec.tier}-${departureDate}`,
+      destination: dest,
+      flight,
+      hotel,
+      totalPrice,
+      currency: 'EUR',
+      nights,
+      aiContent: null,
+      score: spec.tier === 'standard' ? 100 : spec.tier === 'premium' ? 90 : 80,
+      isEstimated: true,
+      isOverBudget: totalPrice > budgetEur,
+      variant: spec.tier,
+      variantLabel: spec.label,
+      variantTheme: spec.theme,
+    };
+  });
+
+  await generateVariantAiContent(packages, { adults, children, nights, departureDate, returnDate, budgetEur, travelStyles });
+
+  const response = {
+    packages,
+    total: packages.length,
+    mode: 'specific' as const,
+    destinationIata,
+    destinationName: destinationName || `${dest.city} (${destinationIata})`,
+  };
+  await setCache(cacheKey, response, 60 * 6);
+  return NextResponse.json(response);
+}
+
+interface AiContentContext {
+  adults: number;
+  children: number;
+  nights: number;
+  departureDate: string;
+  returnDate: string;
+  budgetEur: number;
+  travelStyles: string[];
+}
+
+async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentContext): Promise<void> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    packages.forEach((pkg) => {
+      pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+    });
+    return;
+  }
+
+  await Promise.all(
+    packages.map(async (pkg) => {
+      const spec = VARIANT_SPECS.find((v) => v.tier === pkg.variant);
+      if (!spec) {
+        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+        return;
+      }
+      const activityBudget = Math.max(0, Math.round(ctx.budgetEur - pkg.totalPrice));
+      const prompt = buildVariantPrompt(pkg, spec, ctx, activityBudget);
+
+      try {
+        const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2500,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+        });
+        if (aiRes.ok) {
+          const aiData = await aiRes.json();
+          const text = aiData.content?.[0]?.text || '';
+          pkg.aiContent = JSON.parse(text);
+        } else {
+          pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+        }
+      } catch (e) {
+        console.warn('[plan-trip:variant] AI generation failed for', pkg.destination.iata, pkg.variant, e);
+        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+      }
+    }),
+  );
+}
+
+function buildVariantPrompt(pkg: TripPackage, spec: VariantSpec, ctx: AiContentContext, activityBudget: number): string {
+  const priceTierHint = spec.tier === 'budget'
+    ? 'street food and casual € restaurants, free attractions, public transport'
+    : spec.tier === 'standard'
+      ? 'classic €€ restaurants, mid-range museums, mix of transport modes'
+      : 'fine dining €€€, rooftop bars, romantic viewpoints, taxis or private transfers';
+
+  return `You are a travel expert. Generate a trip itinerary tailored to a specific traveler tier:
+
+Destination: ${pkg.destination.city}, ${pkg.destination.country}
+Dates: ${ctx.departureDate} to ${ctx.returnDate} (${ctx.nights} nights)
+Budget remaining for activities: €${activityBudget}
+Travel styles: ${ctx.travelStyles.join(', ') || 'general'}
+Group: ${ctx.adults} adults, ${ctx.children} children
+
+VARIANT FOCUS: ${spec.themeEN} (${spec.tier} tier).
+- dayByDay activities should heavily lean toward "${spec.themeEN}"
+- topRestaurants should reflect price tier: ${priceTierHint}
+- localTips should suit a ${spec.tier} traveler
+- Recommend a ${spec.targetStars}-star style hotel area: ${spec.zoneHint}
+
+IMPORTANT: Use REAL, specific place names that actually exist in ${pkg.destination.city}. Do NOT use generic names like "Local Museum" or "City Center Restaurant".
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "description": "2-3 sentence compelling trip description that hints at the ${spec.themeEN} theme",
+  "whyThisTrip": "1 sentence explaining why this ${spec.tier} variant fits the traveler",
+  "dayByDay": [
+    {
+      "day": 1,
+      "title": "Arrival & First Impressions",
+      "morning": { "activity": "specific activity name", "description": "details", "type": "transport" },
+      "afternoon": { "activity": "specific attraction name", "description": "details", "type": "sightseeing" },
+      "evening": { "activity": "specific restaurant or bar name", "description": "details", "type": "dining" }
+    }
+  ],
+  "topAttractions": [
+    { "name": "Specific real attraction name", "description": "One sentence about this attraction", "category": "museum|landmark|park|other" },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." },
+    { "name": "...", "description": "...", "category": "..." }
+  ],
+  "topRestaurants": [
+    { "name": "Real restaurant name matching the ${spec.tier} tier", "cuisine": "...", "priceRange": "€|€€|€€€", "description": "One sentence recommendation" },
+    { "name": "...", "cuisine": "...", "priceRange": "€€", "description": "..." },
+    { "name": "...", "cuisine": "...", "priceRange": "€€€", "description": "..." }
+  ],
+  "topCafes": [
+    { "name": "Real cafe name", "specialty": "...", "description": "One sentence about the vibe" },
+    { "name": "...", "specialty": "...", "description": "..." },
+    { "name": "...", "specialty": "...", "description": "..." }
+  ],
+  "localTips": ["Specific actionable tip 1 suited for a ${spec.tier} traveler", "Tip 2", "Tip 3"],
+  "estimatedDailyExpenses": { "food": ${spec.tier === 'budget' ? 25 : spec.tier === 'standard' ? 45 : 90}, "transport": ${spec.tier === 'budget' ? 10 : spec.tier === 'standard' ? 18 : 35}, "activities": ${spec.tier === 'budget' ? 15 : spec.tier === 'standard' ? 30 : 60} }
+}`;
 }

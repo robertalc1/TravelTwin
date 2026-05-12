@@ -30,6 +30,8 @@ import {
   Wallet,
   Clock,
   ShieldCheck,
+  Sparkles,
+  Globe2,
   type LucideIcon,
 } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
@@ -61,6 +63,15 @@ const ORIGIN_SUGGESTIONS: Array<{ iata: string; label: string }> = [
   { iata: "TSR", label: "Timișoara (TSR)" },
   { iata: "CND", label: "Constanța (CND)" },
   { iata: "IAS", label: "Iași (IAS)" },
+];
+
+const DESTINATION_SUGGESTIONS: Array<{ iata: string; label: string }> = [
+  { iata: "MLA", label: "Malta (MLA)" },
+  { iata: "PMI", label: "Mallorca (PMI)" },
+  { iata: "TFS", label: "Tenerife (TFS)" },
+  { iata: "AYT", label: "Antalya (AYT)" },
+  { iata: "JTR", label: "Santorini (JTR)" },
+  { iata: "BCN", label: "Barcelona (BCN)" },
 ];
 // Travel style options — lucide icons + brand color tokens
 interface VisualOption {
@@ -132,6 +143,10 @@ const slideVariants = {
 interface PlanState {
   originIata: string;
   originDisplay: string;
+  /** 'surprise' = clasic discovery flow; 'specific' = utilizatorul a ales o destinație și vrem 3 variante */
+  destinationMode: "surprise" | "specific";
+  destinationIata: string;
+  destinationDisplay: string;
   budget: number;
   currency: string;
   departureDate: string;
@@ -172,6 +187,9 @@ export default function PlanPage() {
   const [state, setState] = useState<PlanState>({
     originIata: "",
     originDisplay: "",
+    destinationMode: "surprise",
+    destinationIata: "",
+    destinationDisplay: "",
     budget: defaultCfg.default,
     currency: storeCurrency,
     departureDate: defaultDep,
@@ -242,6 +260,7 @@ export default function PlanPage() {
     }, 70);
 
     try {
+      const isSpecific = state.destinationMode === "specific" && !!state.destinationIata;
       const res = await fetch("/api/ai/plan-trip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,6 +275,8 @@ export default function PlanPage() {
           travelStyles: state.travelStyles,
           climate: state.climate,
           priorities: state.priorities,
+          destinationIata: isSpecific ? state.destinationIata : undefined,
+          destinationName: isSpecific ? state.destinationDisplay : undefined,
         }),
       });
 
@@ -277,7 +298,7 @@ export default function PlanPage() {
       clearInterval(progressInterval);
       setAiLoading(false);
       setError(e.message || "Something went wrong. Please try again.");
-      setStep(4); // back to last step
+      setStep(5); // back to last step
     }
   }
 
@@ -318,7 +339,7 @@ export default function PlanPage() {
     );
   }
 
-  const totalSteps = 5;
+  const totalSteps = 6;
   const progress = ((step + 1) / totalSteps) * 100;
 
   return (
@@ -409,8 +430,117 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 2 OF 5: Budget */}
+            {/* STEP 2 OF 6: Destination — pick a city OR "Surprise me" */}
             {step === 1 && (
+              <motion.div
+                key="step-destination"
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+                className="text-center"
+              >
+                <div className="text-5xl mb-4">🌍</div>
+                <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
+                  Unde vrei să mergi?
+                </h2>
+                <p className="text-text-secondary mb-10 text-lg">
+                  Alege o destinație sau lasă-ne să te inspirăm
+                </p>
+
+                {/* Search card */}
+                <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6">
+                  <LocationAutocomplete
+                    value={state.destinationIata}
+                    displayValue={state.destinationDisplay}
+                    onSelect={(iata, display) => {
+                      set("destinationIata", iata);
+                      set("destinationDisplay", display);
+                      set("destinationMode", "specific");
+                    }}
+                    placeholder="Caută oraș sau aeroport..."
+                    icon="destination"
+                  />
+
+                  <div className="mt-6">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3 text-left">
+                      Destinații populare
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {DESTINATION_SUGGESTIONS.map((s) => (
+                        <button
+                          key={s.iata}
+                          onClick={() => {
+                            set("destinationIata", s.iata);
+                            set("destinationDisplay", s.label);
+                            set("destinationMode", "specific");
+                          }}
+                          className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition-all border ${
+                            state.destinationMode === "specific" && state.destinationIata === s.iata
+                              ? "border-primary-500 bg-primary-50 text-primary-600 dark:bg-primary-500/10"
+                              : "border-neutral-200 dark:border-border-default text-text-secondary hover:border-primary-300"
+                          }`}
+                        >
+                          <Globe2 className="h-3.5 w-3.5" />
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* OR divider */}
+                <div className="flex items-center gap-3 my-6 max-w-md mx-auto">
+                  <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">sau</span>
+                  <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
+                </div>
+
+                {/* Surprise me card */}
+                <button
+                  onClick={() => {
+                    set("destinationMode", "surprise");
+                    set("destinationIata", "");
+                    set("destinationDisplay", "");
+                    goNext();
+                  }}
+                  className="w-full group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary-300 dark:border-primary-500/40 bg-gradient-to-br from-primary-50/60 to-amber-50/60 dark:from-primary-500/10 dark:to-amber-500/10 px-6 py-5 text-left transition-all hover:border-primary-500 hover:shadow-md"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-500 text-white shadow-md group-hover:scale-105 transition-transform">
+                      <Sparkles className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-bold text-secondary-500 dark:text-primary-300">
+                        Inspiră-mă cu destinații noi
+                      </p>
+                      <p className="text-sm text-text-secondary mt-0.5">
+                        Compară până la 18 destinații care se potrivesc preferințelor tale
+                      </p>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-primary-500 shrink-0 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </button>
+
+                <div className="flex justify-center gap-4 mt-8">
+                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 dark:border-border-default dark:hover:bg-surface-elevated transition-all">
+                    <ArrowLeft className="h-4 w-4" /> Înapoi
+                  </button>
+                  <button
+                    onClick={goNext}
+                    disabled={state.destinationMode !== "specific" || !state.destinationIata}
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+                  >
+                    Continuă <ArrowRight className="h-5 w-5" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* STEP 3 OF 6: Budget */}
+            {step === 2 && (
               <motion.div
                 key="step-budget"
                 custom={direction}
@@ -501,8 +631,8 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 3 OF 5: When & How Long */}
-            {step === 2 && (
+            {/* STEP 4 OF 6: When & How Long */}
+            {step === 3 && (
               <motion.div
                 key="step1"
                 custom={direction}
@@ -590,8 +720,8 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 4 OF 5: Travel Style & Climate */}
-            {step === 3 && (
+            {/* STEP 5 OF 6: Travel Style & Climate */}
+            {step === 4 && (
               <motion.div
                 key="step2"
                 custom={direction}
@@ -693,8 +823,8 @@ export default function PlanPage() {
               </motion.div>
             )}
 
-            {/* STEP 5 OF 5: Priorities */}
-            {step === 4 && (
+            {/* STEP 6 OF 6: Priorities */}
+            {step === 5 && (
               <motion.div
                 key="step4"
                 custom={direction}

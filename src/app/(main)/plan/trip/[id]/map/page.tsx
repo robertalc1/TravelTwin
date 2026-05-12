@@ -40,6 +40,8 @@ function packageToTripDetail(pkg: TripPackage): TripDetail {
     hotelCheckOut: pkg.hotel?.checkOut || '',
     hotelAmenities: pkg.hotel?.amenities,
     aiContent: pkg.aiContent || null,
+    variantLabel: pkg.variantLabel,
+    variantTheme: pkg.variantTheme,
   };
 }
 

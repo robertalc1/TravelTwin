@@ -12,6 +12,10 @@ export interface TripDetail {
   currency: string;              // "EUR"
   totalPrice: number;
 
+  /** Only set when the package was generated in single-destination mode. */
+  variantLabel?: "Buget" | "Standard" | "Premium";
+  variantTheme?: string;
+
   // Flight
   airline: string;
   airlineCode: string;

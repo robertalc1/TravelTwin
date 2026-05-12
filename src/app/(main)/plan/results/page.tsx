@@ -15,6 +15,9 @@ import {
   Sparkles,
   ArrowLeft,
   AlertTriangle,
+  Crown,
+  Leaf,
+  Gem,
 } from "lucide-react";
 import type { TripPackage } from "@/app/api/ai/plan-trip/route";
 import { handleDestinationImageError, handleAirlineLogoError } from "@/lib/imageFallback";
@@ -29,7 +32,22 @@ interface PlanParams {
   children?: number;
   budget?: number;
   currency?: string;
+  destinationMode?: "surprise" | "specific";
+  destinationIata?: string;
+  destinationDisplay?: string;
 }
+
+const VARIANT_ORDER: Record<NonNullable<TripPackage["variant"]>, number> = {
+  budget: 0,
+  standard: 1,
+  premium: 2,
+};
+
+const VARIANT_BADGE_STYLES: Record<NonNullable<TripPackage["variant"]>, { bg: string; icon: typeof Leaf }> = {
+  budget:   { bg: "bg-emerald-500", icon: Leaf },
+  standard: { bg: "bg-blue-500",    icon: Gem },
+  premium:  { bg: "bg-amber-500",   icon: Crown },
+};
 
 export default function PlanResultsPage() {
   const router = useRouter();
@@ -124,6 +142,24 @@ export default function PlanResultsPage() {
     );
   }
 
+  // Single-destination mode: every package shares the same destination IATA and
+  // carries a `variant` field. Detect it so we can swap headers, badges and sort.
+  const isSpecific = params?.destinationMode === "specific"
+    && !!params?.destinationIata
+    && packages.every((p) => p.destination?.iata === params.destinationIata && p.variant);
+
+  const displayedPackages = isSpecific
+    ? [...packages].sort((a, b) => {
+        const ao = a.variant ? VARIANT_ORDER[a.variant] : 99;
+        const bo = b.variant ? VARIANT_ORDER[b.variant] : 99;
+        return ao - bo;
+      })
+    : packages;
+
+  const specificCity = isSpecific
+    ? (params?.destinationDisplay || packages[0].destination.city)
+    : null;
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
 
@@ -133,28 +169,52 @@ export default function PlanResultsPage() {
           href="/plan"
           className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary mb-8 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to search
+          <ArrowLeft className="h-4 w-4" /> {isSpecific ? "Înapoi la căutare" : "Back to search"}
         </Link>
 
         {/* Header */}
         <div className="mb-10">
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-5 w-5 text-primary-500" />
-            <span className="text-sm font-semibold text-primary-500 uppercase tracking-wider">AI Recommendations</span>
+            <span className="text-sm font-semibold text-primary-500 uppercase tracking-wider">
+              {isSpecific ? "Oferte personalizate" : "AI Recommendations"}
+            </span>
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-secondary-500 mb-2">
-            Your Personalized Trip Recommendations
+            {isSpecific
+              ? `${displayedPackages.length} oferte pentru ${specificCity}`
+              : "Your Personalized Trip Recommendations"}
           </h1>
           {params && (
             <p className="text-text-secondary">
-              From <strong>{params.originDisplay || params.originIata || "your location"}</strong>
-              {params.nights != null ? ` · ${params.nights} nights` : ""}
-              {params.adults != null
-                ? ` · ${(params.adults || 0) + (params.children || 0)} traveler${((params.adults || 0) + (params.children || 0)) !== 1 ? "s" : ""}`
-                : ""}
-              {params.budget != null && params.currency
-                ? ` · Budget: ${params.currency} ${Number(params.budget).toLocaleString()}`
-                : ""}
+              {isSpecific ? (
+                <>
+                  Din <strong>{params.originDisplay || params.originIata || "originea ta"}</strong>
+                  {params.nights != null ? ` · ${params.nights} nopți` : ""}
+                  {params.adults != null
+                    ? ` · ${(params.adults || 0) + (params.children || 0)} călător${((params.adults || 0) + (params.children || 0)) !== 1 ? "i" : ""}`
+                    : ""}
+                  {params.budget != null && params.currency
+                    ? ` · Buget: ${params.currency} ${Number(params.budget).toLocaleString()}`
+                    : ""}
+                </>
+              ) : (
+                <>
+                  From <strong>{params.originDisplay || params.originIata || "your location"}</strong>
+                  {params.nights != null ? ` · ${params.nights} nights` : ""}
+                  {params.adults != null
+                    ? ` · ${(params.adults || 0) + (params.children || 0)} traveler${((params.adults || 0) + (params.children || 0)) !== 1 ? "s" : ""}`
+                    : ""}
+                  {params.budget != null && params.currency
+                    ? ` · Budget: ${params.currency} ${Number(params.budget).toLocaleString()}`
+                    : ""}
+                </>
+              )}
+            </p>
+          )}
+          {isSpecific && (
+            <p className="text-sm text-text-muted mt-2 italic">
+              Alege varianta potrivită bugetului și stilului tău de călătorie.
             </p>
           )}
         </div>
@@ -169,13 +229,14 @@ export default function PlanResultsPage() {
 
         {/* Package cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {packages.map((pkg, i) => (
-            <PackageCard key={pkg.id} pkg={pkg} index={i} />
+          {displayedPackages.map((pkg, i) => (
+            <PackageCard key={pkg.id} pkg={pkg} index={i} isBestMatch={!isSpecific && i === 0} />
           ))}
         </div>
 
-        {/* Similar destinations strip — leverages the top-recommended IATA + the user's budget. */}
-        {packages[0]?.destination?.iata && (
+        {/* Similar destinations strip — only in discovery mode (hidden when user
+            picked a specific destination, since the 3 variants are the focus). */}
+        {!isSpecific && packages[0]?.destination?.iata && (
           <div className="mt-12">
             <SimilarDestinations
               referenceIata={packages[0].destination.iata}
@@ -189,10 +250,13 @@ export default function PlanResultsPage() {
   );
 }
 
-function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
+function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: number; isBestMatch: boolean }) {
   const dest = pkg.destination;
   const heroUrl = `https://images.unsplash.com/${dest.imageId}?w=800&h=500&fit=crop&q=80`;
   const { format } = useCurrency();
+
+  const variantStyle = pkg.variant ? VARIANT_BADGE_STYLES[pkg.variant] : null;
+  const VariantIcon = variantStyle?.icon;
 
   const highlights: string[] = [];
   if (pkg.flight?.stops === 0) highlights.push("✈️ Direct flight");
@@ -217,21 +281,31 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
           loading="lazy"
           onError={handleDestinationImageError}
         />
-        {index === 0 && !pkg.isOverBudget && (
+        {/* Variant badge takes precedence over Best Match */}
+        {variantStyle && pkg.variantLabel && (
+          <span className={`absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full ${variantStyle.bg} px-3 py-1 text-xs font-bold text-white shadow-md`}>
+            {VariantIcon && <VariantIcon className="h-3.5 w-3.5" />}
+            {pkg.variantLabel}
+          </span>
+        )}
+        {!variantStyle && isBestMatch && !pkg.isOverBudget && (
           <span className="absolute top-3 left-3 rounded-full bg-primary-500 px-3 py-1 text-xs font-bold text-white shadow-md">
             ⭐ Best Match
           </span>
         )}
         {pkg.isOverBudget && (
-          <span className="absolute top-3 left-3 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md">
-            ⚠ Over budget
+          <span className={`absolute ${variantStyle ? "top-12" : "top-3"} left-3 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md`}>
+            ⚠ Peste buget
           </span>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <div className="absolute bottom-4 left-4 right-4">
           <h2 className="text-xl font-bold text-white">
-            {pkg.nights} days in {dest.city}, {dest.country}
+            {pkg.nights} {pkg.variant ? "nopți" : "days"} in {dest.city}, {dest.country}
           </h2>
+          {pkg.variantTheme && (
+            <p className="text-xs italic text-white/85 mt-1">{pkg.variantTheme}</p>
+          )}
         </div>
       </div>
 
