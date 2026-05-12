@@ -107,7 +107,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const cacheKey = `hotelsSearch:${cityCode}:${checkIn}:${checkOut}:${adults}`;
+  const cacheKey = `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`;
   const cached = await getCached(cacheKey);
   if (cached) {
     return NextResponse.json({

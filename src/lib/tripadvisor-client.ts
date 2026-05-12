@@ -8,7 +8,7 @@
 ─────────────────────────────────────────────────────────────── */
 
 import { getCached, setCache } from './cache';
-import { getCityFromIata } from './iataMapping';
+import { getCityFromIata, getCountryFromIata } from './iataMapping';
 
 const HOST = 'tripadvisor16.p.rapidapi.com';
 const BASE = `https://${HOST}`;
@@ -308,28 +308,34 @@ export function extractFlightPrice(
  */
 export async function getGeoIdForCity(cityCode: string): Promise<number | null> {
   const code = cityCode.toUpperCase();
-  const cacheKey = `geoId:${code}`;
+  // v2 key: scoped query disambiguates ambiguous names (Sofia BG vs Soria ES,
+  // Athens GR vs Athens GA, etc.). Old `geoId:${code}` entries are abandoned.
+  const cacheKey = `geoId:v2:${code}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'number') return cached.data;
 
   const cityName = getCityFromIata(code) || code;
-  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', {
-    query: cityName,
-  });
+  const country = getCountryFromIata(code);
+  const query = country ? `${cityName}, ${country}` : cityName;
 
+  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query });
   if (!isRecord(raw)) return null;
-  const data = asArray((raw as Record<string, unknown>).data);
-  for (const item of data) {
-    if (!isRecord(item)) continue;
-    const gid = item.geoId;
-    const numeric =
-      typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
-    if (Number.isFinite(numeric) && numeric > 0) {
-      await setCache(cacheKey, numeric, 60 * 24 * 30); // 30 days
-      return numeric;
-    }
-  }
-  return null;
+  const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
+
+  const countryLower = country.toLowerCase();
+  const preferred =
+    (countryLower
+      ? items.find((it) => asString(it.secondaryText).toLowerCase().includes(countryLower))
+      : undefined) || items[0];
+  if (!preferred) return null;
+
+  const gid = preferred.geoId;
+  const numeric =
+    typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+
+  await setCache(cacheKey, numeric, 60 * 24 * 30); // 30 days
+  return numeric;
 }
 
 export async function searchHotelsByCity(p: SearchHotelsParams): Promise<TAHotel[]> {
@@ -445,22 +451,30 @@ export async function searchCarLocations(query: string): Promise<TACarLocation[]
 
 export async function getCarLocationId(cityCode: string): Promise<string | null> {
   const code = cityCode.toUpperCase();
-  const cacheKey = `carLocId:${code}`;
+  // v2 key: same disambiguation rationale as getGeoIdForCity.
+  const cacheKey = `carLocId:v2:${code}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'string') return cached.data;
 
   const cityName = getCityFromIata(code) || code;
-  // Try IATA first (airport-specific results), then fall back to city name
+  const country = getCountryFromIata(code);
+
+  // Try IATA first (airport-specific, unambiguous); fall back to country-scoped city
   let results = await searchCarLocations(code);
   if (results.length === 0) {
-    results = await searchCarLocations(cityName);
+    const q = country ? `${cityName}, ${country}` : cityName;
+    results = await searchCarLocations(q);
   }
 
-  const first = results[0];
-  if (!first) return null;
+  const countryLower = country.toLowerCase();
+  const preferred =
+    (countryLower
+      ? results.find((r) => (r.countryName || '').toLowerCase().includes(countryLower))
+      : undefined) || results[0];
+  if (!preferred) return null;
 
-  await setCache(cacheKey, first.locationId, 60 * 24 * 30);
-  return first.locationId;
+  await setCache(cacheKey, preferred.locationId, 60 * 24 * 30);
+  return preferred.locationId;
 }
 
 export interface SearchCarsParams {
@@ -788,7 +802,6 @@ export async function searchRestaurants(locationId: string): Promise<TARestauran
  */
 export async function searchFlightInspirations(origin: string): Promise<TAInspiration[]> {
   const { COMMON_ROUTES } = await import('./commonRoutes');
-  const { getCountryFromIata } = await import('./iataMapping');
 
   const today = new Date();
   const departure = new Date(today);
