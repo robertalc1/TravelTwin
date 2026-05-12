@@ -676,7 +676,11 @@ export async function getHotelDetails(
 
   const detail: TAHotelDetail = {
     id,
-    name: asString(data.title) || asString(data.name) || 'Hotel',
+    // Strip Tripadvisor's leading list-rank prefix ("15. ") — it confuses
+    // downstream Google Maps geocoding and adds nothing for the user.
+    name: (asString(data.title) || asString(data.name) || 'Hotel')
+      .replace(/^\d+\.\s+/, '')
+      .trim(),
     about: asString(data.about) || asString(data.description),
     photos,
     reviews,

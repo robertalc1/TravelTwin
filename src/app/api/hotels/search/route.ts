@@ -41,6 +41,14 @@ function expandPhotoUrl(template: string | undefined, w = 800, h = 500): string 
   return template.replace('{width}', String(w)).replace('{height}', String(h));
 }
 
+// Tripadvisor returns sorted search results with a leading list-rank prefix
+// like "15. Howard Johnson by Wyndham Athens". The prefix breaks Google Maps
+// geocoding (the embed silently fails on the leading "15."), so strip it at
+// the source before the name flows into HotelOfferData.
+function cleanHotelName(title: string | undefined): string {
+  return (title || 'Hotel').replace(/^\d+\.\s+/, '').trim();
+}
+
 function toOfferData(
   h: TAHotel,
   cityCode: string,
@@ -57,7 +65,7 @@ function toOfferData(
   return {
     hotel: {
       hotelId: h.id,
-      name: h.title || 'Hotel',
+      name: cleanHotelName(h.title),
       rating: String(Math.max(1, Math.min(5, Math.round(h.bubbleRating?.rating || 3)))),
       cityCode: cityCode.toUpperCase(),
       address: {
