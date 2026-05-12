@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { HotelOfferData } from '@/components/Hotels/HotelCard';
-import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import type { TransferOffer } from '@/lib/types/transfers';
 
 export interface ExtraItem {
   id: string;

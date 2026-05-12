@@ -18,6 +18,15 @@ import {
 } from './buildEmbedUrl';
 import { getAirportCoord } from '@/lib/airportCoordinates';
 
+/** Tripadvisor-backed restaurant. Falls back to the AI restaurant shape
+ *  when the live endpoint is unavailable. */
+interface LiveRestaurant {
+  id: string;
+  name: string;
+  cuisine?: string;
+  priceRange?: string;
+}
+
 interface Props {
   trip: TripDetail;
   /** From the `planResults` sessionStorage entry — populated by the planner. */
@@ -49,8 +58,43 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
 
   const ai = trip.aiContent;
   const attractions = (ai?.topAttractions ?? []).slice(0, 4);
-  const restaurants = ai?.topRestaurants ?? [];
   const cafes = ai?.topCafes ?? [];
+
+  // Live restaurants from Tripadvisor — fetched lazily on mount, falls back
+  // to the AI list if quota is exhausted or the endpoint errors. Keeps the
+  // RapidAPI call cost to two per city/day thanks to the 24h server cache.
+  const [liveRestaurants, setLiveRestaurants] = useState<LiveRestaurant[]>([]);
+  useEffect(() => {
+    if (!trip.destinationCity) return;
+    let cancelled = false;
+    const qs = new URLSearchParams({ city: trip.destinationCity });
+    if (trip.destinationCountry) qs.set('country', trip.destinationCountry);
+    fetch(`/api/restaurants/search?${qs.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { restaurants?: LiveRestaurant[] } | null) => {
+        if (cancelled || !data?.restaurants?.length) return;
+        setLiveRestaurants(data.restaurants);
+      })
+      .catch(() => {
+        /* ignore — AI fallback handles the empty state */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [trip.destinationCity, trip.destinationCountry]);
+
+  const restaurants: { name: string; cuisine?: string; priceRange?: string }[] =
+    liveRestaurants.length > 0
+      ? liveRestaurants.map((r) => ({
+          name: r.name,
+          cuisine: r.cuisine,
+          priceRange: r.priceRange,
+        }))
+      : (ai?.topRestaurants ?? []).map((r) => ({
+          name: r.name,
+          cuisine: r.cuisine,
+          priceRange: r.priceRange,
+        }));
 
   // Build route stops + URLs
   const { origin, destination, waypoints } = buildRouteStops({

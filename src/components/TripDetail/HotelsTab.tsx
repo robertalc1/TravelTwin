@@ -1,23 +1,12 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import HotelCard, { type HotelOfferData } from '@/components/Hotels/HotelCard';
-import HotelDetailModal from '@/components/Hotels/HotelDetailModal';
-import { useTripPricing } from '@/stores/tripPricingStore';
-import { useToastStore } from '@/stores/toastStore';
-import { useCurrencyStore } from '@/stores/currencyStore';
 
 interface HotelsTabProps {
   destinationCityCode: string;
   checkInDate: string;
   checkOutDate: string;
   adults: number;
-  onHotelSelect: (hotel: HotelOfferData) => void;
-  selectedHotel?: HotelOfferData | null;
-}
-
-interface HotelListItem {
-  hotelId: string;
-  name?: string;
 }
 
 export default function HotelsTab({
@@ -25,51 +14,29 @@ export default function HotelsTab({
   checkInDate,
   checkOutDate,
   adults,
-  onHotelSelect,
-  selectedHotel,
 }: HotelsTabProps) {
   const [hotels, setHotels] = useState<HotelOfferData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedForModal, setSelectedForModal] = useState<HotelOfferData | null>(null);
   const [sortBy, setSortBy] = useState<'price' | 'rating'>('price');
   const [filterStars, setFilterStars] = useState<number>(0);
-
-  const selectHotelInStore = useTripPricing((s) => s.selectHotel);
-  const selectedHotelStore = useTripPricing((s) => s.selectedHotel);
-  const showToast = useToastStore((s) => s.show);
-  const formatCurrency = useCurrencyStore((s) => s.format);
-
-  const handleAddToTrip = (h: HotelOfferData) => {
-    const offer = h.offers[0];
-    const total = parseFloat(offer?.price.total ?? '0');
-    selectHotelInStore(h, total);
-    onHotelSelect(h);
-    showToast(`Hotel added · ${formatCurrency(total, offer?.price.currency || 'EUR')}`, 'success');
-  };
 
   const fetchHotels = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const listRes = await fetch(
-        `/api/amadeus/hotels/list?cityCode=${encodeURIComponent(destinationCityCode)}&radius=5`
+      const res = await fetch(
+        `/api/hotels/search?cityCode=${encodeURIComponent(destinationCityCode)}&checkIn=${checkInDate}&checkOut=${checkOutDate}&adults=${adults}`
       );
-      const listData: { data?: HotelListItem[] } = await listRes.json();
+      const data: { hotels?: HotelOfferData[]; warning?: string } = await res.json();
 
-      if (!listData.data || listData.data.length === 0) {
-        setError('No hotels found for this destination');
+      if (!data.hotels || data.hotels.length === 0) {
+        setError(data.warning || 'No hotels found for this destination');
         setHotels([]);
         return;
       }
 
-      const hotelIds = listData.data.slice(0, 8).map((h) => h.hotelId).filter(Boolean).join(',');
-      const offersRes = await fetch(
-        `/api/amadeus/hotels/offers?hotelIds=${hotelIds}&checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&adults=${adults}&cityCode=${encodeURIComponent(destinationCityCode)}`
-      );
-      const offersData: { data?: HotelOfferData[] } = await offersRes.json();
-
-      setHotels(offersData.data || []);
+      setHotels(data.hotels);
     } catch {
       setError('Failed to load hotels. Please try again.');
     } finally {
@@ -171,26 +138,11 @@ export default function HotelsTab({
               key={h.hotel.hotelId}
               hotelOffer={h}
               nights={nights}
-              onSelect={(sel) => setSelectedForModal(sel)}
+              checkIn={checkInDate}
+              checkOut={checkOutDate}
             />
           ))}
         </div>
-      )}
-
-      {selectedForModal && (
-        <HotelDetailModal
-          hotelOffer={selectedForModal}
-          nights={nights}
-          onClose={() => setSelectedForModal(null)}
-          onAddToTrip={(h) => {
-            handleAddToTrip(h);
-            setSelectedForModal(null);
-          }}
-          isSelected={
-            selectedHotel?.hotel?.hotelId === selectedForModal.hotel.hotelId ||
-            selectedHotelStore?.hotel?.hotelId === selectedForModal.hotel.hotelId
-          }
-        />
       )}
     </div>
   );

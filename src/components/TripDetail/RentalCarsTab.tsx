@@ -5,7 +5,7 @@ import { useTripPricing } from '@/stores/tripPricingStore';
 import { useToastStore } from '@/stores/toastStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import type { NormalizedCar } from '@/app/api/cars/search/route';
-import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import type { TransferOffer } from '@/lib/types/transfers';
 
 interface RentalCarsTabProps {
   cityCode: string;

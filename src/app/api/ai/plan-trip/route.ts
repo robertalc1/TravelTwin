@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { matchDestinations, DestinationProfile, DESTINATIONS } from '@/lib/destinations';
 import { diversifyPackages } from '@/lib/diversify';
-import { searchFlights, searchHotelsByCity } from '@/lib/tripadvisor-client';
-import { normalizeFlight, normalizeHotel } from '@/lib/tripadvisor-normalize';
-import type { NormalizedFlight, NormalizedHotel } from '@/lib/supabase/types';
+import type { NormalizedFlight } from '@/lib/supabase/types';
 import { estimateTripPrice, pickAirlineForRoute, getAirportCoords } from '@/lib/pricing';
 import { convertAmount, FALLBACK_RATES } from '@/lib/currencyService';
-import { canMakeRapidApiCall } from '@/lib/rateLimiter';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
 import { getCityImageByIata } from '@/lib/cityImages';
@@ -152,10 +149,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...cachedData, source: 'cached' });
     }
 
-    // Budget allocation: 40% flights, 45% hotel, 15% activities (all in EUR)
-    const flightBudget = budgetEur * 0.40;
-    const hotelBudget = budgetEur * 0.45;
-
     // 1. Candidate destinations — combine 3 sources to guarantee 20+ candidates,
     //    even from low-volume origins like CND (which has only 2 COMMON_ROUTES).
     const matched = matchDestinations(travelStyles, climate, budget, month, 20);
@@ -173,138 +166,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No candidate destinations available' }, { status: 400 });
     }
 
-    // 2. For each candidate, try Tripadvisor live (when quota allows).
-    //    If quota is exhausted or the API returns nothing, the per-candidate
-    //    loop below falls back to the deterministic estimator — no package
-    //    is dropped because of network conditions.
-    const liveAllowed = canMakeRapidApiCall();
-    const searchPromises = candidates.map(async (dest) => {
-      if (!liveAllowed) return { dest, flight: null, hotel: null };
-      try {
-        const [flightResults, hotelResults] = await Promise.allSettled([
-          searchFlights({
-            origin,
-            destination: dest.iata,
-            departureDate,
-            returnDate,
-            adults: String(totalAdults),
-            travelClass: 'ECONOMY',
-          }),
-          searchHotelsByCity({
-            cityCode: dest.iata,
-            checkIn: departureDate,
-            checkOut: returnDate,
-            adults: String(adults),
-            rooms: '1',
-          }),
-        ]);
-
-        const flightsRaw = flightResults.status === 'fulfilled' ? flightResults.value : [];
-        const hotelsRaw = hotelResults.status === 'fulfilled' ? hotelResults.value : [];
-
-        const normalizedFlights = flightsRaw
-          .map((f) => normalizeFlight(f, origin, dest.iata, 'ECONOMY'))
-          .filter((f): f is NormalizedFlight => f !== null);
-
-        // f.price is per-passenger; compare total trip cost against flightBudget.
-        const affordableFlight =
-          normalizedFlights.find((f) => f.price * totalAdults <= flightBudget) ||
-          normalizedFlights[0] ||
-          null;
-
-        const normalizedHotels: NormalizedHotel[] = hotelsRaw.map((h) =>
-          normalizeHotel(h, dest.iata, departureDate, returnDate),
-        );
-        const affordableHotel =
-          normalizedHotels.find((h) => h.totalPrice <= hotelBudget) ||
-          normalizedHotels[0] ||
-          null;
-
-        return { dest, flight: affordableFlight, hotel: affordableHotel };
-      } catch (e) {
-        console.warn(`[plan-trip] Failed searching ${dest.iata}:`, e);
-        return { dest, flight: null, hotel: null };
-      }
-    });
-
-    const searchResults = await Promise.all(searchPromises);
-
-    // 3. Score and build packages
+    // 2. Build packages from the deterministic estimator only — no RapidAPI
+    //    calls here. Tripadvisor's daily quota stays untouched for the views
+    //    the user actually opens later (Hotels tab, Car Rental tab, Hotel
+    //    detail page, restaurants on the route map).
     const packages: TripPackage[] = [];
 
-    for (const { dest, flight: liveFlight, hotel: liveHotel } of searchResults) {
-      // Tripadvisor returns flight price per passenger — multiply by total
-      // travellers so the displayed package price covers everyone.
-      let flightPrice = liveFlight ? liveFlight.price * totalAdults : 0;
-      let hotelPrice = liveHotel ? liveHotel.totalPrice : 0;
-
+    for (const dest of candidates) {
       const estimate = estimateTripPrice(origin, dest.iata, nights, budgetEur);
       if (!estimate) continue;
 
-      // Use estimator when live data is missing or implausibly low
-      const realisticFlight = estimate.flightRoundTrip * totalAdults;
-      if (flightPrice === 0 || flightPrice < realisticFlight * 0.4) {
-        flightPrice = realisticFlight;
-      }
-      if (hotelPrice === 0 || hotelPrice < estimate.hotelTotal * 0.4) {
-        hotelPrice = estimate.hotelTotal;
-      }
-
-      // All comparisons in EUR — convert user's budget so it lines up.
-      // NO hard budget filter: over-budget packages still ship, just marked
-      // with isOverBudget so the UI can render a subtle badge and the sort
-      // pushes them down. User sees the full landscape, like /deals does.
+      const flightPrice = Math.round(estimate.flightRoundTrip * totalAdults);
+      const hotelPrice = Math.round(estimate.hotelTotal);
       const totalPrice = flightPrice + hotelPrice;
+      // No hard budget filter — over-budget packages ship with a badge and
+      // are sorted to the end, matching /deals UX.
       const isOverBudget = totalPrice > budgetEur;
 
       const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
-      const flight = liveFlight
-        ? {
-            outbound: liveFlight,
-            price: flightPrice,
-            currency: 'EUR',
-            airline: liveFlight.airlineName,
-            airlineCode: liveFlight.airline,
-            duration: liveFlight.duration,
-            stops: liveFlight.stops,
-            departureTime: liveFlight.departureTime,
-            arrivalTime: liveFlight.arrivalTime,
-          }
-        : {
-            outbound: null,
-            price: flightPrice,
-            currency: 'EUR',
-            airline: airlineCode,
-            airlineCode,
-            duration: estimate.durationISO,
-            stops: estimate.stops,
-            departureTime: '',
-            arrivalTime: '',
-          };
+      const flight: TripPackage['flight'] = {
+        outbound: null,
+        price: flightPrice,
+        currency: 'EUR',
+        airline: airlineCode,
+        airlineCode,
+        duration: estimate.durationISO,
+        stops: estimate.stops,
+        departureTime: '',
+        arrivalTime: '',
+      };
 
-      const hotel = liveHotel
-        ? {
-            id: liveHotel.id,
-            name: liveHotel.name,
-            stars: liveHotel.rating,
-            price: Math.round(hotelPrice),
-            pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
-            currency: 'EUR',
-            checkIn: departureDate,
-            checkOut: returnDate,
-            amenities: liveHotel.amenities,
-          }
-        : {
-            id: `est-${dest.iata}`,
-            name: `${dest.city} City Hotel`,
-            stars: 3,
-            price: Math.round(hotelPrice),
-            pricePerNight: Math.round(hotelPrice / nights),
-            currency: 'EUR',
-            checkIn: departureDate,
-            checkOut: returnDate,
-            amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
-          };
+      const hotel: TripPackage['hotel'] = {
+        id: `est-${dest.iata}`,
+        name: `${dest.city} City Hotel`,
+        stars: 3,
+        price: hotelPrice,
+        pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
+        currency: 'EUR',
+        checkIn: departureDate,
+        checkOut: returnDate,
+        amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
+      };
 
       // Score packages — preferences applied as boost (not as filter)
       let score = 0;
@@ -313,7 +215,6 @@ export async function POST(req: NextRequest) {
       else if (totalPrice <= budgetEur) score += 10;
       else score -= 100; // over-budget pushed down by sort below
       if (flight.stops === 0) score += 15;
-      if (hotel.stars >= 4) score += 10;
       score += dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10;
       if (climate !== 'no-preference' && dest.climate === climate) score += 15;
 
@@ -327,6 +228,7 @@ export async function POST(req: NextRequest) {
         nights,
         aiContent: null,
         score,
+        isEstimated: true,
         isOverBudget,
       });
     }

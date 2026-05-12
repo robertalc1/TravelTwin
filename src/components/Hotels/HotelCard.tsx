@@ -1,6 +1,7 @@
 'use client';
 import { Star, MapPin, Wifi, UtensilsCrossed, Dumbbell, Waves } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { getHotelImage } from '@/lib/hotelImages';
 import { useCurrencyStore } from '@/stores/currencyStore';
 
@@ -33,8 +34,14 @@ export interface HotelOfferData {
 
 interface HotelCardProps {
   hotelOffer: HotelOfferData;
-  onSelect: (hotel: HotelOfferData) => void;
+  /** Optional click handler. When omitted, the card navigates to
+   *  /hotels/[id] with the relevant check-in/out query string. */
+  onSelect?: (hotel: HotelOfferData) => void;
   nights?: number;
+  /** Passed through to the hotel-detail URL so the page can re-fetch
+   *  prices for the same date range without a fresh search. */
+  checkIn?: string;
+  checkOut?: string;
 }
 
 function prettyAmenity(amenity: string): string {
@@ -44,7 +51,14 @@ function prettyAmenity(amenity: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function HotelCard({ hotelOffer, onSelect, nights = 1 }: HotelCardProps) {
+export default function HotelCard({
+  hotelOffer,
+  onSelect,
+  nights = 1,
+  checkIn,
+  checkOut,
+}: HotelCardProps) {
+  const router = useRouter();
   const { hotel, offers } = hotelOffer;
   const bestOffer = offers[0];
   const stars = parseInt(hotel.rating || '3', 10) || 3;
@@ -58,12 +72,26 @@ export default function HotelCard({ hotelOffer, onSelect, nights = 1 }: HotelCar
   const fromCurrency = bestOffer?.price.currency || 'EUR';
   const isFreeCancel = bestOffer?.policies?.cancellations?.[0]?.amount === '0';
 
+  function handleClick() {
+    if (onSelect) {
+      onSelect(hotelOffer);
+      return;
+    }
+    const qs = new URLSearchParams();
+    if (checkIn) qs.set('checkIn', checkIn);
+    if (checkOut) qs.set('checkOut', checkOut);
+    if (hotel.cityCode) qs.set('cityCode', hotel.cityCode);
+    if (bestOffer?.price.total) qs.set('total', bestOffer.price.total);
+    if (hotel.name) qs.set('name', hotel.name);
+    router.push(`/hotels/${encodeURIComponent(hotel.hotelId)}?${qs.toString()}`);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-white dark:bg-surface rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default hover:shadow-xl transition-all duration-300 cursor-pointer group"
-      onClick={() => onSelect(hotelOffer)}
+      onClick={handleClick}
     >
       <div className="relative h-48 bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,207 +1,420 @@
 "use client";
 
-import { ArrowLeft, MapPin, Star, Wifi, Car, Waves, Coffee, Dumbbell, Sparkles, Heart, Share2, Shield, Calendar, Users } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { RatingStars } from "@/components/ui/RatingStars";
-import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight, Quote,
+} from "lucide-react";
+import { useCurrencyStore } from "@/stores/currencyStore";
+import { useToastStore } from "@/stores/toastStore";
+import { getHotelImage } from "@/lib/hotelImages";
 
-const images = [
-    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200&q=80",
-    "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=800&q=80",
-    "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=800&q=80",
-    "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=800&q=80",
-];
+interface TAReview {
+  id?: string;
+  title?: string;
+  text?: string;
+  rating?: number;
+  publishedDate?: string;
+  authorName?: string;
+}
 
-const rooms = [
-    { name: "Superior Room", size: "28 m²", bed: "1 King Bed", price: 289, originalPrice: 389, features: ["City view", "Free WiFi", "Breakfast included"] },
-    { name: "Deluxe Room", size: "35 m²", bed: "1 King Bed", price: 389, features: ["Park view", "Free WiFi", "Breakfast included", "Minibar"] },
-    { name: "Junior Suite", size: "48 m²", bed: "1 King Bed + Sofa", price: 529, features: ["Panoramic view", "Free WiFi", "Breakfast included", "Lounge access"] },
-];
+interface TAHotelDetail {
+  id: string;
+  name: string;
+  about?: string;
+  photos: string[];
+  reviews: TAReview[];
+  amenities: string[];
+  rating?: number;
+  numReviews?: number;
+  stars?: number;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  priceRange?: string;
+  rankingString?: string;
+}
+
+function prettifyAmenity(a: string): string {
+  return a
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default function HotelDetailPage() {
-    const [activeImage, setActiveImage] = useState(0);
+  const params = useParams();
+  const search = useSearchParams();
+  const router = useRouter();
+  const id = (params?.id as string) || "";
+  const checkIn = search.get("checkIn") || "";
+  const checkOut = search.get("checkOut") || "";
+  const cityCode = (search.get("cityCode") || "").toUpperCase();
+  const totalQs = search.get("total") || "";
+  const nameQs = search.get("name") || "";
 
-    return (
-        <div className="min-h-screen bg-background">
-            {/* Gallery */}
-            <div className="bg-neutral-900">
-                <div className="mx-auto max-w-7xl">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-1 md:h-[400px]">
-                        <div className="md:col-span-2 md:row-span-2 relative overflow-hidden">
-                            <img src={images[0]} alt="Hotel main view" className="h-full w-full object-cover" />
-                        </div>
-                        {images.slice(1).map((img, i) => (
-                            <div key={i} className="hidden md:block relative overflow-hidden">
-                                <img src={img} alt={`Hotel view ${i + 2}`} className="h-full w-full object-cover hover:scale-105 transition-transform duration-500" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
+  const [hotel, setHotel] = useState<TAHotelDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const formatCurrency = useCurrencyStore((s) => s.format);
+  const showToast = useToastStore((s) => s.show);
 
-            <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-                <Link href="/hotels" className="inline-flex items-center gap-2 text-sm text-text-muted hover:text-text-primary transition-colors mb-6">
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to results
-                </Link>
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main content */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* Header */}
-                        <div>
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Badge variant="accent">Best Seller</Badge>
-                                        <div className="flex">
-                                            {[1, 2, 3, 4, 5].map(s => (
-                                                <Star key={s} className="h-4 w-4 fill-gold-500 text-gold-500" />
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <h1 className="text-h1 text-text-primary">The Langham, London</h1>
-                                    <div className="flex items-center gap-2 mt-2 text-text-secondary">
-                                        <MapPin className="h-4 w-4" />
-                                        <span>1C Portland Place, Marylebone, London W1B 1JA</span>
-                                    </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button className="flex h-10 w-10 items-center justify-center rounded-radius-full border border-border-default hover:bg-surface-sunken transition-colors">
-                                        <Share2 className="h-4 w-4 text-text-secondary" />
-                                    </button>
-                                    <button className="flex h-10 w-10 items-center justify-center rounded-radius-full border border-border-default hover:bg-surface-sunken transition-colors">
-                                        <Heart className="h-4 w-4 text-text-secondary" />
-                                    </button>
-                                </div>
-                            </div>
+    const qs = new URLSearchParams();
+    if (checkIn) qs.set("checkIn", checkIn);
+    if (checkOut) qs.set("checkOut", checkOut);
 
-                            <RatingStars rating={4.8} reviewCount={2341} size="md" className="mt-4" />
-                        </div>
+    // Stale-while-revalidate: keep current hotel visible during refetches on
+    // search-param changes. Initial mount already starts with loading=true.
+    fetch(`/api/hotels/${encodeURIComponent(id)}?${qs.toString()}`)
+      .then((r) => r.json())
+      .then((data: { hotel: TAHotelDetail | null; warning?: string }) => {
+        if (cancelled) return;
+        setHotel(data.hotel);
+        setWarning(data.warning || null);
+      })
+      .catch(() => {
+        if (!cancelled) setWarning("Could not load hotel details.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
 
-                        {/* Description */}
-                        <div>
-                            <h2 className="text-h4 text-text-primary mb-3">About this hotel</h2>
-                            <p className="text-body text-text-secondary leading-relaxed">
-                                The Langham, London is a luxury 5-star hotel located in the heart of the West End. Established in 1865,
-                                it was Europe&apos;s first Grand Hotel and offers a perfect blend of Victorian grandeur and modern luxury.
-                                Enjoy award-winning dining, the renowned Chuan Body + Soul spa, and elegant rooms overlooking Portland Place.
-                            </p>
-                        </div>
+    return () => {
+      cancelled = true;
+    };
+  }, [id, checkIn, checkOut]);
 
-                        {/* Amenities */}
-                        <div>
-                            <h2 className="text-h4 text-text-primary mb-4">Amenities</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                                {[
-                                    { icon: Wifi, label: "Free WiFi" },
-                                    { icon: Waves, label: "Indoor Pool" },
-                                    { icon: Car, label: "Valet Parking" },
-                                    { icon: Coffee, label: "Restaurant & Bar" },
-                                    { icon: Dumbbell, label: "Fitness Center" },
-                                    { icon: Sparkles, label: "Spa & Wellness" },
-                                ].map(({ icon: Icon, label }) => (
-                                    <div key={label} className="flex items-center gap-3 rounded-radius-md border border-border-default p-3">
-                                        <Icon className="h-5 w-5 text-primary-500" />
-                                        <span className="text-body-sm text-text-secondary">{label}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
+  const nights = Math.max(
+    1,
+    checkIn && checkOut
+      ? Math.ceil(
+          (new Date(checkOut).getTime() - new Date(checkIn).getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : 1,
+  );
 
-                        {/* Rooms */}
-                        <div>
-                            <h2 className="text-h4 text-text-primary mb-4">Available Rooms</h2>
-                            <div className="space-y-3">
-                                {rooms.map((room) => (
-                                    <div key={room.name} className="rounded-radius-lg border border-border-default bg-surface p-5 hover:border-border-emphasis transition-colors">
-                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                            <div className="flex-1">
-                                                <h3 className="font-display text-lg font-bold text-text-primary">{room.name}</h3>
-                                                <p className="text-body-sm text-text-muted mt-1">{room.size} · {room.bed}</p>
-                                                <div className="flex flex-wrap gap-2 mt-3">
-                                                    {room.features.map((f) => (
-                                                        <Badge key={f} variant="neutral" className="text-[11px]">{f}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="flex items-baseline gap-1.5 justify-end">
-                                                    <span className="font-mono text-2xl font-bold text-text-primary">${room.price}</span>
-                                                    {room.originalPrice && (
-                                                        <span className="text-sm text-text-muted line-through">${room.originalPrice}</span>
-                                                    )}
-                                                </div>
-                                                <span className="text-caption text-text-muted">per night</span>
-                                                <div className="mt-3">
-                                                    <Link href={`/booking/hotel-${room.name.toLowerCase().replace(/\s/g, "-")}`}>
-                                                        <Button variant="primary" size="sm">Select Room</Button>
-                                                    </Link>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+  const total = Number(totalQs) > 0 ? Number(totalQs) : 0;
+  const perNight = total > 0 ? total / nights : 0;
+  const displayName = hotel?.name || nameQs || "Hotel";
+  const stars = Math.max(1, Math.min(5, hotel?.stars || Math.round(hotel?.rating || 3) || 3));
+  const fallbackImg = getHotelImage(displayName, cityCode, stars);
+  const photos = hotel?.photos?.length ? hotel.photos : [fallbackImg];
+  const heroPhoto = photos[photoIndex] || photos[0];
 
-                    {/* Sidebar */}
-                    <div className="lg:col-span-1">
-                        <div className="sticky top-20 rounded-radius-lg border border-border-default bg-surface p-6">
-                            <div className="flex items-baseline gap-1.5 mb-1">
-                                <span className="font-mono text-3xl font-bold text-text-primary">$289</span>
-                                <span className="text-sm text-text-muted line-through">$389</span>
-                            </div>
-                            <p className="text-caption text-text-muted mb-6">per night · taxes included</p>
-
-                            <div className="space-y-3 mb-6">
-                                <div className="flex items-center gap-3 rounded-radius-md border border-border-default p-3">
-                                    <Calendar className="h-4 w-4 text-text-muted" />
-                                    <div>
-                                        <div className="text-[10px] font-semibold text-text-muted uppercase">Check-in — Check-out</div>
-                                        <div className="text-sm font-medium text-text-primary">Mar 15 – Mar 22</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3 rounded-radius-md border border-border-default p-3">
-                                    <Users className="h-4 w-4 text-text-muted" />
-                                    <div>
-                                        <div className="text-[10px] font-semibold text-text-muted uppercase">Guests</div>
-                                        <div className="text-sm font-medium text-text-primary">2 Adults, 1 Room</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-2 mb-6 pb-6 border-b border-border-default">
-                                <div className="flex justify-between text-body-sm">
-                                    <span className="text-text-secondary">$289 × 7 nights</span>
-                                    <span className="text-text-primary font-medium">$2,023</span>
-                                </div>
-                                <div className="flex justify-between text-body-sm">
-                                    <span className="text-text-secondary">Taxes & fees</span>
-                                    <span className="text-text-primary font-medium">$254</span>
-                                </div>
-                                <div className="flex justify-between text-body font-semibold pt-2">
-                                    <span className="text-text-primary">Total</span>
-                                    <span className="font-mono text-xl text-text-primary">$2,277</span>
-                                </div>
-                            </div>
-
-                            <Button variant="primary" size="lg" className="w-full">
-                                Reserve Now
-                            </Button>
-
-                            <div className="mt-4 flex items-center gap-2 text-caption text-text-muted">
-                                <Shield className="h-3.5 w-3.5 text-success" />
-                                Free cancellation before Mar 13
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  function handleAddToTrip() {
+    showToast(
+      total > 0
+        ? `Hotel added · ${formatCurrency(total, "EUR")}`
+        : "Hotel added to your trip",
+      "success",
     );
+    router.back();
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
+        <div className="text-center">
+          <div className="text-4xl mb-4 animate-bounce">🏨</div>
+          <p className="text-text-secondary">Loading hotel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-neutral-50 dark:bg-background">
+      {/* Header bar */}
+      <div className="sticky top-0 z-30 bg-white/95 dark:bg-surface/95 backdrop-blur-md border-b border-neutral-200 dark:border-border-default">
+        <div className="mx-auto max-w-[1400px] px-4 lg:px-8 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Back"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 text-text-primary" />
+          </button>
+          <h1 className="flex-1 text-base sm:text-lg font-bold text-text-primary truncate">
+            {displayName}
+          </h1>
+          <button
+            type="button"
+            aria-label="Share"
+            className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Save"
+            className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors"
+          >
+            <Heart className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <main className="mx-auto max-w-[1400px] px-4 lg:px-8 py-6 lg:py-10">
+        {warning && (
+          <div className="mb-6 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            {warning}
+          </div>
+        )}
+
+        {/* Gallery */}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 mb-8"
+        >
+          <div className="relative aspect-[16/10] lg:aspect-auto lg:h-[480px] rounded-2xl overflow-hidden bg-neutral-100 dark:bg-surface-elevated">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={heroPhoto}
+              alt={displayName}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = fallbackImg;
+              }}
+            />
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Previous photo"
+                  onClick={() =>
+                    setPhotoIndex((i) => (i - 1 + photos.length) % photos.length)
+                  }
+                  className="absolute left-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 dark:bg-surface/90 backdrop-blur-md shadow-md text-text-primary hover:scale-105 transition-transform"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next photo"
+                  onClick={() => setPhotoIndex((i) => (i + 1) % photos.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-white/90 dark:bg-surface/90 backdrop-blur-md shadow-md text-text-primary hover:scale-105 transition-transform"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <span className="absolute bottom-3 right-3 bg-black/70 text-white text-xs font-semibold rounded-full px-3 py-1">
+                  {photoIndex + 1} / {photos.length}
+                </span>
+              </>
+            )}
+          </div>
+          {/* Thumbnail strip */}
+          <div className="hidden lg:grid grid-cols-2 gap-3 h-[480px] auto-rows-fr">
+            {photos.slice(0, 4).map((p, i) => (
+              <button
+                key={p + i}
+                type="button"
+                onClick={() => setPhotoIndex(i)}
+                className={`relative rounded-2xl overflow-hidden transition-all ${
+                  photoIndex === i
+                    ? "ring-2 ring-primary-500"
+                    : "ring-1 ring-neutral-200 dark:ring-border-default opacity-80 hover:opacity-100"
+                }`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p}
+                  alt={`${displayName} photo ${i + 2}`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = fallbackImg;
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+        </motion.section>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
+          {/* Main column */}
+          <div className="space-y-8">
+            {/* Header */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                {Array.from({ length: stars }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className="h-4 w-4 text-yellow-400 fill-yellow-400"
+                  />
+                ))}
+                {hotel?.rankingString && (
+                  <span className="text-xs text-text-muted ml-2 truncate">
+                    {hotel.rankingString}
+                  </span>
+                )}
+              </div>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-text-primary mb-2">
+                {displayName}
+              </h2>
+              {(hotel?.address || cityCode) && (
+                <div className="flex items-center gap-2 text-sm text-text-secondary">
+                  <MapPin className="h-4 w-4" />
+                  <span className="line-clamp-1">{hotel?.address || cityCode}</span>
+                </div>
+              )}
+              {hotel?.rating != null && hotel.rating > 0 && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary-50 dark:bg-primary-500/10 px-3 py-1.5">
+                  <span className="text-sm font-bold text-primary-600 dark:text-primary-400">
+                    {hotel.rating.toFixed(1)}
+                  </span>
+                  {hotel.numReviews ? (
+                    <span className="text-xs text-text-secondary">
+                      · {hotel.numReviews} reviews
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* About */}
+            {hotel?.about && (
+              <section>
+                <h3 className="text-lg font-bold text-text-primary mb-3">
+                  About this hotel
+                </h3>
+                <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
+                  {hotel.about}
+                </p>
+              </section>
+            )}
+
+            {/* Amenities */}
+            {hotel?.amenities && hotel.amenities.length > 0 && (
+              <section>
+                <h3 className="text-lg font-bold text-text-primary mb-3">
+                  Amenities
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {hotel.amenities.map((a) => (
+                    <div
+                      key={a}
+                      className="rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 py-2 text-sm text-text-secondary"
+                    >
+                      {prettifyAmenity(a)}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Reviews */}
+            {hotel?.reviews && hotel.reviews.length > 0 && (
+              <section>
+                <h3 className="text-lg font-bold text-text-primary mb-3">
+                  Recent reviews
+                </h3>
+                <div className="space-y-3">
+                  {hotel.reviews.slice(0, 4).map((r, i) => (
+                    <article
+                      key={r.id || i}
+                      className="rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4"
+                    >
+                      <header className="flex items-start gap-2 mb-2">
+                        <Quote className="h-4 w-4 text-primary-500 shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-text-primary text-sm truncate">
+                            {r.title || "Guest review"}
+                          </p>
+                          <p className="text-xs text-text-muted mt-0.5">
+                            {r.authorName || "Anonymous"}
+                            {r.publishedDate ? ` · ${r.publishedDate.split("T")[0]}` : ""}
+                          </p>
+                        </div>
+                        {r.rating ? (
+                          <span className="text-xs font-bold text-primary-500 ml-auto">
+                            {r.rating.toFixed(1)}
+                          </span>
+                        ) : null}
+                      </header>
+                      {r.text && (
+                        <p className="text-sm text-text-secondary leading-relaxed line-clamp-4">
+                          {r.text}
+                        </p>
+                      )}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Sticky sidebar */}
+          <aside className="lg:sticky lg:top-24 lg:self-start">
+            <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-5 shadow-sm">
+              <p className="text-xs text-text-muted uppercase tracking-wider font-semibold">
+                Your stay
+              </p>
+              <div className="mt-3 mb-4 space-y-1">
+                {checkIn && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-secondary">Check-in</span>
+                    <span className="font-semibold text-text-primary">
+                      {checkIn}
+                    </span>
+                  </div>
+                )}
+                {checkOut && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-secondary">Check-out</span>
+                    <span className="font-semibold text-text-primary">
+                      {checkOut}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">Nights</span>
+                  <span className="font-semibold text-text-primary">{nights}</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-neutral-200 dark:border-border-default">
+                {perNight > 0 ? (
+                  <>
+                    <p className="text-xs text-text-muted">per night from</p>
+                    <p className="text-3xl font-extrabold text-primary-500">
+                      {formatCurrency(perNight, "EUR")}
+                    </p>
+                    <div className="flex items-center justify-between text-sm mt-3 pt-3 border-t border-neutral-100 dark:border-border-default">
+                      <span className="text-text-secondary">
+                        Total for {nights} {nights === 1 ? "night" : "nights"}
+                      </span>
+                      <span className="font-bold text-text-primary">
+                        {formatCurrency(total, "EUR")}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-text-secondary">
+                    Pricing fetched separately — go back to the hotel list to
+                    see live offers.
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddToTrip}
+                className="mt-5 w-full rounded-xl bg-primary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
+              >
+                Add to Trip
+              </button>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  );
 }

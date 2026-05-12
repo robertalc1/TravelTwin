@@ -24,8 +24,7 @@ import RentalCarsTab from '@/components/TripDetail/RentalCarsTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import MobileBookBar from '@/components/TripDetail/MobileBookBar';
-import type { HotelOfferData } from '@/components/Hotels/HotelCard';
-import type { TransferOffer } from '@/app/api/amadeus/transfers/route';
+import type { TransferOffer } from '@/lib/types/transfers';
 import type { NormalizedCar } from '@/app/api/cars/search/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
@@ -83,7 +82,6 @@ export default function TripDetailView({
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'cars'>('hotels');
-  const [extraHotel, setExtraHotel] = useState<HotelOfferData | null>(null);
   const [extraCar, setExtraCar] = useState<NormalizedCar | null>(null);
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
@@ -484,8 +482,6 @@ export default function TripDetailView({
                           checkInDate={trip.hotelCheckIn}
                           checkOutDate={trip.hotelCheckOut}
                           adults={1}
-                          onHotelSelect={setExtraHotel}
-                          selectedHotel={extraHotel}
                         />
                       ) : (
                         <RentalCarsTab

@@ -1,4 +1,8 @@
-/* GET /api/deals/from/[iata] — cheapest packages from origin, returned as TripPackage[] */
+/* GET /api/deals/from/[iata] — cheapest packages from origin, returned as TripPackage[].
+
+   Cached for 60 minutes per origin in Supabase api_cache. On every hit the
+   server returns a fresh Fisher-Yates shuffle of the cached array so the
+   homepage looks alive without burning extra RapidAPI / Anthropic quota. */
 
 import { NextResponse } from 'next/server';
 import { searchFlightInspirations } from '@/lib/tripadvisor-client';
@@ -10,6 +14,18 @@ import { estimateTripPrice, pickAirlineForRoute, getAirportCoords } from '@/lib/
 import { DESTINATIONS } from '@/lib/destinations';
 import type { DestinationProfile } from '@/lib/destinations';
 import type { TripPackage } from '@/app/api/ai/plan-trip/route';
+import { getCached, setCache } from '@/lib/cache';
+
+/** Fisher-Yates shuffle that returns a fresh array — leaves the cached
+ *  source array untouched so the next call still has all 18 packages. */
+function shuffleArray<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 const DEFAULT_NIGHTS = 4;
 
@@ -166,6 +182,23 @@ export async function GET(
     }
 
     const originCity = getCityFromIata(origin) || origin;
+
+    // Per-origin 60min cache. On every hit we re-shuffle so the UI looks
+    // fresh while package content (id, price, AI text) stays stable —
+    // sessionStorage lookups via `trip_${id}` keep working across reloads.
+    const cacheKey = `deals:${origin}`;
+    const cached = await getCached(cacheKey);
+    if (cached?.data) {
+        const arr = cached.data as TripPackage[];
+        return NextResponse.json({
+            origin,
+            originCity,
+            count: arr.length,
+            packages: shuffleArray(arr),
+            source: 'cached',
+        });
+    }
+
     const nights = DEFAULT_NIGHTS;
     const { departureDate, returnDate } = futureDates(7, nights);
     const currency = 'EUR';
@@ -312,10 +345,14 @@ Return ONLY valid JSON (no markdown, no backticks):
     }
     useFallback.forEach(pkg => { pkg.aiContent = buildFallbackAiContent(pkg); });
 
+    // Persist the un-shuffled array so we can re-shuffle on every cache hit.
+    await setCache(cacheKey, top, 60);
+
     return NextResponse.json({
         origin,
         originCity,
         count: top.length,
-        packages: top,
+        packages: shuffleArray(top),
+        source: 'live',
     });
 }

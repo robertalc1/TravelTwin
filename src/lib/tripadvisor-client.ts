@@ -415,7 +415,10 @@ export async function searchLocations(keyword: string): Promise<TALocation[]> {
  * Tripadvisor car-rental pickup location ID. Cached for 30 days.
  */
 export async function searchCarLocations(query: string): Promise<TACarLocation[]> {
-  const raw = await tripadvisorFetch<unknown>('/api/v1/cars/searchLocation', { query });
+  // Tripadvisor16 playground exposes "Search Rental Cars Location" — the
+  // path-style name lives under /searchRentalCarsLocation. The shorter
+  // /searchLocation returns 404. See /api/debug/cars for live probes.
+  const raw = await tripadvisorFetch<unknown>('/api/v1/cars/searchRentalCarsLocation', { query });
   if (!isRecord(raw)) return [];
   const data = asArray((raw as Record<string, unknown>).data);
 
@@ -532,6 +535,214 @@ export async function searchCars(p: SearchCarsParams): Promise<TACar[]> {
       dropOffLocationName: isRecord(c.dropOffLocation) ? asString(c.dropOffLocation.name) : undefined,
       partner: asString(c.partner) || asString(vendor.name),
       bookingUrl: asString(c.deeplink) || asString(c.bookingUrl) || asString(c.url),
+    });
+  }
+  return result;
+}
+
+/* ── Hotel details ───────────────────────────────────────────── */
+
+export interface TAReview {
+  id?: string;
+  title?: string;
+  text?: string;
+  rating?: number;
+  publishedDate?: string;
+  authorName?: string;
+}
+
+export interface TAHotelDetail {
+  id: string;
+  name: string;
+  about?: string;
+  photos: string[];
+  reviews: TAReview[];
+  amenities: string[];
+  rating?: number;
+  numReviews?: number;
+  stars?: number;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  priceRange?: string;
+  rankingString?: string;
+}
+
+/**
+ * Expand a Tripadvisor photo `urlTemplate` like
+ * `https://media-cdn.tripadvisor.com/.../{width}x{height}/photo0.jpg`
+ * into a usable image URL.
+ */
+function expandPhotoUrl(template: string | undefined, w = 1200, h = 800): string | null {
+  if (!template) return null;
+  return template.replace('{width}', String(w)).replace('{height}', String(h));
+}
+
+/**
+ * Hit /api/v1/hotels/getHotelDetails for the given hotel id. Caches the
+ * normalized result for 24h in api_cache. Returns null when the upstream
+ * call fails — caller decides how to surface the failure.
+ */
+export async function getHotelDetails(
+  id: string,
+  checkIn?: string,
+  checkOut?: string,
+): Promise<TAHotelDetail | null> {
+  const cacheKey = `hotelDetail:${id}`;
+  const cached = await getCached(cacheKey);
+  if (cached && isRecord(cached.data)) return cached.data as unknown as TAHotelDetail;
+
+  const params: Record<string, string | number> = {
+    id,
+    currencyCode: 'EUR',
+  };
+  if (checkIn) params.checkIn = checkIn;
+  if (checkOut) params.checkOut = checkOut;
+
+  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/getHotelDetails', params);
+  if (!isRecord(raw)) return null;
+  const data = isRecord(raw.data) ? (raw.data as Record<string, unknown>) : raw;
+
+  // Photos: Tripadvisor may expose them at `photos`, `images`, or
+  // `media.photos`, each as an array of objects with `sizes.urlTemplate`
+  // or `urls` arrays. Pull from whichever shape exists.
+  const photoSrc =
+    asArray(data.photos) ||
+    asArray(data.images) ||
+    (isRecord(data.media) ? asArray((data.media as Record<string, unknown>).photos) : []);
+  const photos: string[] = [];
+  for (const p of photoSrc) {
+    if (!isRecord(p)) continue;
+    const sizes = isRecord(p.sizes) ? p.sizes : undefined;
+    const url =
+      expandPhotoUrl(asString(p.urlTemplate)) ||
+      expandPhotoUrl(asString(sizes?.urlTemplate)) ||
+      asString(p.url) ||
+      asString(p.large) ||
+      asString(p.original);
+    if (url) photos.push(url);
+  }
+
+  const reviewsRaw =
+    asArray(data.reviews) ||
+    (isRecord(data.reviewSummary) ? asArray((data.reviewSummary as Record<string, unknown>).reviews) : []);
+  const reviews: TAReview[] = [];
+  for (const r of reviewsRaw.slice(0, 6)) {
+    if (!isRecord(r)) continue;
+    const user = isRecord(r.user) ? (r.user as Record<string, unknown>) : {};
+    reviews.push({
+      id: asString(r.id),
+      title: asString(r.title),
+      text: asString(r.text) || asString(r.content),
+      rating: asNumber(r.rating) || asNumber(r.score),
+      publishedDate: asString(r.publishedDate) || asString(r.createdAt),
+      authorName: asString(user.username) || asString(user.displayName) || asString(r.authorName),
+    });
+  }
+
+  const amenitiesRaw =
+    asArray(data.amenities).filter((a): a is string => typeof a === 'string') ||
+    asArray(data.amenitiesScreen).filter((a): a is string => typeof a === 'string');
+
+  const ratingObj = isRecord(data.rating) ? (data.rating as Record<string, unknown>) : {};
+  const locationObj = isRecord(data.location) ? (data.location as Record<string, unknown>) : {};
+
+  const detail: TAHotelDetail = {
+    id,
+    name: asString(data.title) || asString(data.name) || 'Hotel',
+    about: asString(data.about) || asString(data.description),
+    photos,
+    reviews,
+    amenities: amenitiesRaw,
+    rating: asNumber(ratingObj.value) || asNumber(data.bubbleRating) || asNumber(data.rating),
+    numReviews: asNumber(ratingObj.count) || asNumber(data.numReviews),
+    stars:
+      asNumber(data.hotelClass) ||
+      asNumber(data.stars) ||
+      asNumber((isRecord(data.starRating) ? data.starRating.value : 0)),
+    address: asString(locationObj.address) || asString(data.address),
+    latitude: asNumber(locationObj.latitude) || asNumber(data.latitude),
+    longitude: asNumber(locationObj.longitude) || asNumber(data.longitude),
+    priceRange: asString(data.priceRange),
+    rankingString: asString(data.rankingString),
+  };
+
+  await setCache(cacheKey, detail, 60 * 24);
+  return detail;
+}
+
+/* ── Restaurants ─────────────────────────────────────────────── */
+
+export interface TARestaurant {
+  id: string;
+  name: string;
+  cuisine?: string;
+  priceRange?: string;
+  rating?: number;
+  reviewCount?: number;
+  thumbnail?: string;
+  description?: string;
+  rankingString?: string;
+}
+
+export async function searchRestaurantLocationId(query: string): Promise<string | null> {
+  const cacheKey = `restaurantLocId:${query.toLowerCase()}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'string') return cached.data;
+
+  const raw = await tripadvisorFetch<unknown>('/api/v1/restaurant/searchLocation', { query });
+  if (!isRecord(raw)) return null;
+  const data = asArray((raw as Record<string, unknown>).data);
+
+  for (const item of data) {
+    if (!isRecord(item)) continue;
+    const id =
+      asString(item.locationId) ||
+      asString(item.documentId) ||
+      asString(item.geoId) ||
+      asString(item.id);
+    if (id) {
+      await setCache(cacheKey, id, 60 * 24 * 30);
+      return id;
+    }
+  }
+  return null;
+}
+
+export async function searchRestaurants(locationId: string): Promise<TARestaurant[]> {
+  const raw = await tripadvisorFetch<unknown>('/api/v1/restaurant/searchRestaurants', {
+    locationId,
+  });
+  if (!isRecord(raw)) return [];
+  const data = isRecord(raw.data) ? raw.data : raw;
+  const list = asArray(
+    (data as Record<string, unknown>).data ||
+      (data as Record<string, unknown>).restaurants ||
+      data,
+  );
+
+  const result: TARestaurant[] = [];
+  for (const r of list) {
+    if (!isRecord(r)) continue;
+    const establishmentTypeRaw = asArray(r.establishmentTypeAndCuisineTags).filter(
+      (t): t is string => typeof t === 'string',
+    );
+    const photo = isRecord(r.thumbnail) ? (r.thumbnail as Record<string, unknown>) : {};
+    const photoSizes = isRecord(photo.photoSizeDynamic) ? photo.photoSizeDynamic : {};
+    const thumbnail =
+      expandPhotoUrl(asString(photoSizes.urlTemplate), 600, 400) ||
+      asString(photo.url) ||
+      asString(r.thumbnailUrl);
+    result.push({
+      id: asString(r.locationId) || asString(r.id) || asString(r.restaurantId) || crypto.randomUUID(),
+      name: asString(r.name) || asString(r.title) || 'Restaurant',
+      cuisine: establishmentTypeRaw.join(', ') || asString(r.cuisine),
+      priceRange: asString(r.priceTag) || asString(r.priceRange),
+      rating: asNumber(r.averageRating) || asNumber(r.rating),
+      reviewCount: asNumber(r.userReviewCount) || asNumber(r.numReviews),
+      thumbnail: thumbnail || undefined,
+      description: asString(r.primaryInfo) || asString(r.description),
+      rankingString: asString(r.rankingString),
     });
   }
   return result;
