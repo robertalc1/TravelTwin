@@ -1,11 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { matchDestinations, DestinationProfile } from '@/lib/destinations';
+import { matchDestinations, DestinationProfile, DESTINATIONS } from '@/lib/destinations';
 import { diversifyPackages } from '@/lib/diversify';
 import { searchFlights, searchHotelsByCity } from '@/lib/tripadvisor-client';
 import { normalizeFlight, normalizeHotel } from '@/lib/tripadvisor-normalize';
 import type { NormalizedFlight, NormalizedHotel } from '@/lib/supabase/types';
-import { estimateTripPrice, pickAirlineForRoute } from '@/lib/pricing';
+import { estimateTripPrice, pickAirlineForRoute, getAirportCoords } from '@/lib/pricing';
 import { convertAmount, FALLBACK_RATES } from '@/lib/currencyService';
+import { canMakeRapidApiCall } from '@/lib/rateLimiter';
+import { COMMON_ROUTES } from '@/lib/commonRoutes';
+import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
+import { getCityImageByIata } from '@/lib/cityImages';
+import { getCached, setCache } from '@/lib/cache';
+
+/** Build a DestinationProfile from an IATA code — uses DESTINATIONS row when
+ *  available, falls back to iata-derived metadata so any airport works. */
+function destinationForIata(iata: string): DestinationProfile | null {
+  const known = DESTINATIONS.find((d) => d.iata === iata);
+  if (known) return known;
+  const city = getCityFromIata(iata);
+  if (!city || city === iata) return null;
+  const coords = getAirportCoords(iata);
+  return {
+    city,
+    country: getCountryFromIata(iata) || '',
+    iata,
+    tags: [],
+    climate: 'varied',
+    budgetLevel: 'budget',
+    bestMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    imageId: getCityImageByIata(iata).split('photo-')[1]?.split('?')[0] || '',
+    latitude: coords?.lat || 0,
+    longitude: coords?.lon || 0,
+  };
+}
+
+function dedupeByIata(list: DestinationProfile[]): DestinationProfile[] {
+  const seen = new Set<string>();
+  const out: DestinationProfile[] = [];
+  for (const d of list) {
+    if (seen.has(d.iata)) continue;
+    seen.add(d.iata);
+    out.push(d);
+  }
+  return out;
+}
 
 export interface TripPackage {
   id: string;
@@ -67,6 +105,9 @@ export interface TripPackage {
   } | null;
   score: number;
   isEstimated?: boolean;
+  /** True when totalPrice exceeds the user's submitted budget. Frontend
+   *  renders a subtle "Over budget" badge — package is still shown. */
+  isOverBudget?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -95,24 +136,50 @@ export async function POST(req: NextRequest) {
     const month = depDate.getMonth() + 1;
     const totalAdults = adults + children;
 
-    // 1. Match candidate destinations
-    const candidates = matchDestinations(travelStyles, climate, budget, month, 20);
-    if (candidates.length === 0) {
-      return NextResponse.json({ error: 'No destinations matched your preferences' }, { status: 400 });
-    }
-
     // Tripadvisor + estimator both work in EUR, so convert the user's budget
     // (which may be in RON/USD/GBP/...) before doing any comparisons. The
     // package totals are also returned in EUR so the frontend can convert
     // back to the user's display currency with live rates.
     const budgetEur = convertAmount(budget, currency, 'EUR', FALLBACK_RATES);
 
+    // Response cache — same search returns instantly from Supabase api_cache.
+    // Skips quota burn for repeated runs of the same wizard config.
+    const sortedStyles = [...travelStyles].sort().join(',');
+    const cacheKey = `planTrip:${origin}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      const cachedData = cached.data as { packages: TripPackage[]; total: number };
+      return NextResponse.json({ ...cachedData, source: 'cached' });
+    }
+
     // Budget allocation: 40% flights, 45% hotel, 15% activities (all in EUR)
     const flightBudget = budgetEur * 0.40;
     const hotelBudget = budgetEur * 0.45;
 
-    // 2. Search flights + hotels for each candidate in parallel
+    // 1. Candidate destinations — combine 3 sources to guarantee 20+ candidates,
+    //    even from low-volume origins like CND (which has only 2 COMMON_ROUTES).
+    const matched = matchDestinations(travelStyles, climate, budget, month, 20);
+    const commonFromOrigin = COMMON_ROUTES
+      .filter((r) => r.from === origin && r.to !== origin)
+      .map((r) => destinationForIata(r.to))
+      .filter((d): d is DestinationProfile => d !== null);
+    const otpFallback = COMMON_ROUTES
+      .filter((r) => r.from === 'OTP' && r.to !== origin)
+      .map((r) => destinationForIata(r.to))
+      .filter((d): d is DestinationProfile => d !== null);
+    const candidates = dedupeByIata([...matched, ...commonFromOrigin, ...otpFallback]).slice(0, 25);
+
+    if (candidates.length === 0) {
+      return NextResponse.json({ error: 'No candidate destinations available' }, { status: 400 });
+    }
+
+    // 2. For each candidate, try Tripadvisor live (when quota allows).
+    //    If quota is exhausted or the API returns nothing, the per-candidate
+    //    loop below falls back to the deterministic estimator — no package
+    //    is dropped because of network conditions.
+    const liveAllowed = canMakeRapidApiCall();
     const searchPromises = candidates.map(async (dest) => {
+      if (!liveAllowed) return { dest, flight: null, hotel: null };
       try {
         const [flightResults, hotelResults] = await Promise.allSettled([
           searchFlights({
@@ -184,8 +251,11 @@ export async function POST(req: NextRequest) {
       }
 
       // All comparisons in EUR — convert user's budget so it lines up.
+      // NO hard budget filter: over-budget packages still ship, just marked
+      // with isOverBudget so the UI can render a subtle badge and the sort
+      // pushes them down. User sees the full landscape, like /deals does.
       const totalPrice = flightPrice + hotelPrice;
-      if (totalPrice > budgetEur) continue;
+      const isOverBudget = totalPrice > budgetEur;
 
       const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
       const flight = liveFlight
@@ -236,14 +306,16 @@ export async function POST(req: NextRequest) {
             amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
           };
 
-      // Score packages (budgetEur for consistent EUR comparisons)
+      // Score packages — preferences applied as boost (not as filter)
       let score = 0;
       if (totalPrice <= budgetEur * 0.6) score += 40;
       else if (totalPrice <= budgetEur * 0.8) score += 25;
       else if (totalPrice <= budgetEur) score += 10;
+      else score -= 100; // over-budget pushed down by sort below
       if (flight.stops === 0) score += 15;
       if (hotel.stars >= 4) score += 10;
-      score += (dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10);
+      score += dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10;
+      if (climate !== 'no-preference' && dest.climate === climate) score += 15;
 
       packages.push({
         id: `${dest.iata}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -255,26 +327,28 @@ export async function POST(req: NextRequest) {
         nights,
         aiContent: null,
         score,
+        isOverBudget,
       });
     }
 
-    // Sort by total price ASCENDING (cheapest first) — secondary by score
+    // Sort: budget-fitting first (by cheapest), then over-budget (also by cheapest).
+    // Matches /deals UX while letting the user still see expensive options.
     packages.sort((a, b) => {
+      if (!!a.isOverBudget !== !!b.isOverBudget) return a.isOverBudget ? 1 : -1;
       if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
       return b.score - a.score;
     });
 
-    // Apply diversity if many packages, no artificial 9-package cap
-    const topPackages = packages.length > 12
-      ? diversifyPackages(packages, Math.min(packages.length, 24))
-      : packages;
+    // Cap at 18 like /deals — diversifyPackages prevents 18 carduri din aceeași țară.
+    const topPackages = diversifyPackages(packages, 18);
 
-    // Warn if nothing fits the budget
+    // With no hard budget filter this is rare — only fires when no airport
+    // distance estimate could be computed (unknown IATA airports).
     if (topPackages.length === 0) {
       return NextResponse.json({
         packages: [],
         total: 0,
-        warning: `No destinations found within €${Math.round(budgetEur)} EUR. Try increasing your budget — typical European city breaks start around €300, while long-haul trips need €1200+.`,
+        warning: `No destinations could be priced from ${origin}. Try a different origin airport.`,
       });
     }
 
@@ -360,7 +434,10 @@ Return ONLY valid JSON (no markdown, no backticks):
     }
     useFallback.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
 
-    return NextResponse.json({ packages: topPackages, total: topPackages.length });
+    const response = { packages: topPackages, total: topPackages.length };
+    // Cache for 6h — same (origin, dates, budget, prefs) returns instantly.
+    await setCache(cacheKey, response, 60 * 6);
+    return NextResponse.json(response);
   } catch (e: unknown) {
     console.error('[plan-trip] Error:', e);
     const message = e instanceof Error ? e.message : 'Failed to plan trip';

@@ -205,9 +205,14 @@ function PackageCard({ pkg, index }: { pkg: TripPackage; index: number }) {
           loading="lazy"
           onError={handleDestinationImageError}
         />
-        {index === 0 && (
+        {index === 0 && !pkg.isOverBudget && (
           <span className="absolute top-3 left-3 rounded-full bg-primary-500 px-3 py-1 text-xs font-bold text-white shadow-md">
             ⭐ Best Match
+          </span>
+        )}
+        {pkg.isOverBudget && (
+          <span className="absolute top-3 left-3 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md">
+            ⚠ Over budget
           </span>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
