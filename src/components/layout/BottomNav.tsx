@@ -3,19 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-
-const navItems = [
-    { href: "/plan", label: "Plan", icon: Sparkles, accent: true },
-];
 
 export function BottomNav() {
     const pathname = usePathname();
+    const locale = useLocale();
+    const t = useTranslations("nav");
+
+    const navItems = [
+        { href: `/${locale}/plan`, label: locale === "ro" ? "Planifică" : "Plan", icon: Sparkles, accent: true },
+    ];
 
     return (
         <nav
             className="fixed bottom-0 left-0 right-0 z-50 border-t border-border-default bg-surface/95 backdrop-blur-xl lg:hidden"
-            aria-label="Mobile navigation"
+            aria-label={t("planTrip")}
         >
             <div className="flex h-16 items-center justify-around px-2">
                 {navItems.map(({ href, label, icon: Icon, accent }) => {

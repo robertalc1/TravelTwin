@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
@@ -166,6 +167,10 @@ const defaultRet = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOStri
 
 export default function PlanPage() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("plan.wizard");
+  const tCommon = useTranslations("common");
+  const isRo = locale === "ro";
   const storeCurrency = useCurrencyStore((s) => s.currency);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
@@ -246,7 +251,7 @@ export default function PlanPage() {
     // Animate loading steps
     const stepInterval = setInterval(() => {
       setLoadingStep(s => {
-        if (s < LOADING_STEPS.length - 1) return s + 1;
+        if (s < 3) return s + 1;
         clearInterval(stepInterval);
         return s;
       });
@@ -284,8 +289,8 @@ export default function PlanPage() {
       clearInterval(progressInterval);
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to plan trip");
-      if (!data.packages?.length) throw new Error(data.warning || "No trips found for your criteria. Try adjusting your budget or dates.");
+      if (!res.ok) throw new Error(data.error || t("errorGeneric"));
+      if (!data.packages?.length) throw new Error(data.warning || t("errorNoTrips"));
 
       setLoadingProgress(100);
 
@@ -297,7 +302,7 @@ export default function PlanPage() {
       clearInterval(stepInterval);
       clearInterval(progressInterval);
       setAiLoading(false);
-      setError(e.message || "Something went wrong. Please try again.");
+      setError(e.message || t("errorGeneric"));
       setStep(5); // back to last step
     }
   }
@@ -310,20 +315,23 @@ export default function PlanPage() {
           {/* Animated plane */}
           <div className="text-6xl mb-8 animate-bounce">✈️</div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">Your AI travel agent is working...</h2>
-          <p className="text-white/70 mb-10">We&apos;re finding your perfect trip</p>
+          <h2 className="text-2xl font-bold text-white mb-2">{t("loadingTitle")}</h2>
+          <p className="text-white/70 mb-10">{t("loadingSubtitle")}</p>
 
           {/* Steps */}
           <div className="space-y-3 mb-10 text-left">
-            {LOADING_STEPS.map((s, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-3 transition-all duration-500 ${i <= loadingStep ? "opacity-100" : "opacity-30"}`}
-              >
-                <span className="text-xl">{i < loadingStep ? "✅" : s.icon}</span>
-                <span className={`text-sm ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{s.text}</span>
-              </div>
-            ))}
+            {(["loadingStep1", "loadingStep2", "loadingStep3", "loadingStep4"] as const).map((key, i) => {
+              const icon = ["✈️", "🏨", "🗺️", "⭐"][i];
+              return (
+                <div
+                  key={key}
+                  className={`flex items-center gap-3 transition-all duration-500 ${i <= loadingStep ? "opacity-100" : "opacity-30"}`}
+                >
+                  <span className="text-xl">{i < loadingStep ? "✅" : icon}</span>
+                  <span className={`text-sm ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{t(key)}</span>
+                </div>
+              );
+            })}
           </div>
 
           {/* Progress bar */}
@@ -356,7 +364,7 @@ export default function PlanPage() {
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
         {/* Step counter */}
         <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-8">
-          Step {step + 1} of {totalSteps}
+          {t("stepCounter", { current: step + 1, total: totalSteps })}
         </p>
 
         <div className="w-full max-w-2xl relative overflow-hidden">
@@ -375,10 +383,10 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">📍</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  Where are you starting from?
+                  {t("step1Title")}
                 </h2>
                 <p className="text-text-secondary mb-10 text-lg">
-                  Type your departure city or airport
+                  {t("step1Subtitle")}
                 </p>
                 <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-6">
                   <LocationAutocomplete
@@ -388,13 +396,13 @@ export default function PlanPage() {
                       set("originIata", iata);
                       set("originDisplay", display);
                     }}
-                    placeholder="Search city or airport..."
+                    placeholder={t("originPlaceholder")}
                     icon="origin"
                   />
 
                   <div className="mt-6">
                     <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3 text-left">
-                      Popular in Romania
+                      {t("popularInRomania")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {ORIGIN_SUGGESTIONS.map((s) => (
@@ -424,7 +432,7 @@ export default function PlanPage() {
                     disabled={!state.originIata}
                     className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
                   >
-                    Next <ArrowRight className="h-5 w-5" />
+                    {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>
@@ -444,10 +452,10 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">🌍</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  Unde vrei să mergi?
+                  {t("step2Title")}
                 </h2>
                 <p className="text-text-secondary mb-10 text-lg">
-                  Alege o destinație sau lasă-ne să te inspirăm
+                  {t("step2Subtitle")}
                 </p>
 
                 {/* Search card */}
@@ -460,13 +468,13 @@ export default function PlanPage() {
                       set("destinationDisplay", display);
                       set("destinationMode", "specific");
                     }}
-                    placeholder="Caută oraș sau aeroport..."
+                    placeholder={t("destinationPlaceholder")}
                     icon="destination"
                   />
 
                   <div className="mt-6">
                     <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3 text-left">
-                      Destinații populare
+                      {t("popularDestinations")}
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {DESTINATION_SUGGESTIONS.map((s) => (
@@ -494,7 +502,7 @@ export default function PlanPage() {
                 {/* OR divider */}
                 <div className="flex items-center gap-3 my-6 max-w-md mx-auto">
                   <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">sau</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-text-muted">{tCommon("or")}</span>
                   <div className="flex-1 h-px bg-neutral-200 dark:bg-border-default" />
                 </div>
 
@@ -514,10 +522,10 @@ export default function PlanPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-base font-bold text-secondary-500 dark:text-primary-300">
-                        Inspiră-mă cu destinații noi
+                        {t("surpriseMeTitle")}
                       </p>
                       <p className="text-sm text-text-secondary mt-0.5">
-                        Compară până la 18 destinații care se potrivesc preferințelor tale
+                        {t("surpriseMeSubtitle")}
                       </p>
                     </div>
                     <ArrowRight className="h-5 w-5 text-primary-500 shrink-0 group-hover:translate-x-1 transition-transform" />
@@ -526,14 +534,14 @@ export default function PlanPage() {
 
                 <div className="flex justify-center gap-4 mt-8">
                   <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 dark:border-border-default dark:hover:bg-surface-elevated transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Înapoi
+                    <ArrowLeft className="h-4 w-4" /> {tCommon("back")}
                   </button>
                   <button
                     onClick={goNext}
                     disabled={state.destinationMode !== "specific" || !state.destinationIata}
                     className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
                   >
-                    Continuă <ArrowRight className="h-5 w-5" />
+                    {tCommon("continue")} <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>
@@ -553,10 +561,10 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">💰</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  What&apos;s your total budget?
+                  {t("step3Title")}
                 </h2>
                 <p className="text-text-secondary mb-10 text-lg">
-                  Including flights and hotel for all travelers
+                  {t("step3Subtitle")}
                 </p>
                 {(() => {
                   const cfg = BUDGET_CONFIG[state.currency] ?? BUDGET_CONFIG.EUR;
@@ -622,10 +630,10 @@ export default function PlanPage() {
 
                 <div className="flex justify-center gap-4 mt-8">
                   <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Back
+                    <ArrowLeft className="h-4 w-4" /> {tCommon("back")}
                   </button>
                   <button onClick={goNext} className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg">
-                    Next <ArrowRight className="h-5 w-5" />
+                    {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>
@@ -645,13 +653,13 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">📅</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  When do you want to travel?
+                  {t("step4Title")}
                 </h2>
-                <p className="text-text-secondary mb-10 text-lg">Choose your departure date and duration</p>
+                <p className="text-text-secondary mb-10 text-lg">{t("step4Subtitle")}</p>
                 <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-8 space-y-6">
                   {/* Departure date */}
                   <div className="text-left">
-                    <label className="block text-sm font-semibold text-text-primary mb-2">Departure date</label>
+                    <label className="block text-sm font-semibold text-text-primary mb-2">{t("departureDate")}</label>
                     <input
                       type="date"
                       value={state.departureDate}
@@ -669,7 +677,7 @@ export default function PlanPage() {
                   {/* Nights selector */}
                   <div className="text-left">
                     <label className="block text-sm font-semibold text-text-primary mb-3">
-                      Duration: <span className="text-primary-500">{state.nights} nights</span>
+                      {t("duration", { nights: state.nights })}
                     </label>
                     <div className="flex flex-wrap gap-2">
                       {NIGHT_OPTIONS.map(n => (
@@ -683,15 +691,15 @@ export default function PlanPage() {
                       ))}
                     </div>
                     <p className="text-xs text-text-muted mt-3">
-                      Return: {new Date(state.returnDate).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                      {t("returnLabel", { date: new Date(state.returnDate).toLocaleDateString(isRo ? "ro-RO" : "en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }) })}
                     </p>
                   </div>
 
                   {/* Travelers */}
                   <div className="text-left">
-                    <label className="block text-sm font-semibold text-text-primary mb-3">Travelers</label>
+                    <label className="block text-sm font-semibold text-text-primary mb-3">{t("travelers")}</label>
                     <div className="flex flex-col sm:flex-row gap-4">
-                      {[{ label: "Adults", field: "adults" as const }, { label: "Children", field: "children" as const }].map(({ label, field }) => (
+                      {[{ label: t("adults"), field: "adults" as const }, { label: t("children"), field: "children" as const }].map(({ label, field }) => (
                         <div key={field} className="flex items-center gap-3 flex-1">
                           <span className="text-sm text-text-secondary w-16">{label}</span>
                           <button
@@ -711,10 +719,10 @@ export default function PlanPage() {
 
                 <div className="flex justify-center gap-4 mt-8">
                   <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Back
+                    <ArrowLeft className="h-4 w-4" /> {tCommon("back")}
                   </button>
                   <button onClick={goNext} className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg">
-                    Next <ArrowRight className="h-5 w-5" />
+                    {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>
@@ -734,9 +742,9 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">✨</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  What kind of trip are you dreaming of?
+                  {t("step5Title")}
                 </h2>
-                <p className="text-text-secondary mb-8 text-lg">Select all that apply</p>
+                <p className="text-text-secondary mb-8 text-lg">{t("step5Subtitle")}</p>
 
                 <div className="bg-white dark:bg-surface rounded-2xl shadow-lg p-5 sm:p-6 space-y-6">
                   {/* Travel styles grid */}
@@ -760,10 +768,10 @@ export default function PlanPage() {
                           </div>
                           <div className="min-w-0">
                             <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
-                              {style.label}
+                              {t(`travelStyles.${style.id}` as never)}
                             </p>
                             <p className="text-[11px] text-text-muted leading-snug mt-0.5 line-clamp-2">
-                              {style.description}
+                              {t(`travelStyles.${style.id}Desc` as never)}
                             </p>
                           </div>
                           {selected && (
@@ -776,7 +784,7 @@ export default function PlanPage() {
 
                   {/* Climate preference */}
                   <div className="text-left">
-                    <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">Climate preference</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">{t("climatePreference")}</p>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                       {CLIMATE_OPTIONS.map(c => {
                         const tone = TONE_STYLES[c.tone];
@@ -797,9 +805,9 @@ export default function PlanPage() {
                             </div>
                             <div className="min-w-0">
                               <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
-                                {c.label}
+                                {t(`climates.${c.id === "no-preference" ? "noPreference" : c.id}` as never)}
                               </p>
-                              <p className="text-[11px] text-text-muted leading-snug">{c.description}</p>
+                              <p className="text-[11px] text-text-muted leading-snug">{t(`climates.${c.id === "no-preference" ? "noPreferenceDesc" : c.id + "Desc"}` as never)}</p>
                             </div>
                           </button>
                         );
@@ -837,9 +845,9 @@ export default function PlanPage() {
               >
                 <div className="text-5xl mb-4">🎯</div>
                 <h2 className="text-2xl md:text-3xl font-bold text-secondary-500 mb-2">
-                  Almost there! What matters most?
+                  {t("step6Title")}
                 </h2>
-                <p className="text-text-secondary mb-8 text-lg">Pick up to 3 priorities</p>
+                <p className="text-text-secondary mb-8 text-lg">{t("step6Subtitle")}</p>
 
                 {error && (
                   <div className="mb-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -872,10 +880,10 @@ export default function PlanPage() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
-                              {p.label}
+                              {t(`priorities.${p.id === "best-hotel" ? "bestHotel" : p.id === "direct-flights" ? "directFlights" : p.id === "shortest-time" ? "shortestTime" : p.id === "central-location" ? "centralLocation" : p.id === "free-cancellation" ? "freeCancellation" : p.id}` as never)}
                             </p>
                             <p className="text-[11px] text-text-muted leading-snug mt-0.5">
-                              {p.description}
+                              {t(`priorities.${p.id === "best-hotel" ? "bestHotelDesc" : p.id === "direct-flights" ? "directFlightsDesc" : p.id === "shortest-time" ? "shortestTimeDesc" : p.id === "central-location" ? "centralLocationDesc" : p.id === "free-cancellation" ? "freeCancellationDesc" : p.id + "Desc"}` as never)}
                             </p>
                           </div>
                           {selected && (
@@ -886,7 +894,7 @@ export default function PlanPage() {
                     })}
                   </div>
                   <p className="text-xs text-text-muted mt-5 text-center">
-                    <span className="font-bold text-primary-500">{state.priorities.length}</span> of 3 selected
+                    {t("selectedOfMax", { selected: state.priorities.length, max: 3 })}
                   </p>
                 </div>
 
@@ -898,7 +906,7 @@ export default function PlanPage() {
                     onClick={handleSubmit}
                     className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 transition-all shadow-lg hover:shadow-xl"
                   >
-                    Find My Trip <Plane className="h-5 w-5" />
+                    {t("finalCta")} <Plane className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>

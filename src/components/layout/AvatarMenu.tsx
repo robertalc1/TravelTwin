@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Calendar, Heart, Loader2, LogOut, User as UserIcon } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface AvatarMenuProps {
@@ -24,6 +25,9 @@ interface AvatarMenuProps {
  */
 export function AvatarMenu({ email, displayName, variant }: AvatarMenuProps) {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("nav");
+  const lp = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const [open, setOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -56,7 +60,7 @@ export function AvatarMenu({ email, displayName, variant }: AvatarMenuProps) {
     try {
       await fetch("/auth/logout", { method: "POST" });
       setOpen(false);
-      router.push("/");
+      router.push(lp("/"));
       router.refresh();
     } catch {
       setLoggingOut(false);
@@ -78,7 +82,7 @@ export function AvatarMenu({ email, displayName, variant }: AvatarMenuProps) {
         className={triggerClass}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Account menu"
+        aria-label={t("myAccount")}
       >
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500 text-white text-[11px] font-bold tracking-tight">
           {initials}
@@ -107,9 +111,9 @@ export function AvatarMenu({ email, displayName, variant }: AvatarMenuProps) {
             </div>
 
             <div className="py-1">
-              <MenuItem href="/profile" icon={UserIcon} label="My Profile" onClick={() => setOpen(false)} />
-              <MenuItem href="/trips" icon={Calendar} label="My Trips" onClick={() => setOpen(false)} />
-              <MenuItem href="/favorites" icon={Heart} label="Favorites" onClick={() => setOpen(false)} />
+              <MenuItem href={lp("/profile")} icon={UserIcon} label={t("profile")} onClick={() => setOpen(false)} />
+              <MenuItem href={lp("/trips")} icon={Calendar} label={t("myTrips")} onClick={() => setOpen(false)} />
+              <MenuItem href={lp("/favorites")} icon={Heart} label={t("favorites")} onClick={() => setOpen(false)} />
             </div>
 
             <div className="h-px bg-neutral-100 dark:bg-border-default" />
@@ -122,7 +126,7 @@ export function AvatarMenu({ email, displayName, variant }: AvatarMenuProps) {
               className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-60 disabled:cursor-wait"
             >
               {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-              Sign Out
+              {t("signOut")}
             </button>
           </motion.div>
         )}

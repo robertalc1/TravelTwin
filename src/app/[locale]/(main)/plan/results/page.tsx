@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
 import { motion } from "framer-motion";
 import {
   Plane,
@@ -51,6 +52,10 @@ const VARIANT_BADGE_STYLES: Record<NonNullable<TripPackage["variant"]>, { bg: st
 
 export default function PlanResultsPage() {
   const router = useRouter();
+  const locale = useLocale();
+  const t = useTranslations("plan.results");
+  const isRo = locale === "ro";
+  const lp = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const [packages, setPackages] = useState<TripPackage[]>([]);
   const [params, setParams] = useState<PlanParams | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
@@ -88,16 +93,13 @@ export default function PlanResultsPage() {
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background px-4">
         <div className="max-w-md text-center">
           <div className="text-5xl mb-4">🔄</div>
-          <h2 className="text-2xl font-bold text-secondary-500 mb-2">No results to show</h2>
-          <p className="text-text-secondary mb-6">
-            Your plan results were lost on refresh. Sign in to keep them across
-            sessions, or run the planner again.
-          </p>
+          <h2 className="text-2xl font-bold text-secondary-500 mb-2">{t("missingTitle")}</h2>
+          <p className="text-text-secondary mb-6">{t("missingSubtitle")}</p>
           <button
-            onClick={() => router.push("/plan")}
+            onClick={() => router.push(lp("/plan"))}
             className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-all"
           >
-            Plan a new trip
+            {t("missingCta")}
           </button>
         </div>
       </div>
@@ -109,7 +111,7 @@ export default function PlanResultsPage() {
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
           <div className="text-4xl mb-4">✈️</div>
-          <p className="text-text-secondary">Loading your trips...</p>
+          <p className="text-text-secondary">{isRo ? "Se încarcă călătoriile tale..." : "Loading your trips..."}</p>
         </div>
       </div>
     );
@@ -120,22 +122,14 @@ export default function PlanResultsPage() {
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="text-6xl mb-6">✈️</div>
-          <h2 className="text-2xl font-bold text-secondary-500 mb-3">
-            No flights available for these dates
-          </h2>
-          <p className="text-text-secondary mb-2 max-w-md mx-auto">
-            We searched live prices but couldn{"'"}t find available
-            flights and hotels for your selected dates and budget.
-          </p>
-          <p className="text-sm text-text-muted mb-8 max-w-sm mx-auto">
-            Try selecting dates at least 2 weeks in the future,
-            or increase your budget slightly.
-          </p>
+          <h2 className="text-2xl font-bold text-secondary-500 mb-3">{t("noResults")}</h2>
+          <p className="text-text-secondary mb-2 max-w-md mx-auto">{t("noResultsSubtitle")}</p>
+          <p className="text-sm text-text-muted mb-8 max-w-sm mx-auto">{t("noResultsHint")}</p>
           <button
-            onClick={() => router.push("/plan")}
+            onClick={() => router.push(lp("/plan"))}
             className="rounded-full bg-primary-500 px-8 py-3 font-semibold text-white hover:bg-primary-600 transition-all"
           >
-            ← Try Different Dates
+            {t("tryDifferentDates")}
           </button>
         </div>
       </div>
@@ -166,10 +160,10 @@ export default function PlanResultsPage() {
       <main className="mx-auto max-w-[1280px] px-4 lg:px-8 py-10">
         {/* Back link */}
         <Link
-          href="/plan"
+          href={lp("/plan")}
           className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary mb-8 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> {isSpecific ? "Înapoi la căutare" : "Back to search"}
+          <ArrowLeft className="h-4 w-4" /> {t("backLink")}
         </Link>
 
         {/* Header */}
@@ -177,45 +171,34 @@ export default function PlanResultsPage() {
           <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-5 w-5 text-primary-500" />
             <span className="text-sm font-semibold text-primary-500 uppercase tracking-wider">
-              {isSpecific ? "Oferte personalizate" : "AI Recommendations"}
+              {isSpecific ? t("headerLabelSpecific") : t("headerLabelDiscovery")}
             </span>
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-secondary-500 mb-2">
             {isSpecific
-              ? `${displayedPackages.length} oferte pentru ${specificCity}`
-              : "Your Personalized Trip Recommendations"}
+              ? t("titleSpecific", { count: displayedPackages.length, city: specificCity ?? "" })
+              : t("titleDiscovery")}
           </h1>
           {params && (
             <p className="text-text-secondary">
-              {isSpecific ? (
-                <>
-                  Din <strong>{params.originDisplay || params.originIata || "originea ta"}</strong>
-                  {params.nights != null ? ` · ${params.nights} nopți` : ""}
-                  {params.adults != null
-                    ? ` · ${(params.adults || 0) + (params.children || 0)} călător${((params.adults || 0) + (params.children || 0)) !== 1 ? "i" : ""}`
-                    : ""}
-                  {params.budget != null && params.currency
-                    ? ` · Buget: ${params.currency} ${Number(params.budget).toLocaleString()}`
-                    : ""}
-                </>
-              ) : (
-                <>
-                  From <strong>{params.originDisplay || params.originIata || "your location"}</strong>
-                  {params.nights != null ? ` · ${params.nights} nights` : ""}
-                  {params.adults != null
-                    ? ` · ${(params.adults || 0) + (params.children || 0)} traveler${((params.adults || 0) + (params.children || 0)) !== 1 ? "s" : ""}`
-                    : ""}
-                  {params.budget != null && params.currency
-                    ? ` · Budget: ${params.currency} ${Number(params.budget).toLocaleString()}`
-                    : ""}
-                </>
-              )}
+              {(() => {
+                const origin = params.originDisplay || params.originIata || (isRo ? "originea ta" : "your location");
+                const nights = params.nights ?? 0;
+                const travelers = (params.adults || 0) + (params.children || 0);
+                const budget = params.budget != null && params.currency
+                  ? `${params.currency} ${Number(params.budget).toLocaleString(isRo ? "ro-RO" : "en-US")}`
+                  : "";
+                return t("summaryLine", {
+                  origin,
+                  nights,
+                  travelers,
+                  budget,
+                });
+              })()}
             </p>
           )}
           {isSpecific && (
-            <p className="text-sm text-text-muted mt-2 italic">
-              Alege varianta potrivită bugetului și stilului tău de călătorie.
-            </p>
+            <p className="text-sm text-text-muted mt-2 italic">{t("subtitleSpecific")}</p>
           )}
         </div>
 
@@ -254,16 +237,19 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
   const dest = pkg.destination;
   const heroUrl = `https://images.unsplash.com/${dest.imageId}?w=800&h=500&fit=crop&q=80`;
   const { format } = useCurrency();
+  const locale = useLocale();
+  const t = useTranslations("plan.results");
+  const isRo = locale === "ro";
 
   const variantStyle = pkg.variant ? VARIANT_BADGE_STYLES[pkg.variant] : null;
   const VariantIcon = variantStyle?.icon;
 
   const highlights: string[] = [];
-  if (pkg.flight?.stops === 0) highlights.push("✈️ Direct flight");
-  if (pkg.hotel?.stars) highlights.push(`⭐ ${pkg.hotel.stars}-star hotel`);
-  if (pkg.destination.tags.includes("beach")) highlights.push("🏖 Beach destination");
-  if (pkg.destination.tags.includes("culture")) highlights.push("🏛 Cultural hotspot");
-  if (pkg.destination.tags.includes("food")) highlights.push("🍕 Food paradise");
+  if (pkg.flight?.stops === 0) highlights.push(t("card.directFlight"));
+  if (pkg.hotel?.stars) highlights.push(t("card.starHotel", { stars: pkg.hotel.stars }));
+  if (pkg.destination.tags.includes("beach")) highlights.push(t("card.beachDestination"));
+  if (pkg.destination.tags.includes("culture")) highlights.push(t("card.culturalHotspot"));
+  if (pkg.destination.tags.includes("food")) highlights.push(t("card.foodParadise"));
 
   return (
     <motion.div
@@ -290,18 +276,20 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
         )}
         {!variantStyle && isBestMatch && !pkg.isOverBudget && (
           <span className="absolute top-3 left-3 rounded-full bg-primary-500 px-3 py-1 text-xs font-bold text-white shadow-md">
-            ⭐ Best Match
+            ⭐ {t("bestMatch")}
           </span>
         )}
         {pkg.isOverBudget && (
           <span className={`absolute ${variantStyle ? "top-12" : "top-3"} left-3 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md`}>
-            ⚠ Peste buget
+            ⚠ {t("overBudget")}
           </span>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <div className="absolute bottom-4 left-4 right-4">
           <h2 className="text-xl font-bold text-white">
-            {pkg.nights} {pkg.variant ? "nopți" : "days"} in {dest.city}, {dest.country}
+            {isRo
+              ? t("card.nightsIn", { nights: pkg.nights, city: dest.city, country: dest.country })
+              : t("card.daysIn", { nights: pkg.nights, city: dest.city, country: dest.country })}
           </h2>
           {pkg.variantTheme && (
             <p className="text-xs italic text-white/85 mt-1">{pkg.variantTheme}</p>
@@ -334,7 +322,7 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
           {pkg.flight && (
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-2 text-text-secondary">
-                <Plane className="h-4 w-4" /> Flight
+                <Plane className="h-4 w-4" /> {t("card.flightLabel")}
               </span>
               <span className="font-semibold">
                 {format(pkg.flight.price, pkg.currency)}
@@ -344,7 +332,7 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
           {pkg.hotel && (
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-2 text-text-secondary">
-                <Hotel className="h-4 w-4" /> Hotel ({pkg.nights} nights)
+                <Hotel className="h-4 w-4" /> {t("card.hotelLabel", { nights: pkg.nights })}
               </span>
               <span className="font-semibold">
                 {format(pkg.hotel.price, pkg.currency)}
@@ -352,13 +340,13 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
             </div>
           )}
           <div className="border-t border-neutral-200 dark:border-border-default pt-2 flex items-center justify-between">
-            <span className="font-bold text-secondary-500">Total</span>
+            <span className="font-bold text-secondary-500">{t("card.totalLabel")}</span>
             <span className="font-extrabold text-xl text-primary-500">
               {format(pkg.totalPrice, pkg.currency)}
             </span>
           </div>
           {pkg.isEstimated && (
-            <span className="text-xs text-text-muted italic">* Estimated price</span>
+            <span className="text-xs text-text-muted italic">{t("estimatedPrice")}</span>
           )}
         </div>
 
@@ -369,7 +357,7 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
               <Clock className="h-3.5 w-3.5" />
               {formatDuration(pkg.flight.duration)}
             </span>
-            <span>{pkg.flight.stops === 0 ? "Direct" : `${pkg.flight.stops} stop${pkg.flight.stops > 1 ? "s" : ""}`}</span>
+            <span>{pkg.flight.stops === 0 ? t("card.directLabel") : t("card.stops", { count: pkg.flight.stops })}</span>
             {pkg.flight.airline && (
               <img
                 src={`https://pics.avs.io/80/30/${pkg.flight.airline}.png`}
@@ -399,11 +387,11 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
                   status: "planning",
                 }),
               }).catch(() => {});
-              window.location.href = `/plan/trip/${pkg.id}`;
+              window.location.href = `/${locale}/plan/trip/${pkg.id}`;
             }}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
           >
-            View Full Itinerary <ArrowRight className="h-4 w-4" />
+            {t("card.viewItinerary")} <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       </div>
