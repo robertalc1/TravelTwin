@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight, Quote,
+  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight, Quote, Navigation,
 } from "lucide-react";
 import { useCurrencyStore } from "@/stores/currencyStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useTripPricing } from "@/stores/tripPricingStore";
 import { getHotelImage } from "@/lib/hotelImages";
+import type { HotelOfferData } from "@/components/Hotels/HotelCard";
 
 interface TAReview {
   id?: string;
@@ -53,6 +55,7 @@ export default function HotelDetailPage() {
   const cityCode = (search.get("cityCode") || "").toUpperCase();
   const totalQs = search.get("total") || "";
   const nameQs = search.get("name") || "";
+  const tripId = search.get("tripId") || "";
 
   const [hotel, setHotel] = useState<TAHotelDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,7 @@ export default function HotelDetailPage() {
   const [photoIndex, setPhotoIndex] = useState(0);
   const formatCurrency = useCurrencyStore((s) => s.format);
   const showToast = useToastStore((s) => s.show);
+  const selectHotelInStore = useTripPricing((s) => s.selectHotel);
 
   useEffect(() => {
     if (!id) return;
@@ -108,15 +112,74 @@ export default function HotelDetailPage() {
   const photos = hotel?.photos?.length ? hotel.photos : [fallbackImg];
   const heroPhoto = photos[photoIndex] || photos[0];
 
-  function handleAddToTrip() {
+  function handleSelectStay() {
+    const offer: HotelOfferData = {
+      hotel: {
+        hotelId: id,
+        name: displayName,
+        rating: String(stars),
+        cityCode,
+        address: {
+          lines: hotel?.address ? [hotel.address] : undefined,
+          cityName: cityCode,
+        },
+        amenities: hotel?.amenities,
+        media:
+          hotel?.photos && hotel.photos.length > 0
+            ? hotel.photos.slice(0, 4).map((uri) => ({ uri }))
+            : undefined,
+      },
+      offers: [
+        {
+          id: `live-${id}`,
+          price: {
+            currency: "EUR",
+            total: String(total),
+            base: String(Math.round(total * 0.85 * 100) / 100),
+          },
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+          policies: {
+            cancellations: [{ amount: "0", deadline: checkIn }],
+          },
+        },
+      ],
+    };
+    selectHotelInStore(offer, total);
     showToast(
       total > 0
         ? `Hotel added · ${formatCurrency(total, "EUR")}`
         : "Hotel added to your trip",
       "success",
     );
-    router.back();
+    if (tripId) {
+      router.push(`/plan/trip/${tripId}`);
+    } else {
+      router.back();
+    }
   }
+
+  const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const mapEmbedUrl = (() => {
+    if (!mapsApiKey) return null;
+    if (hotel?.latitude && hotel?.longitude) {
+      return `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${hotel.latitude},${hotel.longitude}&zoom=15`;
+    }
+    if (hotel?.address) {
+      return `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${encodeURIComponent(
+        `${displayName}, ${hotel.address}`,
+      )}&zoom=15`;
+    }
+    return null;
+  })();
+  const directionsUrl =
+    hotel?.latitude && hotel?.longitude
+      ? `https://www.google.com/maps/dir/?api=1&destination=${hotel.latitude},${hotel.longitude}`
+      : hotel?.address
+        ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+            `${displayName}, ${hotel.address}`,
+          )}`
+        : null;
 
   if (loading) {
     return (
@@ -349,6 +412,52 @@ export default function HotelDetailPage() {
                 </div>
               </section>
             )}
+
+            {/* Location */}
+            {(mapEmbedUrl || hotel?.address) && (
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold text-text-primary">
+                    Location
+                  </h3>
+                  {directionsUrl && (
+                    <a
+                      href={directionsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-500 hover:underline"
+                    >
+                      <Navigation className="h-3.5 w-3.5" />
+                      Open in Google Maps
+                    </a>
+                  )}
+                </div>
+                {hotel?.address && (
+                  <p className="text-sm text-text-secondary mb-3 flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-primary-500 shrink-0" />
+                    {hotel.address}
+                  </p>
+                )}
+                {mapEmbedUrl ? (
+                  <div className="rounded-2xl overflow-hidden border border-neutral-200 dark:border-border-default aspect-[16/9] bg-neutral-100 dark:bg-surface-elevated">
+                    <iframe
+                      title={`Map of ${displayName}`}
+                      src={mapEmbedUrl}
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-neutral-200 dark:border-border-default px-4 py-6 text-center text-sm text-text-muted">
+                    Map preview requires a Google Maps API key.
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           {/* Sticky sidebar */}
@@ -406,11 +515,16 @@ export default function HotelDetailPage() {
 
               <button
                 type="button"
-                onClick={handleAddToTrip}
+                onClick={handleSelectStay}
                 className="mt-5 w-full rounded-xl bg-primary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
               >
-                Add to Trip
+                {tripId ? "Select Stay" : "Add to Trip"}
               </button>
+              {tripId && (
+                <p className="mt-2 text-[11px] text-text-muted text-center">
+                  You won&apos;t be charged yet
+                </p>
+              )}
             </div>
           </aside>
         </div>

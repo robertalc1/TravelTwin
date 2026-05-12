@@ -1,10 +1,8 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import RentalCarCard from '@/components/Cars/RentalCarCard';
+import { useRouter } from 'next/navigation';
+import { Plus, Pencil, X, Users, Briefcase, Settings2 } from 'lucide-react';
 import { useTripPricing } from '@/stores/tripPricingStore';
-import { useToastStore } from '@/stores/toastStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
-import type { NormalizedCar } from '@/app/api/cars/search/route';
 import type { TransferOffer } from '@/lib/types/transfers';
 
 interface RentalCarsTabProps {
@@ -12,40 +10,42 @@ interface RentalCarsTabProps {
   cityName: string;
   pickUpDate: string;
   dropOffDate: string;
-  onCarSelect?: (car: NormalizedCar) => void;
+  tripId?: string;
 }
 
-interface CarsApiResponse {
-  cars: NormalizedCar[];
-  source: 'live' | 'cached' | 'fallback' | 'error';
-  count: number;
-  cityName?: string;
-  warning?: string;
-}
-
-function carToTransferOffer(car: NormalizedCar): TransferOffer {
+// Re-export for any legacy import sites that still need the helper. Returning
+// a TransferOffer keeps the trip pricing store happy without leaking the car
+// shape further.
+export function buildTransferFromCar(opts: {
+  id: string;
+  vendor: string;
+  vendorLogo?: string;
+  vehicleType: string;
+  transmission: string;
+  seatCount: number;
+  bagCount: number;
+  totalPrice: number;
+  currency: string;
+  source?: 'live' | 'cached' | 'fallback';
+}): TransferOffer {
   return {
-    id: car.id,
+    id: opts.id,
     transferType: 'CAR_RENTAL',
     vehicle: {
       code: 'CAR',
-      description: `${car.vendor} · ${car.vehicleType} (${car.transmission})`,
-      seats: [{ count: car.seatCount }],
-      baggages: [{ count: car.bagCount, size: 'M' }],
-      imageURL: car.pictureUrl,
+      description: `${opts.vendor} · ${opts.vehicleType} (${opts.transmission})`,
+      seats: [{ count: opts.seatCount }],
+      baggages: [{ count: opts.bagCount, size: 'M' }],
     },
-    serviceProvider: {
-      name: car.vendor,
-      logoUrl: car.vendorLogo,
-    },
+    serviceProvider: { name: opts.vendor, logoUrl: opts.vendorLogo },
     quotation: {
-      monetaryAmount: String(Math.round(car.totalPrice)),
-      currencyCode: car.currency,
-      isEstimated: car.source !== 'live',
+      monetaryAmount: String(Math.round(opts.totalPrice)),
+      currencyCode: opts.currency,
+      isEstimated: opts.source !== 'live',
     },
     distance: { value: 0, unit: 'KM' },
     duration: '',
-    source: car.source === 'cached' ? 'cached' : car.source === 'live' ? 'live' : 'fallback',
+    source: opts.source ?? 'fallback',
   };
 }
 
@@ -54,137 +54,98 @@ export default function RentalCarsTab({
   cityName,
   pickUpDate,
   dropOffDate,
-  onCarSelect,
+  tripId,
 }: RentalCarsTabProps) {
-  const [cars, setCars] = useState<NormalizedCar[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<string>('');
-  const [warning, setWarning] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'price' | 'seats'>('price');
-
-  const selectTransferInStore = useTripPricing((s) => s.selectTransfer);
-  const selectedTransferStore = useTripPricing((s) => s.selectedTransfer);
-  const showToast = useToastStore((s) => s.show);
+  const router = useRouter();
+  const selectedTransfer = useTripPricing((s) => s.selectedTransfer);
+  const removeTransfer = useTripPricing((s) => s.removeTransfer);
   const formatCurrency = useCurrencyStore((s) => s.format);
 
-  const days = Math.max(
-    1,
-    Math.ceil((new Date(dropOffDate).getTime() - new Date(pickUpDate).getTime()) / 86_400_000),
-  );
-
-  const fetchCars = useCallback(async () => {
-    setLoading(true);
-    setWarning('');
-    try {
-      const params = new URLSearchParams({
-        cityCode,
-        pickUpDate,
-        dropOffDate,
-      });
-      const res = await fetch(`/api/cars/search?${params}`);
-      const data: CarsApiResponse = await res.json();
-      setCars(data.cars || []);
-      setSource(data.source || '');
-      if (data.warning) setWarning(data.warning);
-    } catch {
-      setCars([]);
-      setWarning('Failed to load rental cars. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [cityCode, pickUpDate, dropOffDate]);
-
-  useEffect(() => {
-    if (cityCode && pickUpDate && dropOffDate) {
-      fetchCars();
-    }
-  }, [cityCode, pickUpDate, dropOffDate, fetchCars]);
-
-  const handleSelect = (car: NormalizedCar) => {
-    const wrapped = carToTransferOffer(car);
-    selectTransferInStore(wrapped, Math.round(car.totalPrice));
-    onCarSelect?.(car);
-    showToast(
-      `Car added · ${formatCurrency(Math.round(car.totalPrice), car.currency)}`,
-      'success',
-    );
-  };
-
-  const sorted = [...cars].sort((a, b) => {
-    if (sortBy === 'price') return a.totalPrice - b.totalPrice;
-    return b.seatCount - a.seatCount;
-  });
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-72 bg-neutral-100 dark:bg-surface-elevated rounded-2xl animate-pulse"
-          />
-        ))}
-      </div>
-    );
+  function openSearch() {
+    const qs = new URLSearchParams({
+      cityCode,
+      cityName,
+      pickUpDate,
+      dropOffDate,
+    });
+    if (tripId) qs.set('tripId', tripId);
+    router.push(`/cars/search?${qs.toString()}`);
   }
 
-  if (cars.length === 0) {
+  if (selectedTransfer && selectedTransfer.transferType === 'CAR_RENTAL') {
+    const v = selectedTransfer.vehicle;
+    const price = Number(selectedTransfer.quotation.monetaryAmount) || 0;
+    const seats = v.seats?.[0]?.count ?? 4;
+    const bags = v.baggages?.[0]?.count ?? 2;
     return (
-      <div className="text-center py-12">
-        <p className="text-4xl mb-4">🚙</p>
-        <p className="text-text-muted">
-          {warning || `No rental cars available in ${cityName} for these dates.`}
-        </p>
-        <button
-          type="button"
-          onClick={fetchCars}
-          className="mt-4 text-primary-500 hover:underline text-sm"
-        >
-          Try again
-        </button>
+      <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted mb-1">
+              {selectedTransfer.serviceProvider.name}
+            </p>
+            <h3 className="font-bold text-text-primary text-base line-clamp-1">
+              {v.description}
+            </h3>
+            <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-text-secondary">
+              <span className="flex items-center gap-1">
+                <Users className="h-3.5 w-3.5" />
+                {seats} seats
+              </span>
+              <span className="flex items-center gap-1">
+                <Briefcase className="h-3.5 w-3.5" />
+                {bags} bags
+              </span>
+              <span className="flex items-center gap-1">
+                <Settings2 className="h-3.5 w-3.5" />
+                {v.code === 'CAR' ? 'Automatic' : v.code}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={removeTransfer}
+            aria-label="Remove car"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-end justify-between gap-3 mt-4 pt-3 border-t border-neutral-100 dark:border-border-default">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted">
+              Total
+            </p>
+            <p className="text-xl font-extrabold text-primary-500">
+              {formatCurrency(price, selectedTransfer.quotation.currencyCode || 'EUR')}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={openSearch}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-border-default px-3 py-2 text-xs font-bold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Change
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'price' | 'seats')}
-          className="text-sm border border-neutral-200 dark:border-border-default rounded-xl px-3 py-2 bg-white dark:bg-surface text-text-primary"
-        >
-          <option value="price">Sort by Price</option>
-          <option value="seats">Sort by Seats</option>
-        </select>
-
-        <p className="text-sm text-text-muted ml-auto">
-          {cars.length} cars · {days} {days === 1 ? 'day' : 'days'} in {cityName}
-        </p>
-
-        {source === 'live' && (
-          <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200">
-            Live prices
-          </span>
-        )}
-        {source === 'cached' && (
-          <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200">
-            Cached
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {sorted.map((car) => (
-          <RentalCarCard
-            key={car.id}
-            car={car}
-            nights={days}
-            onSelect={handleSelect}
-            isSelected={selectedTransferStore?.id === car.id}
-          />
-        ))}
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={openSearch}
+      className="w-full rounded-2xl border-2 border-dashed border-neutral-300 dark:border-border-default bg-neutral-50/50 dark:bg-surface-elevated/50 px-6 py-10 sm:py-14 flex flex-col items-center gap-3 text-text-secondary hover:border-primary-400 hover:bg-primary-50/40 dark:hover:bg-primary-900/10 hover:text-primary-600 transition-colors group"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white dark:bg-surface border border-neutral-200 dark:border-border-default group-hover:border-primary-400 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 transition-colors">
+        <Plus className="h-5 w-5 text-text-muted group-hover:text-primary-600 transition-colors" />
+      </span>
+      <span className="text-base font-bold">Add rental car</span>
+      <span className="text-xs text-text-muted text-center max-w-xs">
+        Compare cars in {cityName} — quota only used when you open the search.
+      </span>
+    </button>
   );
 }

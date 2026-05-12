@@ -1,149 +1,143 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import HotelCard, { type HotelOfferData } from '@/components/Hotels/HotelCard';
+import { useRouter } from 'next/navigation';
+import { Plus, Star, MapPin, Pencil, X } from 'lucide-react';
+import { useTripPricing } from '@/stores/tripPricingStore';
+import { useCurrencyStore } from '@/stores/currencyStore';
+import { getHotelImage } from '@/lib/hotelImages';
 
 interface HotelsTabProps {
+  /** IATA city code (e.g. "BER") — used to scope the search page. */
   destinationCityCode: string;
+  /** Pretty city name (e.g. "Berlin") — shown in the CTA + sub-page header. */
+  destinationCity: string;
   checkInDate: string;
   checkOutDate: string;
-  adults: number;
+  /** Trip id the user is editing — passed to the search page so "Select Stay"
+   *  on the hotel detail can navigate back here with the selection saved. */
+  tripId?: string;
 }
 
 export default function HotelsTab({
   destinationCityCode,
+  destinationCity,
   checkInDate,
   checkOutDate,
-  adults,
+  tripId,
 }: HotelsTabProps) {
-  const [hotels, setHotels] = useState<HotelOfferData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'price' | 'rating'>('price');
-  const [filterStars, setFilterStars] = useState<number>(0);
+  const router = useRouter();
+  const selectedHotel = useTripPricing((s) => s.selectedHotel);
+  const removeHotel = useTripPricing((s) => s.removeHotel);
+  const formatCurrency = useCurrencyStore((s) => s.format);
 
-  const fetchHotels = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/hotels/search?cityCode=${encodeURIComponent(destinationCityCode)}&checkIn=${checkInDate}&checkOut=${checkOutDate}&adults=${adults}`
-      );
-      const data: { hotels?: HotelOfferData[]; warning?: string } = await res.json();
-
-      if (!data.hotels || data.hotels.length === 0) {
-        setError(data.warning || 'No hotels found for this destination');
-        setHotels([]);
-        return;
-      }
-
-      setHotels(data.hotels);
-    } catch {
-      setError('Failed to load hotels. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [destinationCityCode, checkInDate, checkOutDate, adults]);
-
-  useEffect(() => {
-    if (destinationCityCode && checkInDate && checkOutDate) {
-      fetchHotels();
-    }
-  }, [destinationCityCode, checkInDate, checkOutDate, fetchHotels]);
-
-  const nights = Math.max(
-    1,
-    Math.ceil(
-      (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)
-    )
-  );
-
-  const filtered = hotels
-    .filter((h) => filterStars === 0 || parseInt(h.hotel.rating || '0', 10) >= filterStars)
-    .sort((a, b) => {
-      if (sortBy === 'price') {
-        return parseFloat(a.offers[0]?.price.total || '999999') - parseFloat(b.offers[0]?.price.total || '999999');
-      }
-      return parseInt(b.hotel.rating || '0', 10) - parseInt(a.hotel.rating || '0', 10);
+  function openSearch() {
+    const qs = new URLSearchParams({
+      cityCode: destinationCityCode,
+      cityName: destinationCity,
+      checkIn: checkInDate,
+      checkOut: checkOutDate,
     });
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-72 bg-neutral-100 dark:bg-surface-elevated rounded-2xl animate-pulse" />
-        ))}
-      </div>
-    );
+    if (tripId) qs.set('tripId', tripId);
+    router.push(`/hotels/search?${qs.toString()}`);
   }
 
-  if (error) {
+  // Show the picked hotel inline instead of the CTA. The user can swap or
+  // clear it without leaving the trip page.
+  if (selectedHotel) {
+    const hotel = selectedHotel.hotel;
+    const offer = selectedHotel.offers[0];
+    const total = parseFloat(offer?.price.total ?? '0');
+    const stars = parseInt(hotel.rating || '3', 10) || 3;
+    const apiImage = hotel.media?.[0]?.uri;
+    const fallbackImage = getHotelImage(
+      hotel.name,
+      hotel.address?.cityName ?? hotel.cityCode,
+      stars,
+    );
+    const imageUrl = apiImage || fallbackImage;
+
     return (
-      <div className="text-center py-12">
-        <p className="text-text-muted">{error}</p>
-        <button
-          type="button"
-          onClick={fetchHotels}
-          className="mt-4 text-primary-500 hover:underline text-sm"
-        >
-          Try again
-        </button>
+      <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden">
+        <div className="flex flex-col md:flex-row">
+          <div className="relative h-44 md:h-auto md:w-56 md:shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl}
+              alt={hotel.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = fallbackImage;
+              }}
+            />
+          </div>
+          <div className="flex-1 p-4 sm:p-5 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  {Array.from({ length: Math.min(stars, 5) }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className="h-3.5 w-3.5 text-yellow-400 fill-yellow-400"
+                    />
+                  ))}
+                </div>
+                <h3 className="font-bold text-text-primary text-base line-clamp-1">
+                  {hotel.name}
+                </h3>
+                {hotel.address?.lines?.[0] && (
+                  <p className="flex items-center gap-1 text-xs text-text-muted mt-1 truncate">
+                    <MapPin className="h-3 w-3" />
+                    <span className="truncate">{hotel.address.lines[0]}</span>
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={removeHotel}
+                aria-label="Remove hotel"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex items-end justify-between gap-3 mt-auto pt-3 border-t border-neutral-100 dark:border-border-default">
+              <div>
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-text-muted">
+                  Total for your stay
+                </p>
+                <p className="text-xl font-extrabold text-primary-500">
+                  {total > 0 ? formatCurrency(total, offer?.price.currency || 'EUR') : '—'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openSearch}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 dark:border-border-default px-3 py-2 text-xs font-bold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Change
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'price' | 'rating')}
-          className="text-sm border border-neutral-200 dark:border-border-default rounded-xl px-3 py-2 bg-white dark:bg-surface text-text-primary"
-        >
-          <option value="price">Sort by Price</option>
-          <option value="rating">Sort by Stars</option>
-        </select>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-text-muted">Min stars:</span>
-          {[0, 3, 4, 5].map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => setFilterStars(s)}
-              className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
-                filterStars === s
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-neutral-100 dark:bg-surface-elevated text-text-secondary hover:bg-neutral-200 dark:hover:bg-neutral-700'
-              }`}
-            >
-              {s === 0 ? 'All' : `${s}★`}
-            </button>
-          ))}
-        </div>
-
-        <p className="text-sm text-text-muted ml-auto">
-          {filtered.length} hotels · {nights} nights
-        </p>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-12">
-          <p className="text-4xl mb-4">🏨</p>
-          <p className="text-text-muted">No hotels match your filters</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((h) => (
-            <HotelCard
-              key={h.hotel.hotelId}
-              hotelOffer={h}
-              nights={nights}
-              checkIn={checkInDate}
-              checkOut={checkOutDate}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={openSearch}
+      className="w-full rounded-2xl border-2 border-dashed border-neutral-300 dark:border-border-default bg-neutral-50/50 dark:bg-surface-elevated/50 px-6 py-10 sm:py-14 flex flex-col items-center gap-3 text-text-secondary hover:border-primary-400 hover:bg-primary-50/40 dark:hover:bg-primary-900/10 hover:text-primary-600 transition-colors group"
+    >
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white dark:bg-surface border border-neutral-200 dark:border-border-default group-hover:border-primary-400 group-hover:bg-primary-50 dark:group-hover:bg-primary-900/20 transition-colors">
+        <Plus className="h-5 w-5 text-text-muted group-hover:text-primary-600 transition-colors" />
+      </span>
+      <span className="text-base font-bold">Add accommodation</span>
+      <span className="text-xs text-text-muted text-center max-w-xs">
+        Browse hotels in {destinationCity} — no quota used until you open this.
+      </span>
+    </button>
   );
 }
+

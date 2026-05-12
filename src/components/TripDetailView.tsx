@@ -24,8 +24,6 @@ import RentalCarsTab from '@/components/TripDetail/RentalCarsTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import MobileBookBar from '@/components/TripDetail/MobileBookBar';
-import type { TransferOffer } from '@/lib/types/transfers';
-import type { NormalizedCar } from '@/app/api/cars/search/route';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { getAirportCoord } from '@/lib/airportCoordinates';
@@ -82,7 +80,6 @@ export default function TripDetailView({
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
   const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'cars'>('hotels');
-  const [extraCar, setExtraCar] = useState<NormalizedCar | null>(null);
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
   const seedHotelInStore = useTripPricing((s) => s.seedHotel);
@@ -479,9 +476,10 @@ export default function TripDetailView({
                       {moreOptionsTab === 'hotels' ? (
                         <HotelsTab
                           destinationCityCode={trip.destinationCode}
+                          destinationCity={trip.destinationCity}
                           checkInDate={trip.hotelCheckIn}
                           checkOutDate={trip.hotelCheckOut}
-                          adults={1}
+                          tripId={trip.id}
                         />
                       ) : (
                         <RentalCarsTab
@@ -489,7 +487,7 @@ export default function TripDetailView({
                           cityName={trip.destinationCity}
                           pickUpDate={trip.hotelCheckIn}
                           dropOffDate={trip.hotelCheckOut}
-                          onCarSelect={setExtraCar}
+                          tripId={trip.id}
                         />
                       )}
                     </div>
