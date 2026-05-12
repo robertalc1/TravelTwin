@@ -24,6 +24,8 @@ import RentalCarsTab from '@/components/TripDetail/RentalCarsTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
 import ExtrasPanel from '@/components/TripDetail/ExtrasPanel';
 import MobileBookBar from '@/components/TripDetail/MobileBookBar';
+import SessionTimeoutModal from '@/components/SessionTimeoutModal';
+import type { HotelOfferData } from '@/components/Hotels/HotelCard';
 import { useTripPricing } from '@/stores/tripPricingStore';
 import { useCurrencyStore } from '@/stores/currencyStore';
 import { getAirportCoord } from '@/lib/airportCoordinates';
@@ -83,6 +85,7 @@ export default function TripDetailView({
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
   const seedHotelInStore = useTripPricing((s) => s.seedHotel);
+  const selectHotelInStore = useTripPricing((s) => s.selectHotel);
   const pricingTotal = useTripPricing(
     (s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice + s.breakdown.extrasPrice,
   );
@@ -90,6 +93,7 @@ export default function TripDetailView({
   const storeExtras = useTripPricing((s) => s.extras);
   const storeSelectedHotel = useTripPricing((s) => s.selectedHotel);
   const storeSelectedTransfer = useTripPricing((s) => s.selectedTransfer);
+  const hasSelectedHotel = Boolean(storeSelectedHotel);
 
   // Seed flight + default hotel + airport-transfer estimate on trip mount.
   useEffect(() => {
@@ -115,6 +119,49 @@ export default function TripDetailView({
     originCode,
     initTripPricing,
     seedHotelInStore,
+  ]);
+
+  // Auto-pick the cheapest live Tripadvisor hotel for this destination so the
+  // trip arrives populated with a real choice instead of the estimator
+  // placeholder. Guarded on hasSelectedHotel so we never overwrite the user's
+  // manual pick (e.g. when they re-open a trip they already customised).
+  useEffect(() => {
+    if (!trip?.id || hasSelectedHotel) return;
+    if (!trip.destinationCode || !trip.hotelCheckIn || !trip.hotelCheckOut) return;
+
+    let cancelled = false;
+    const qs = new URLSearchParams({
+      cityCode: trip.destinationCode,
+      checkIn: trip.hotelCheckIn,
+      checkOut: trip.hotelCheckOut,
+    });
+    fetch(`/api/hotels/search?${qs.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { hotels?: HotelOfferData[] } | null) => {
+        if (cancelled || !data?.hotels?.length) return;
+        const cheapest = [...data.hotels].sort(
+          (a, b) =>
+            parseFloat(a.offers[0]?.price.total || '0') -
+            parseFloat(b.offers[0]?.price.total || '0'),
+        )[0];
+        const total = parseFloat(cheapest?.offers[0]?.price.total || '0');
+        if (cheapest && total > 0) {
+          selectHotelInStore(cheapest, total);
+        }
+      })
+      .catch(() => {
+        /* silent — leave the estimator placeholder in place */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    trip.id,
+    trip.destinationCode,
+    trip.hotelCheckIn,
+    trip.hotelCheckOut,
+    hasSelectedHotel,
+    selectHotelInStore,
   ]);
 
   // Read origin from sessionStorage (populated by AI planner)
@@ -213,6 +260,9 @@ export default function TripDetailView({
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
+      {/* Mounts a fixed 30-min timer; renders a blocking modal asking the user
+          to reload once the timeout fires, so live prices never go stale. */}
+      <SessionTimeoutModal />
 
       {/* ── Header bar above the hero ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4">
@@ -328,6 +378,7 @@ export default function TripDetailView({
                 originCity,
                 buildLegsFromTrip(trip, originCity, originCode),
               )}
+              tripId={trip.id}
             />
 
             {/* ── Plan your day teaser → opens dedicated full-page route map ── */}

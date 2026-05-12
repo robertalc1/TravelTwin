@@ -11,6 +11,9 @@ import type { TransportLeg, ItineraryStop } from './types';
 interface Props {
   legs: TransportLeg[];
   stops: ItineraryStop[];
+  /** Trip id — passed through to the inline accommodation card so the search
+   *  page can scope itself to this package. */
+  tripId: string;
 }
 
 /**
@@ -22,7 +25,7 @@ interface Props {
  * regardless of card content height. The connector line is drawn using flex-1
  * on the bullet's vertical rule, spanning into the accommodations gap row.
  */
-export default function ItinerarySection({ legs: initialLegs, stops: initialStops }: Props) {
+export default function ItinerarySection({ legs: initialLegs, stops: initialStops, tripId }: Props) {
   const router = useRouter();
   // Allow removing non-first legs at runtime
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
@@ -88,8 +91,10 @@ export default function ItinerarySection({ legs: initialLegs, stops: initialStop
                 <div className="min-w-0 flex-1">
                   <AddAccommodationsCard
                     destinationCity={leg.to.city}
+                    cityCode={leg.to.iataCode ?? ''}
                     checkIn={checkIn}
                     checkOut={checkOut}
+                    tripId={tripId}
                   />
                 </div>
                 {/* Spacer on the right keeps the timeline line going — the TimelineRail

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight, Quote,
+  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight,
   Navigation, Check, BedDouble,
 } from "lucide-react";
 import { useCurrencyStore } from "@/stores/currencyStore";
@@ -13,21 +13,11 @@ import { useTripPricing } from "@/stores/tripPricingStore";
 import { getHotelImage } from "@/lib/hotelImages";
 import type { HotelOfferData } from "@/components/Hotels/HotelCard";
 
-interface TAReview {
-  id?: string;
-  title?: string;
-  text?: string;
-  rating?: number;
-  publishedDate?: string;
-  authorName?: string;
-}
-
 interface TAHotelDetail {
   id: string;
   name: string;
   about?: string;
   photos: string[];
-  reviews: TAReview[];
   amenities: string[];
   rating?: number;
   numReviews?: number;
@@ -50,7 +40,6 @@ const SECTIONS = [
   { id: "details", label: "Details" },
   { id: "rooms", label: "Rooms" },
   { id: "features", label: "Features" },
-  { id: "reviews", label: "Reviews" },
   { id: "location", label: "Location" },
 ] as const;
 
@@ -120,7 +109,6 @@ function HotelDetailContent() {
     details: null,
     rooms: null,
     features: null,
-    reviews: null,
     location: null,
   });
 
@@ -681,63 +669,6 @@ function HotelDetailContent() {
                 </div>
               </section>
             )}
-
-            {/* ── Reviews ── */}
-            <section
-              id="reviews"
-              ref={setSectionRef("reviews")}
-              className="scroll-mt-[120px]"
-            >
-              <h3 className="text-lg font-bold text-text-primary mb-3">
-                Reviews
-              </h3>
-              {hotel?.reviews && hotel.reviews.length > 0 ? (
-                <div className="space-y-3">
-                  {hotel.reviews.slice(0, 4).map((r, i) => (
-                    <article
-                      key={r.id || i}
-                      className="rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4"
-                    >
-                      <header className="flex items-start gap-2 mb-2">
-                        <Quote className="h-4 w-4 text-primary-500 shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-text-primary text-sm truncate">
-                            {r.title || "Guest review"}
-                          </p>
-                          <p className="text-xs text-text-muted mt-0.5">
-                            {r.authorName || "Anonymous"}
-                            {r.publishedDate
-                              ? ` · ${r.publishedDate.split("T")[0]}`
-                              : ""}
-                          </p>
-                        </div>
-                        {r.rating ? (
-                          <span className="text-xs font-bold text-primary-500 ml-auto">
-                            {r.rating.toFixed(1)}
-                          </span>
-                        ) : null}
-                      </header>
-                      {r.text && (
-                        <p className="text-sm text-text-secondary leading-relaxed line-clamp-4">
-                          {r.text}
-                        </p>
-                      )}
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-neutral-200 dark:border-border-default px-4 py-8 text-center">
-                  <p className="text-sm text-text-secondary">
-                    {hotel?.rating
-                      ? `Rated ${hotel.rating.toFixed(1)}/5`
-                      : "No reviews yet"}
-                    {hotel?.numReviews
-                      ? ` · ${hotel.numReviews} reviews on Tripadvisor`
-                      : ""}
-                  </p>
-                </div>
-              )}
-            </section>
 
             {/* ── Location ── */}
             {(mapEmbedUrl || hotel?.address) && (
