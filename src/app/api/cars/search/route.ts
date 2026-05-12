@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     );
   }
 
-  const cacheKey = `cars:${cityCode}:${pickUpDate}:${dropOffDate}:${driverAge}`;
+  const cacheKey = `cars:v2:${cityCode}:${pickUpDate}:${dropOffDate}:${driverAge}`;
   const cached = await getCached(cacheKey);
   if (cached) {
     const cars = (cached.data as TACar[]).map((c) => normalize(c, 'cached'));

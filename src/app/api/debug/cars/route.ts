@@ -10,6 +10,7 @@ const HOST = 'tripadvisor16.p.rapidapi.com';
 const BASE = `https://${HOST}`;
 
 const LOCATION_PATH_VARIANTS = [
+  '/api/v1/rentals/searchLocation', // the live, working path (Tripadvisor groups car locations under /rentals)
   '/api/v1/cars/searchLocation',
   '/api/v1/cars/searchRentalCarsLocation',
   '/api/v1/cars/getRentalCarsLocation',

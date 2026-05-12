@@ -421,10 +421,10 @@ export async function searchLocations(keyword: string): Promise<TALocation[]> {
  * Tripadvisor car-rental pickup location ID. Cached for 30 days.
  */
 export async function searchCarLocations(query: string): Promise<TACarLocation[]> {
-  // Tripadvisor16 playground exposes "Search Rental Cars Location" — the
-  // path-style name lives under /searchRentalCarsLocation. The shorter
-  // /searchLocation returns 404. See /api/debug/cars for live probes.
-  const raw = await tripadvisorFetch<unknown>('/api/v1/cars/searchRentalCarsLocation', { query });
+  // Tripadvisor16 hosts the rental-cars location lookup under /rentals/
+  // (NOT /cars/) — verified live in the RapidAPI playground. The old
+  // /api/v1/cars/searchRentalCarsLocation guess returned 404.
+  const raw = await tripadvisorFetch<unknown>('/api/v1/rentals/searchLocation', { query });
   if (!isRecord(raw)) return [];
   const data = asArray((raw as Record<string, unknown>).data);
 
@@ -451,8 +451,9 @@ export async function searchCarLocations(query: string): Promise<TACarLocation[]
 
 export async function getCarLocationId(cityCode: string): Promise<string | null> {
   const code = cityCode.toUpperCase();
-  // v2 key: same disambiguation rationale as getGeoIdForCity.
-  const cacheKey = `carLocId:v2:${code}`;
+  // v3 key: bumped after switching the upstream endpoint from
+  // /api/v1/cars/searchRentalCarsLocation (404) to /api/v1/rentals/searchLocation.
+  const cacheKey = `carLocId:v3:${code}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'string') return cached.data;
 
