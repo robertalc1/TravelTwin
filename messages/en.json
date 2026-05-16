@@ -224,6 +224,8 @@
     "loading": "Searching public transit routes...",
     "noData": "No public transit routes for this route (Google coverage limited).",
     "noRoutesError": "Could not find transit details",
+    "needsServerKeyTitle": "Transit details not active",
+    "needsServerKeySubtitle": "The admin needs to add a server-side Google Maps key (the public one has referer restrictions). The full route is still available in Google Maps.",
     "openInGoogleMaps": "Open route in Google Maps",
     "viewInGoogleMaps": "See route in Google Maps",
     "tryInGoogleMaps": "Try in Google Maps",

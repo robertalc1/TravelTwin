@@ -217,6 +217,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
   const [data, setData] = useState<DirectionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsServerKey, setNeedsServerKey] = useState(false);
 
   useEffect(() => {
     if (!origin || !destination) return;
@@ -224,6 +225,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
     setLoading(true);
     setError(null);
     setData(null);
+    setNeedsServerKey(false);
 
     fetch('/api/directions', {
       method: 'POST',
@@ -232,7 +234,14 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
     })
       .then(async (r) => {
         const json = await r.json();
-        if (!r.ok) throw new Error(json.error || `HTTP ${r.status}`);
+        if (!r.ok) {
+          if (json?.needsServerKey) {
+            const err: Error & { needsServerKey?: boolean } = new Error(json.error || 'Server key not configured');
+            err.needsServerKey = true;
+            throw err;
+          }
+          throw new Error(json.error || `HTTP ${r.status}`);
+        }
         return json as DirectionsResponse;
       })
       .then((json) => {
@@ -241,7 +250,12 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
       })
       .catch((e: unknown) => {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'Eroare necunoscută');
+        const err = e as Error & { needsServerKey?: boolean };
+        if (err.needsServerKey) {
+          setNeedsServerKey(true);
+        } else {
+          setError(e instanceof Error ? e.message : 'Eroare necunoscută');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -265,7 +279,37 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
         </div>
       )}
 
-      {error && !loading && (
+      {/* Server key not configured — distinct from a network/Google error.
+          Triggered when /api/directions returns needsServerKey: true (the
+          public Maps key has HTTP referer restrictions and Google rejects it
+          for server-side Directions calls). Shows an admin-friendly hint plus
+          the "View in Google Maps" escape hatch so the end user is never blocked. */}
+      {needsServerKey && !loading && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/80 dark:bg-amber-900/15 px-4 py-3 text-sm">
+          <div className="flex items-start gap-2 mb-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                {t('needsServerKeyTitle')}
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+                {t('needsServerKeySubtitle')}
+              </p>
+            </div>
+          </div>
+          <a
+            href={fallbackGoogleUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            {t('viewInGoogleMaps')}
+          </a>
+        </div>
+      )}
+
+      {error && !needsServerKey && !loading && (
         <div className="rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50/80 dark:bg-amber-900/15 px-4 py-3 text-sm">
           <div className="flex items-start gap-2 mb-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />

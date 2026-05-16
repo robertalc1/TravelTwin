@@ -224,6 +224,8 @@
     "loading": "Caut rute cu transportul public...",
     "noData": "Nu există rute de transport public pentru acest traseu (acoperire Google limitată).",
     "noRoutesError": "Nu am putut găsi detalii pentru transit",
+    "needsServerKeyTitle": "Detaliile de transit nu sunt active",
+    "needsServerKeySubtitle": "Administratorul trebuie să adauge o cheie Google Maps server-side (cea publică are restricții de referer). Ruta completă e disponibilă în Google Maps.",
     "openInGoogleMaps": "Deschide ruta în Google Maps",
     "viewInGoogleMaps": "Vezi ruta în Google Maps",
     "tryInGoogleMaps": "Încearcă în Google Maps",

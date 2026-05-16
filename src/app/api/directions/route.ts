@@ -168,13 +168,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   if (googleData.status && googleData.status !== 'OK' && googleData.status !== 'ZERO_RESULTS') {
+    const msg = googleData.error_message || '';
+    // Specific signal: the configured key has HTTP referer restrictions, which
+    // Google rejects on server-side Directions calls. UI handles this with a
+    // dedicated "setup needed" card instead of the generic error.
+    const isRefererRestricted =
+      /referer restrictions/i.test(msg)
+      || (googleData.status === 'REQUEST_DENIED' && /API keys/i.test(msg));
     return NextResponse.json(
       {
-        error: googleData.error_message
-          || `Google Directions returned status ${googleData.status}`,
+        error: msg || `Google Directions returned status ${googleData.status}`,
         status: googleData.status,
+        needsServerKey: isRefererRestricted,
       },
-      { status: 502 },
+      { status: isRefererRestricted ? 503 : 502 },
     );
   }
 
