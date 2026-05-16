@@ -112,10 +112,13 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
       }
     : null;
 
-  // Build route stops + URLs
+  // Build route stops + URLs.
+  // IMPORTANT: the "origin" passed here is the DESTINATION airport (where the
+  // user lands), NOT the departure airport — the user flies between airports
+  // so driving/walking/transit only makes sense from the arrival point onward.
   const { origin, destination, waypoints } = buildRouteStops({
-    originCity,
-    originCode,
+    originCity: trip.destinationCity,
+    originCode: trip.destinationCode,
     destinationCity: trip.destinationCity,
     attractions,
     max: 4,
@@ -158,12 +161,28 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
     ? `focus:${focusedPlace}:${mode}`
     : `route:${selectedHotel?.hotel.hotelId ?? 'none'}:${mode}`;
 
-  const airport = originCode ? getAirportCoord(originCode) : undefined;
-  const airportLabel = airport
-    ? `${airport.name} (${originCode})`
-    : originCity
-      ? `${originCity}${originCode ? ` (${originCode})` : ''}`
+  // The airport shown in the sidebar's "Arrive at" stop IS the destination
+  // airport — that's where the user lands. The departure airport (originCode
+  // prop) is informational only and not used to build local routes.
+  const destAirport = trip.destinationCode ? getAirportCoord(trip.destinationCode) : undefined;
+  const destAirportLabel = destAirport
+    ? `${destAirport.name} (${trip.destinationCode})`
+    : trip.destinationCity
+      ? `${trip.destinationCity} Airport`
       : 'Airport';
+  const airportLabel = destAirportLabel;
+
+  // Where transit goes TO when nothing is explicitly focused. Priority:
+  //   1. The place the user just clicked (focusedPlace)
+  //   2. The selected hotel (the natural first stop after landing)
+  //   3. The first attraction
+  //   4. The destination city center as a last resort
+  const transitTarget = focusedPlace
+    || (selectedHotel ? `${selectedHotel.hotel.name}, ${trip.destinationCity}` : null)
+    || (attractions[0] ? `${attractions[0].name}, ${trip.destinationCity}` : null)
+    || `${trip.destinationCity}, ${trip.destinationCountry}`;
+
+  const transitTargetName = transitTarget.split(',')[0];
 
   // Lock body scroll on desktop where the layout is full-height.
   useEffect(() => {
@@ -321,18 +340,19 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
         <aside className="order-2 lg:order-1 lg:w-[420px] lg:shrink-0 lg:overflow-y-auto lg:h-[calc(100vh-4rem)] border-t lg:border-t-0 lg:border-r border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
           <div className="p-4 sm:p-5 space-y-6">
 
-            {/* TRANSIT DETAILS — Google Directions API steps with line names,
-                durations and transfers. Mirrors the Google Maps directions
-                panel: shows up to 4 alternative routes, each with a compact
-                ribbon of vehicle badges and an expandable step-by-step list. */}
+            {/* TRANSIT DETAILS — Google Directions API routes within the
+                destination city. ORIGIN is always the destination airport
+                (where the user lands), not the departure airport — the user
+                flies between airports, public-transit routing only makes
+                sense in the destination city. DESTINATION defaults to the
+                selected hotel or first attraction, and switches to whatever
+                place the user clicks in the sidebar. */}
             {mode === 'transit' && (
               <TransitDetails
-                origin={origin}
-                destination={focusedPlace || destination}
+                origin={destAirportLabel}
+                destination={transitTarget}
                 mode="transit"
-                label={focusedPlace
-                  ? tTransit('headerLocal', { place: focusedPlace.split(',')[0] })
-                  : tTransit('headerMajor', { origin: originCity || originCode, destination: trip.destinationCity })}
+                label={tTransit('headerLocal', { place: transitTargetName })}
               />
             )}
 
