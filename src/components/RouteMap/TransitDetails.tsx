@@ -6,7 +6,7 @@ import {
   Footprints, Car, Bike, ArrowRight, ChevronRight,
   Clock, AlertCircle, ExternalLink, Loader2,
 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type {
   DirectionsResponse, DirectionsRoute, DirectionsStep, TravelMode,
 } from '@/app/api/directions/route';
@@ -17,6 +17,8 @@ interface Props {
   mode: TravelMode;
   /** Shown in the header above the routes list. */
   label?: string;
+  /** ISO country code (e.g. "gr", "tr") to bias geocoding to the destination. */
+  region?: string;
 }
 
 const VEHICLE_ICON: Record<string, typeof Bus> = {
@@ -212,8 +214,9 @@ function RouteCard({ route, index }: { route: DirectionsRoute; index: number }) 
   );
 }
 
-export default function TransitDetails({ origin, destination, mode, label }: Props) {
+export default function TransitDetails({ origin, destination, mode, label, region }: Props) {
   const t = useTranslations('transit');
+  const locale = useLocale();
   const [data, setData] = useState<DirectionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,7 +233,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
     fetch('/api/directions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ origin, destination, mode, alternatives: true }),
+      body: JSON.stringify({ origin, destination, mode, alternatives: true, locale, region }),
     })
       .then(async (r) => {
         const json = await r.json();
@@ -262,7 +265,7 @@ export default function TransitDetails({ origin, destination, mode, label }: Pro
       });
 
     return () => { cancelled = true; };
-  }, [origin, destination, mode]);
+  }, [origin, destination, mode, locale, region]);
 
   const fallbackGoogleUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&travelmode=${mode}`;
 

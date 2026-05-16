@@ -108,14 +108,22 @@ function googleMapsWebUrl(origin: string, destination: string, mode: TravelMode)
 }
 
 export async function POST(req: NextRequest): Promise<Response> {
-  let body: { origin?: string; destination?: string; mode?: TravelMode; alternatives?: boolean };
+  let body: {
+    origin?: string;
+    destination?: string;
+    mode?: TravelMode;
+    alternatives?: boolean;
+    locale?: string;
+    /** ISO country code (e.g. "gr", "tr") to bias geocoding; defaults to no bias. */
+    region?: string;
+  };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { origin, destination, mode = 'transit', alternatives = true } = body;
+  const { origin, destination, mode = 'transit', alternatives = true, locale, region } = body;
 
   if (!origin || !destination) {
     return NextResponse.json({ error: 'Missing origin or destination' }, { status: 400 });
@@ -134,7 +142,8 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  const cacheKey = `directions:${mode}:${origin.toLowerCase()}:${destination.toLowerCase()}:${alternatives ? 'alt' : 'single'}`;
+  const lang = locale === 'ro' ? 'ro' : 'en';
+  const cacheKey = `directions:${mode}:${origin.toLowerCase()}:${destination.toLowerCase()}:${alternatives ? 'alt' : 'single'}:${lang}`;
   const cached = await getCached(cacheKey);
   if (cached) {
     return NextResponse.json({ ...(cached.data as DirectionsResponse), source: 'cached' });
@@ -145,9 +154,13 @@ export async function POST(req: NextRequest): Promise<Response> {
     destination,
     mode,
     key: apiKey,
-    language: 'ro',
-    region: 'ro',
+    language: lang,
   });
+  // Only set region bias if the caller passed one — otherwise Google geocodes
+  // the free-text origin/destination globally. Previously this was hardcoded
+  // to "ro" which made Google look for "Athens Airport" inside Romania first
+  // and return NOT_FOUND.
+  if (region) params.set('region', region);
   if (alternatives) params.set('alternatives', 'true');
 
   const url = `https://maps.googleapis.com/maps/api/directions/json?${params.toString()}`;

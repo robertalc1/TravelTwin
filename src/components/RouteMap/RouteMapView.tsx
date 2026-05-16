@@ -172,17 +172,27 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
       : 'Airport';
   const airportLabel = destAirportLabel;
 
-  // Where transit goes TO when nothing is explicitly focused. Priority:
-  //   1. The place the user just clicked (focusedPlace)
-  //   2. The selected hotel (the natural first stop after landing)
-  //   3. The first attraction
-  //   4. The destination city center as a last resort
-  const transitTarget = focusedPlace
+  // For Directions API we use COORDINATES instead of free text whenever we
+  // have them — Google geocoding of AI-generated attraction names ("Athens
+  // National Museum") often returns NOT_FOUND even when the real place
+  // exists. Coordinates always work.
+  const transitOriginQuery = destAirport
+    ? `${destAirport.lat},${destAirport.lng}`
+    : destAirportLabel;
+  const transitDestinationQuery = focusedPlace
     || (selectedHotel ? `${selectedHotel.hotel.name}, ${trip.destinationCity}` : null)
     || (attractions[0] ? `${attractions[0].name}, ${trip.destinationCity}` : null)
-    || `${trip.destinationCity}, ${trip.destinationCountry}`;
+    || (trip.destinationLat && trip.destinationLon
+        ? `${trip.destinationLat},${trip.destinationLon}`
+        : `${trip.destinationCity}, ${trip.destinationCountry}`);
 
-  const transitTargetName = transitTarget.split(',')[0];
+  // Label shown above the route list (header strip). Always a human-readable
+  // string — the actual Directions API query uses coordinates above when
+  // available, so the label can stay descriptive.
+  const transitLabelName = focusedPlace?.split(',')[0]
+    || selectedHotel?.hotel.name
+    || attractions[0]?.name
+    || trip.destinationCity;
 
   // Lock body scroll on desktop where the layout is full-height.
   useEffect(() => {
@@ -341,18 +351,17 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
           <div className="p-4 sm:p-5 space-y-6">
 
             {/* TRANSIT DETAILS — Google Directions API routes within the
-                destination city. ORIGIN is always the destination airport
-                (where the user lands), not the departure airport — the user
-                flies between airports, public-transit routing only makes
-                sense in the destination city. DESTINATION defaults to the
-                selected hotel or first attraction, and switches to whatever
-                place the user clicks in the sidebar. */}
+                destination city. The API call uses COORDINATES for both
+                origin (destination airport lat/lng) and destination (city
+                center lat/lng) when available, falling back to free text
+                only for AI-named attractions/hotels. Coordinates bypass
+                Google's geocoding which often fails on AI-generated names. */}
             {mode === 'transit' && (
               <TransitDetails
-                origin={destAirportLabel}
-                destination={transitTarget}
+                origin={transitOriginQuery}
+                destination={transitDestinationQuery}
                 mode="transit"
-                label={tTransit('headerLocal', { place: transitTargetName })}
+                label={tTransit('headerLocal', { place: transitLabelName })}
               />
             )}
 
