@@ -13,6 +13,9 @@ import { DemoBanner } from "@/components/booking/DemoBanner";
 import { createClient } from "@/lib/supabase/client";
 import { useToastStore } from "@/stores/toastStore";
 import { useCurrencyStore } from "@/stores/currencyStore";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
+import { useLocale } from "next-intl";
 import type { TripDetail } from "@/lib/tripDetail";
 
 interface QuoteExtra { id: string; label: string; price: number }
@@ -99,7 +102,10 @@ function StepBar({ current }: { current: number }) {
 
 export default function BookingSimulatePage() {
   const router = useRouter();
+  const locale = useLocale();
   const formatCurrency = useCurrencyStore((s) => s.format);
+  const { user, loading: userLoading } = useUser();
+  const openAuthModal = useAuthModalStore((s) => s.open);
   const [step, setStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [bookingRef] = useState(() => "TW-" + Math.random().toString(36).substring(2, 8).toUpperCase());
@@ -124,6 +130,23 @@ export default function BookingSimulatePage() {
       if (meta) setBookingMeta(JSON.parse(meta));
     } catch { /* ignore */ }
   }, []);
+
+  // Auth gate — booking requires an account; open login modal and redirect back here on success.
+  useEffect(() => {
+    if (userLoading) return;
+    if (!user) openAuthModal("login", `/${locale}/booking/simulate`);
+  }, [user, userLoading, openAuthModal, locale]);
+
+  // Pre-fill traveler email + name from the authenticated profile.
+  useEffect(() => {
+    if (!user) return;
+    setTraveler((t) => ({
+      ...t,
+      email: t.email || user.email || "",
+      firstName: t.firstName || (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] || "",
+      lastName: t.lastName || (user.user_metadata?.full_name as string | undefined)?.split(" ").slice(1).join(" ") || "",
+    }));
+  }, [user]);
 
   const currency = bookingTrip?.currency || "EUR";
   const displayDestination = bookingTrip?.destinationCity || bookingTrip?.destinationCode || "Your Destination";
@@ -170,6 +193,10 @@ export default function BookingSimulatePage() {
   const isTestCard = (raw: string) => raw.replace(/\s/g, "") === TEST_CARD.replace(/\s/g, "");
 
   async function handlePay() {
+    if (!user) {
+      openAuthModal("login", `/${locale}/booking/simulate`);
+      return;
+    }
     if (!isTestCard(payment.cardNumber)) {
       alert(
         `Demo mode — please use the test card ${TEST_CARD}.\n\n` +

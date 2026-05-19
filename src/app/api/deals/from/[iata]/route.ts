@@ -5,6 +5,7 @@
    homepage looks alive without burning extra RapidAPI / Anthropic quota. */
 
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { searchFlightInspirations } from '@/lib/tripadvisor-client';
 import { diversifyPackages } from '@/lib/diversify';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
@@ -175,6 +176,13 @@ export async function GET(
     _req: Request,
     { params }: { params: Promise<{ iata: string }> }
 ) {
+    // Auth gate — deals are an authenticated-only feature.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const { iata } = await params;
     const origin = (iata || '').toUpperCase();
     if (!/^[A-Z]{3}$/.test(origin)) {

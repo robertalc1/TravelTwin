@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { matchDestinations, DestinationProfile, DESTINATIONS } from '@/lib/destinations';
 import { diversifyPackages } from '@/lib/diversify';
 import type { NormalizedFlight } from '@/lib/supabase/types';
@@ -117,6 +118,13 @@ export interface TripPackage {
 
 export async function POST(req: NextRequest) {
   try {
+    // Auth gate — only authenticated users can generate AI trip plans.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
       origin,

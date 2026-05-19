@@ -1,12 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import {
   ArrowLeft, Plane, Clock, Briefcase, CreditCard, Shield,
   ChevronUp, ChevronDown, Check, Luggage, Wifi, Coffee,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
 
 const FARE_OPTIONS = [
   {
@@ -36,10 +40,23 @@ const FARE_OPTIONS = [
 export default function FlightDetailPage() {
   const [selectedFare, setSelectedFare] = useState(1);
   const [pricingExpanded, setPricingExpanded] = useState(true);
+  const router = useRouter();
+  const locale = useLocale();
+  const { user } = useUser();
+  const openAuthModal = useAuthModalStore((s) => s.open);
 
   const fare = FARE_OPTIONS[selectedFare];
   const taxesAndFees = Math.round(fare.price * 0.18 * 100) / 100;
   const total = fare.price + taxesAndFees;
+
+  function goToBooking() {
+    const target = `/${locale}/booking/simulate?type=flight&fare=${fare.name.replace(/ /g, "_")}&total=${total}`;
+    if (!user) {
+      openAuthModal("login", target);
+      return;
+    }
+    router.push(target);
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
@@ -300,12 +317,13 @@ export default function FlightDetailPage() {
                       </div>
 
                       <div className="px-5 pb-5">
-                        <Link
-                          href={`/booking/simulate?type=flight&fare=${fare.name.replace(/ /g, "_")}&total=${total}`}
+                        <button
+                          type="button"
+                          onClick={goToBooking}
                           className="block w-full text-center bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-xl transition-colors"
                         >
                           Book Now — ${total.toFixed(2)}
-                        </Link>
+                        </button>
                         <div className="flex items-center justify-center gap-1.5 mt-2 text-xs text-text-muted">
                           <Shield className="h-3.5 w-3.5 text-green-500" />
                           Secure checkout · Free cancellation 24h

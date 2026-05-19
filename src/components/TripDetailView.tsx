@@ -20,6 +20,7 @@ import LazyMount from '@/components/LazyMount';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import { useUser } from '@/hooks/useUser';
+import { useAuthModalStore } from '@/stores/authModalStore';
 import HotelsTab from '@/components/TripDetail/HotelsTab';
 import RentalCarsTab from '@/components/TripDetail/RentalCarsTab';
 import PriceBreakdown from '@/components/TripDetail/PriceBreakdown';
@@ -78,7 +79,8 @@ export default function TripDetailView({
 }: Props) {
   const router = useRouter();
   const locale = useLocale();
-  const { profile } = useUser();
+  const { profile, user } = useUser();
+  const openAuthModal = useAuthModalStore((s) => s.open);
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const [originCity, setOriginCity] = useState('');
   const [originCode, setOriginCode] = useState('');
@@ -215,6 +217,10 @@ export default function TripDetailView({
     : 0;
 
   function handleBook() {
+    if (!user) {
+      openAuthModal("login", `/${locale}/booking/simulate`);
+      return;
+    }
     // Snapshot the LIVE quote from the pricing store and merge it into the trip
     // before handing off to /booking/simulate. The booking page must price the
     // exact configuration the user sees on the trip page (custom hotel, transfer,
@@ -720,14 +726,21 @@ export default function TripDetailView({
                         : "Let our AI find you the perfect package from Bucharest."}
                     </p>
                   </div>
-                  <Link
-                    href={`/${locale}/plan`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!user) {
+                        openAuthModal("login", `/${locale}/plan`);
+                        return;
+                      }
+                      router.push(`/${locale}/plan`);
+                    }}
                     className="flex items-center justify-center gap-2 w-full rounded-xl bg-primary-500 px-6 py-4 font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
                   >
                     {locale === "ro" ? "Începe să planifici aici →" : "Start Planning Here →"}
-                  </Link>
+                  </button>
                   <p className="text-xs text-text-muted text-center">
-                    {locale === "ro" ? "Gratuit · Fără cont necesar" : "Free · No account required"}
+                    {locale === "ro" ? "Necesită cont · Login rapid cu Google sau Facebook" : "Account required · Sign in with Google or Facebook"}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 text-sm space-y-3">
