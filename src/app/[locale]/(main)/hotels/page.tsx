@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { getHotelImage } from "@/lib/hotelImages";
 import { useCurrencyStore } from "@/stores/currencyStore";
 import type { NormalizedHotel } from "@/lib/supabase/types";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
 
 const POPULAR_CITIES: Array<[string, string]> = [
     ["PAR", "Paris"],
@@ -35,6 +37,8 @@ export default function HotelsPage() {
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [warning, setWarning] = useState("");
+    const { user } = useUser();
+    const openAuthModal = useAuthModalStore((s) => s.open);
 
     useEffect(() => {
         const checkIn = new Date();
@@ -65,6 +69,10 @@ export default function HotelsPage() {
     async function handleSearch(e: React.FormEvent) {
         e.preventDefault();
         if (!cityIata || !checkInDate || !checkOutDate) return;
+        if (!user) {
+            openAuthModal("login", `/${locale}/hotels`);
+            return;
+        }
 
         setLoading(true);
         setHasSearched(true);

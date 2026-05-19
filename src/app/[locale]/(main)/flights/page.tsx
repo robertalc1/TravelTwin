@@ -7,6 +7,8 @@ import { FlightResultCard } from "@/components/features/flights/FlightResultCard
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { Skeleton } from "@/components/ui/Skeleton";
 import type { NormalizedFlight } from "@/lib/supabase/types";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
 
 const FLIGHT_CLASS_OPTIONS = [
     { value: "", en: "All Classes", ro: "Toate clasele" },
@@ -43,6 +45,8 @@ export default function FlightsPage() {
     const [hasSearched, setHasSearched] = useState(false);
     const [warning, setWarning] = useState("");
     const [responseSource, setResponseSource] = useState<string>("");
+    const { user } = useUser();
+    const openAuthModal = useAuthModalStore((s) => s.open);
 
     useEffect(() => {
         const d = new Date();
@@ -62,6 +66,10 @@ export default function FlightsPage() {
     async function handleSearch(e: React.FormEvent) {
         e.preventDefault();
         if (!originIata || !destIata || !departureDate) return;
+        if (!user) {
+            openAuthModal("login", `/${locale}/flights`);
+            return;
+        }
 
         setLoading(true);
         setHasSearched(true);

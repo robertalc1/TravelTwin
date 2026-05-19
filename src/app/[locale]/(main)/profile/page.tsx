@@ -567,16 +567,16 @@ function SettingRow({
                 aria-checked={checked}
                 onClick={onToggle}
                 className={cn(
-                    "relative h-7 w-12 rounded-full transition-all duration-200 shrink-0 border",
+                    "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/40 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-surface",
                     checked
-                        ? "bg-primary-500 border-primary-600 shadow-[0_0_0_3px_rgba(232,93,4,0.15)]"
-                        : "bg-neutral-300 dark:bg-neutral-800 border-neutral-400/40 dark:border-white/10"
+                        ? "bg-primary-500"
+                        : "bg-neutral-300 dark:bg-neutral-700"
                 )}
             >
                 <span
                     className={cn(
-                        "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md ring-1 ring-black/5 transition-transform duration-200",
-                        checked ? "translate-x-[1.5rem]" : "translate-x-0.5"
+                        "inline-block h-5 w-5 rounded-full bg-white shadow-sm ring-1 ring-black/5 transform transition-transform duration-200",
+                        checked ? "translate-x-[1.375rem]" : "translate-x-0.5"
                     )}
                 />
             </button>

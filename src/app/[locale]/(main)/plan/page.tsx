@@ -37,6 +37,8 @@ import {
 } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { useCurrencyStore } from "@/stores/currencyStore";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
 
 const BUDGET_CONFIG: Record<string, { min: number; max: number; step: number; presets: number[]; default: number }> = {
   EUR: { min: 150, max: 8000, step: 50,  presets: [150, 500, 1000, 2000, 3000, 5000, 8000], default: 800 },
@@ -169,6 +171,8 @@ export default function PlanPage() {
   const tCommon = useTranslations("common");
   const isRo = locale === "ro";
   const storeCurrency = useCurrencyStore((s) => s.currency);
+  const { user, loading: userLoading } = useUser();
+  const openAuthModal = useAuthModalStore((s) => s.open);
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(1);
   const [aiLoading, setAiLoading] = useState(false);
@@ -178,6 +182,12 @@ export default function PlanPage() {
 
   // Clear any stale error when component mounts (e.g. navigating back from results)
   useEffect(() => { setError(""); }, []);
+
+  // Auth gate — require sign-in before showing the planner.
+  useEffect(() => {
+    if (userLoading) return;
+    if (!user) openAuthModal("login", `/${locale}/plan`);
+  }, [user, userLoading, openAuthModal, locale]);
 
   // Sync currency/budget when Zustand persist hydrates (storeCurrency may start as EUR default)
   useEffect(() => {
@@ -240,6 +250,10 @@ export default function PlanPage() {
   }
 
   async function handleSubmit() {
+    if (!user) {
+      openAuthModal("login", `/${locale}/plan`);
+      return;
+    }
     setAiLoading(true);
     setLoadingStep(0);
     setLoadingProgress(0);
