@@ -266,8 +266,8 @@ export async function GET(
     }
 
     packages.sort((a, b) => a.totalPrice - b.totalPrice);
-    // Diversify so user doesn't see 18 destinations from the same region
-    const top = diversifyPackages(packages, 18); // up to 18 diverse deals (safety cap: 30)
+    // Diversify so user doesn't see 30 destinations from the same region
+    const top = diversifyPackages(packages, 30); // up to 30 diverse deals (safety cap: 30)
 
     // Generate AI content — top 3 get real AI, rest use fallback (cost optimization)
     const apiKey = process.env.ANTHROPIC_API_KEY;
