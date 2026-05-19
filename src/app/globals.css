@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* ──── Class-based dark mode (Tailwind v4 requires explicit opt-in) ──── */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ═══════════════════════════════════════════════
    TravelTwin Design Token System
    Vibrant Orange + Dark Navy
@@ -118,20 +121,20 @@
   --accent-600: #93C5FD;
   --accent-400: #3B82F6;
 
-  --background: #0B0F1A;
-  --surface: #151B2B;
-  --surface-elevated: #1C2438;
-  --surface-sunken: #070D19;
+  --background: #000000;
+  --surface: #0A0A0F;
+  --surface-elevated: #14141C;
+  --surface-sunken: #000000;
 
-  --text-primary: #F1F5F9;
-  --text-secondary: #94A3B8;
-  --text-tertiary: #64748B;
-  --text-muted: #475569;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --text-muted: #52525B;
 
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.03);
-  --border-emphasis: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(232, 93, 4, 0.5);
+  --border-default: rgba(255, 255, 255, 0.10);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-emphasis: rgba(255, 255, 255, 0.16);
+  --border-focus: rgba(232, 93, 4, 0.6);
 
   --success: #4ADE80;
   --warning: #FBBF24;

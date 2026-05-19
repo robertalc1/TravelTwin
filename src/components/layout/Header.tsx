@@ -123,7 +123,7 @@ export function Header() {
                             {loading ? (
                                 <div className={cn(
                                     "h-8 w-8 sm:h-9 sm:w-9 rounded-full animate-pulse",
-                                    isHome ? "bg-white/20" : "bg-neutral-100"
+                                    isHome ? "bg-white/20" : "bg-neutral-100 dark:bg-surface-elevated"
                                 )} />
                             ) : user ? (
                                 <AvatarMenu
