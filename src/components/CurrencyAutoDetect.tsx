@@ -7,10 +7,7 @@ import type { CurrencyCode } from "@/lib/currencyService";
 // Keys are lowercase full country names — what ip-api.com / ipapi.co return
 const COUNTRY_CURRENCY: Record<string, CurrencyCode> = {
   "romania": "RON",
-  "united kingdom": "GBP",
   "united states": "USD",
-  "switzerland": "CHF",
-  "sweden": "SEK",
 };
 
 // v2 forces re-detection for users who got the broken v1 (which always set EUR)

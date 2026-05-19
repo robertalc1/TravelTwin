@@ -4,15 +4,12 @@
  * make the first paint instant when the user navigates between pages.
  */
 
-export type CurrencyCode = "EUR" | "USD" | "RON" | "GBP" | "CHF" | "SEK";
+export type CurrencyCode = "EUR" | "USD" | "RON";
 
 export const CURRENCY_LIST: ReadonlyArray<{ code: CurrencyCode; symbol: string; label: string }> = [
   { code: "EUR", symbol: "€", label: "Euro" },
   { code: "USD", symbol: "$", label: "US Dollar" },
   { code: "RON", symbol: "lei", label: "Romanian Leu" },
-  { code: "GBP", symbol: "£", label: "British Pound" },
-  { code: "CHF", symbol: "CHF", label: "Swiss Franc" },
-  { code: "SEK", symbol: "kr", label: "Swedish Krona" },
 ];
 
 const STORAGE_KEY = "fx-rates-eur-base";
@@ -60,9 +57,6 @@ export const FALLBACK_RATES: Record<string, number> = {
   EUR: 1,
   USD: 1.08,
   RON: 4.97,
-  GBP: 0.86,
-  CHF: 0.97,
-  SEK: 11.4,
 };
 
 /**

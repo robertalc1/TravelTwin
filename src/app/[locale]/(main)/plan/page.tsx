@@ -42,9 +42,6 @@ const BUDGET_CONFIG: Record<string, { min: number; max: number; step: number; pr
   EUR: { min: 150, max: 8000, step: 50,  presets: [150, 500, 1000, 2000, 3000, 5000, 8000], default: 800 },
   USD: { min: 160, max: 8600, step: 50,  presets: [160, 540, 1080, 2160, 3240, 5400, 8600], default: 860 },
   RON: { min: 750, max: 40000, step: 250, presets: [750, 2500, 5000, 10000, 15000, 25000, 40000], default: 4000 },
-  GBP: { min: 130, max: 6800, step: 50,  presets: [130, 430, 860, 1700, 2600, 4300, 6800], default: 700 },
-  CHF: { min: 150, max: 7800, step: 50,  presets: [150, 490, 970, 1950, 2900, 4900, 7800], default: 780 },
-  SEK: { min: 1700, max: 88000, step: 500, presets: [1700, 5700, 11400, 22800, 34000, 57000, 88000], default: 9100 },
 };
 
 function formatBudget(amount: number, currency: string): string {
@@ -612,7 +609,7 @@ export default function PlanPage() {
 
                       {/* Currency selector */}
                       <div className="flex justify-center gap-3">
-                        {(["EUR", "USD", "RON", "GBP", "CHF", "SEK"] as const).map(c => (
+                        {(["EUR", "USD", "RON"] as const).map(c => (
                           <button
                             key={c}
                             onClick={() => {
