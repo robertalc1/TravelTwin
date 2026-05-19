@@ -195,6 +195,11 @@ export default function Home() {
               pkgs.forEach((pkg: any) => {
                 sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
               });
+              // Track currently-shown homepage destinations so /plan can skip them.
+              const iatas = pkgs
+                .map((p: any) => p?.destination?.iata)
+                .filter((c: unknown): c is string => typeof c === 'string');
+              sessionStorage.setItem('homepage_destinations', JSON.stringify(iatas));
             } catch { /* ignore storage errors */ }
           }
         }

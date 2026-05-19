@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
       priorities = [],
       destinationIata,
       destinationName,
+      excludeIatas = [],
       locale: rawLocale,
     } = body as {
       origin?: string;
@@ -153,8 +154,11 @@ export async function POST(req: NextRequest) {
       priorities?: string[];
       destinationIata?: string;
       destinationName?: string;
+      excludeIatas?: string[];
       locale?: string;
     };
+
+    const excludeSet = new Set((excludeIatas || []).map((c) => c.toUpperCase()));
 
     const locale: 'en' | 'ro' = rawLocale === 'ro' ? 'ro' : 'en';
 
@@ -178,7 +182,8 @@ export async function POST(req: NextRequest) {
     // Skips quota burn for repeated runs of the same wizard config.
     const sortedStyles = [...travelStyles].sort().join(',');
     const destSegment = destinationIata ? destinationIata.toUpperCase() : 'any';
-    const cacheKey = `planTrip:${locale}:${origin}:${destSegment}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}`;
+    const excludeKey = [...excludeSet].sort().join(',');
+    const cacheKey = `planTrip:${locale}:${origin}:${destSegment}:${departureDate}:${returnDate}:${Math.round(budgetEur)}:${totalAdults}:${sortedStyles}:${climate}:${excludeKey}`;
     const cached = await getCached(cacheKey);
     if (cached) {
       const cachedData = cached.data as { packages: TripPackage[]; total: number; mode?: string };
@@ -217,7 +222,14 @@ export async function POST(req: NextRequest) {
       .filter((r) => r.from === 'OTP' && r.to !== origin)
       .map((r) => destinationForIata(r.to))
       .filter((d): d is DestinationProfile => d !== null);
-    const candidates = dedupeByIata([...matched, ...commonFromOrigin, ...otpFallback]).slice(0, 25);
+    let candidates = dedupeByIata([...matched, ...commonFromOrigin, ...otpFallback]).slice(0, 25);
+    // Exclude destinations the user has already seen on the homepage (deals grid)
+    // so the AI planner surfaces fresh options. If exclusion would empty the
+    // pool, fall back to the full set rather than returning no results.
+    if (excludeSet.size > 0) {
+      const filtered = candidates.filter((c) => !excludeSet.has(c.iata.toUpperCase()));
+      if (filtered.length >= 3) candidates = filtered;
+    }
 
     if (candidates.length === 0) {
       return NextResponse.json({ error: 'No candidate destinations available' }, { status: 400 });

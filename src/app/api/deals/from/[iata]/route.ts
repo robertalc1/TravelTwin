@@ -265,6 +265,14 @@ export async function GET(
         packages = [...packages, ...otpFallbacks];
     }
 
+    // Variety boost: shuffle the candidate pool so each cache-miss returns
+    // a different subset of destinations. With ~60-80 raw candidates and a
+    // target of 30, we first pick a random subset of 50 (or all if fewer),
+    // then sort+diversify. The cheapest of the subset still wins the top
+    // slot, but which "cheapest" depends on which 50 got picked → real
+    // rotation on every cache refresh (60min TTL).
+    const SUBSET_SIZE = 50;
+    packages = shuffleArray(packages).slice(0, SUBSET_SIZE);
     packages.sort((a, b) => a.totalPrice - b.totalPrice);
     // Diversify so user doesn't see 30 destinations from the same region
     const top = diversifyPackages(packages, 30); // up to 30 diverse deals (safety cap: 30)

@@ -275,6 +275,17 @@ export default function PlanPage() {
       });
     }, 70);
 
+    // Pull destinations the user already saw on the homepage so the AI
+    // planner surfaces fresh ones instead of repeating those tiles.
+    let excludeIatas: string[] = [];
+    try {
+      const raw = sessionStorage.getItem("homepage_destinations");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) excludeIatas = parsed.filter((c): c is string => typeof c === "string");
+      }
+    } catch { /* ignore */ }
+
     try {
       const isSpecific = state.destinationMode === "specific" && !!state.destinationIata;
       const res = await fetch("/api/ai/plan-trip", {
@@ -293,6 +304,7 @@ export default function PlanPage() {
           priorities: state.priorities,
           destinationIata: isSpecific ? state.destinationIata : undefined,
           destinationName: isSpecific ? state.destinationDisplay : undefined,
+          excludeIatas: isSpecific ? undefined : excludeIatas,
           locale,
         }),
       });
