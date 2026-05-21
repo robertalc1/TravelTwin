@@ -92,11 +92,11 @@ const FEATURE_CARDS: FeatureCard[] = [
     icon: Plane,
     en: {
       title: "Live flights & hotels",
-      description: "Prices fetched in real time from the Amadeus GDS — no stale data, no surprises at checkout.",
+      description: "Prices fetched in real time from Tripadvisor — no stale data, no surprises at checkout.",
     },
     ro: {
       title: "Zboruri și hoteluri live",
-      description: "Prețuri preluate în timp real din Amadeus GDS — fără date învechite, fără surprize la checkout.",
+      description: "Prețuri preluate în timp real de la Tripadvisor — fără date învechite, fără surprize la checkout.",
     },
   },
   {

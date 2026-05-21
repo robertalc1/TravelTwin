@@ -3,7 +3,7 @@ import { useLocale } from 'next-intl'
 
 const MESSAGES_EN = [
   'Searching 50+ airlines for the best deals',
-  'Checking flights from Amadeus',
+  'Checking live flights on Tripadvisor',
   'Comparing prices in real-time',
   'Finding hidden gems for your trip',
   'Almost there, finalizing results',
@@ -11,7 +11,7 @@ const MESSAGES_EN = [
 
 const MESSAGES_RO = [
   'Caut peste 50 de companii aeriene pentru cele mai bune oferte',
-  'Verific zborurile din Amadeus',
+  'Verific zborurile live pe Tripadvisor',
   'Compar prețuri în timp real',
   'Găsesc comori ascunse pentru călătoria ta',
   'Aproape gata, finalizez rezultatele',

@@ -213,8 +213,8 @@ export default function FlightsPage() {
                     <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                         {isRo
-                            ? "Prețurile afișate provin din mediul de test Amadeus și pot să nu reflecte prețurile actuale ale pieței."
-                            : "Prices shown are from the Amadeus test environment and may not reflect current market prices."}
+                            ? "Prețurile afișate sunt preluate live de la Tripadvisor (RapidAPI) și se actualizează la fiecare căutare."
+                            : "Prices shown are pulled live from Tripadvisor (RapidAPI) and refresh on every search."}
                     </div>
                 )}
 
