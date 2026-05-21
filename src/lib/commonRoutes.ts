@@ -99,7 +99,6 @@ export const COMMON_ROUTES: CommonRoute[] = [
   { from: 'CLJ', to: 'HER', airlines: ['W6'], avgPrice: 89, currency: 'EUR' },
   // Routes from CND (Constanța) — small airport, mostly seasonal
   { from: 'CND', to: 'IST', airlines: ['TK'], avgPrice: 89, currency: 'EUR' },
-  { from: 'CND', to: 'OTP', airlines: ['RO'], avgPrice: 49, currency: 'EUR' },
   // Extended TSR routes (Timișoara)
   { from: 'TSR', to: 'BUD', airlines: ['W6'], avgPrice: 29, currency: 'EUR' },
   { from: 'TSR', to: 'PRG', airlines: ['W6'], avgPrice: 39, currency: 'EUR' },
