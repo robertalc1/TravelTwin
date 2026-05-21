@@ -6,6 +6,13 @@ import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata } from '@/lib/iataMapping';
 import type { NormalizedFlight } from '@/lib/supabase/types';
 
+/** Format an OD pair as user-facing city names, with the IATA codes only as
+ *  fallback when we don't have a city mapping. */
+function fmtCity(iata: string): string {
+  const city = getCityFromIata(iata);
+  return city && city !== iata ? city : iata;
+}
+
 // Never edge-cache — flight prices change minute-to-minute upstream.
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -164,7 +171,7 @@ export async function GET(request: Request) {
     } else if (lastError) {
       warning = `Tripadvisor request failed: ${lastError}`;
     } else if (cumulativeRawCount === 0) {
-      warning = `Tripadvisor has no flights for ${origin} → ${destination} on ${departureDate} (or ±2 days). The route may not have commercial service. See available routes from ${origin} below.`;
+      warning = `Tripadvisor has no flights for ${fmtCity(origin)} → ${fmtCity(destination)} on ${departureDate} (or ±2 days). The route may not have commercial service. See available routes from ${fmtCity(origin)} below.`;
     } else {
       warning = `${cumulativeRawCount} flights came back across attempts but none had a usable price. Tripadvisor's purchase links are missing for this route. Try a different date.`;
     }

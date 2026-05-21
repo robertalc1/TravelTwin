@@ -126,22 +126,22 @@ function FlightsPageContent() {
             .then((r) => r.json())
             .then((data: { packages?: DealPackage[] }) => {
                 if (cancelled) return;
-                setEmptyDeals((data.packages || []).slice(0, 12));
+                const pkgs = (data.packages || []).slice(0, 12);
+                setEmptyDeals(pkgs);
+                // Persist full packages so TripCard's default click handler
+                // can hydrate /plan/trip/[id] via sessionStorage — same
+                // pattern the homepage uses to avoid a dead-end click that
+                // would otherwise trigger a fresh, often-empty flight search.
+                for (const pkg of pkgs) {
+                    try {
+                        sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
+                    } catch { /* sessionStorage full / unavailable */ }
+                }
             })
             .catch(() => { if (!cancelled) setEmptyDeals([]); })
             .finally(() => { if (!cancelled) setEmptyDealsLoading(false); });
         return () => { cancelled = true; };
     }, [hasUrlSearch, originIata, user]);
-
-    function buildFlightHref(pkg: DealPackage): string {
-        const qs = new URLSearchParams({
-            from: originIata,
-            to: pkg.destination.iata,
-            departureDate: pkg.hotel?.checkIn || departureDate,
-        });
-        if (pkg.hotel?.checkOut) qs.set("returnDate", pkg.hotel.checkOut);
-        return `/${locale}/flights?${qs.toString()}`;
-    }
 
     function handleSearch(e: React.FormEvent) {
         e.preventDefault();
@@ -334,7 +334,6 @@ function FlightsPageContent() {
                                     isDirect={pkg.flight?.stops === 0}
                                     travelers={1}
                                     badge={i === 0 ? (isRo ? "Cel mai ieftin" : "Cheapest") : undefined}
-                                    viewDealHref={buildFlightHref(pkg)}
                                 />
                             ))}
                         </div>
@@ -495,7 +494,7 @@ function ResultsSection(props: {
             <div className="flex items-center justify-between mb-6">
                 <div className="min-w-0 flex-1">
                     <h2 className="text-2xl font-bold text-text-primary truncate">
-                        {origin} → {destination}
+                        {getCityFromIata(origin)} → {getCityFromIata(destination)}
                     </h2>
                     <p className="text-xs text-text-muted mt-1">
                         {loading
@@ -633,8 +632,8 @@ function ResultsSection(props: {
                                 <div className="mt-8 max-w-2xl mx-auto">
                                     <p className="text-sm font-semibold text-text-primary mb-3">
                                         {isRo
-                                            ? `Rute disponibile din ${origin} pe ${departureDate}:`
-                                            : `Routes available from ${origin} on ${departureDate}:`}
+                                            ? `Rute disponibile din ${getCityFromIata(origin)} pe ${departureDate}:`
+                                            : `Routes available from ${getCityFromIata(origin)} on ${departureDate}:`}
                                     </p>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {suggestions.map((s) => {
@@ -647,10 +646,10 @@ function ResultsSection(props: {
                                                 >
                                                     <div>
                                                         <div className="font-semibold text-sm text-text-primary">
-                                                            {s.origin} → {s.destination}
+                                                            {getCityFromIata(s.origin)} → {s.destinationCity}
                                                         </div>
                                                         <div className="text-xs text-text-muted mt-0.5">
-                                                            {s.destinationCity} · {s.airlineName}
+                                                            {s.airlineName}
                                                         </div>
                                                     </div>
                                                     <div className="text-base font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap">
