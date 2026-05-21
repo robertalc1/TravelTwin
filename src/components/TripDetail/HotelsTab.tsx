@@ -37,7 +37,7 @@ export default function HotelsTab({
       checkOut: checkOutDate,
     });
     if (tripId) qs.set('tripId', tripId);
-    router.push(`/hotels?${qs.toString()}`);
+    router.push(`/hotels/search?${qs.toString()}`);
   }
 
   function openSelectedHotel() {
