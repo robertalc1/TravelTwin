@@ -221,14 +221,14 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   const itineraryType = p.returnDate ? 'ROUND_TRIP' : 'ONE_WAY';
   const classOfService = (p.travelClass || 'ECONOMY').toUpperCase();
 
-  // Param set matches the Tripadvisor16 PRO playground sample curl exactly.
+  // Param set matches the Tripadvisor16 PRO playground sample curl.
   // `nearby=yes` / `nonstop=yes` are INCLUSIVE hints (include nearby
-  // airports + non-stop flights as candidates), not restrictive filters —
-  // omitting them or setting them to 'no' yields a smaller result set.
-  // `region` is a routing hint that pairs with currencyCode — without it,
-  // requests for some OD pairs (e.g. CND → OTP) hang on the Tripadvisor
-  // backend for the full 15s wrapper timeout. UI filters (direct / max-1
-  // stop) stay client-side so we never under-fetch.
+  // airports + non-stop flights as candidates), not restrictive filters.
+  // `region` is INTENTIONALLY OMITTED — the docs example uses 'USA' but
+  // we don't know the canonical EU value; sending 'EUR' produced no
+  // results and 'USA' would obviously route wrong. Without it Tripadvisor
+  // falls back to a default region which appears to handle EU OD pairs
+  // fine. UI filters (direct / max-1 stop) stay client-side.
   const params: Record<string, string | number> = {
     sourceAirportCode: p.origin.toUpperCase(),
     destinationAirportCode: p.destination.toUpperCase(),
@@ -242,7 +242,6 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
     nearby: 'yes',
     nonstop: 'yes',
     currencyCode: 'EUR',
-    region: 'EUR',
   };
   if (p.returnDate) params.returnDate = p.returnDate;
 

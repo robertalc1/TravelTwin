@@ -204,11 +204,12 @@ export async function GET(request: Request) {
       console.warn('[Flights] getFilters pre-flight failed, proceeding to searchFlights:', (err as Error)?.message);
     }
 
-    // Try the requested date first, then ±1, ±2 day expansions in case
-    // Tripadvisor genuinely has no inventory on the exact date. We stop the
-    // moment any attempt yields normalized flights. Max 5 serial attempts
-    // x ~3s typical = well under Vercel's 60s budget.
-    const dateOffsets = [0, 1, -1, 2, -2];
+    // Try the requested date, then progressively wider ±N day expansions.
+    // Stop the moment any attempt yields normalized flights. Each attempt is
+    // ~3-5s typical; we cap by aborting the chain on the first timeout /
+    // rate-limit error so we stay under Vercel's 60s budget even in the
+    // worst case (we'd hit at most ~3-4 timeouts before the abort triggers).
+    const dateOffsets = [0, 1, -1, 2, -2, 3, -3, 5, -5, 7];
     for (const offset of dateOffsets) {
       const tryDate = offset === 0 ? departureDate : addDays(departureDate, offset);
       try {

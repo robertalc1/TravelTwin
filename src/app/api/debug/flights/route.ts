@@ -17,11 +17,13 @@ const TA_HOST = 'tripadvisor16.p.rapidapi.com';
 
 interface ProbeResult {
   itineraryType: 'ONE_WAY' | 'ROUND_TRIP';
+  requestUrl: string;
   httpStatus: number;
   flightsCount: number;
   firstFlightHasPurchaseLinks: boolean;
   firstFlightPurchaseSample: unknown;
   bodyPreview: string;
+  responseKeys: string[];
   error: string | null;
 }
 
@@ -49,15 +51,17 @@ async function probe(
   url.searchParams.set('nearby', 'yes');
   url.searchParams.set('nonstop', 'yes');
   url.searchParams.set('currencyCode', 'EUR');
-  url.searchParams.set('region', 'EUR');
+  // region intentionally omitted — production wrapper also omits it
 
   const out: ProbeResult = {
     itineraryType,
+    requestUrl: url.toString(),
     httpStatus: 0,
     flightsCount: 0,
     firstFlightHasPurchaseLinks: false,
     firstFlightPurchaseSample: null,
     bodyPreview: '',
+    responseKeys: [],
     error: null,
   };
 
@@ -68,17 +72,25 @@ async function probe(
     });
     out.httpStatus = res.status;
     const bodyText = await res.text();
-    out.bodyPreview = bodyText.slice(0, 500);
+    out.bodyPreview = bodyText.slice(0, 800);
 
     let parsed: unknown = null;
     try { parsed = JSON.parse(bodyText); } catch { /* keep null */ }
 
     if (parsed && typeof parsed === 'object') {
       const root = parsed as Record<string, unknown>;
+      out.responseKeys = Object.keys(root).slice(0, 30);
       const data =
         root.data && typeof root.data === 'object'
           ? (root.data as Record<string, unknown>)
           : root;
+      // Also include nested data keys, so we can see what's INSIDE `data`.
+      if (isRecord(root.data)) {
+        const dataKeys = Object.keys(root.data as Record<string, unknown>)
+          .slice(0, 30)
+          .map((k) => `data.${k}`);
+        out.responseKeys = [...out.responseKeys, ...dataKeys];
+      }
       const flights = Array.isArray(data.flights) ? data.flights : [];
       out.flightsCount = flights.length;
       if (flights[0] && typeof flights[0] === 'object') {
@@ -92,6 +104,10 @@ async function probe(
     out.error = (e as Error).message;
   }
   return out;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
 export async function GET(request: Request) {
@@ -117,10 +133,11 @@ export async function GET(request: Request) {
   const destination = (searchParams.get('destination') || 'LHR').toUpperCase();
   const date = searchParams.get('date') || defaultDep.toISOString().split('T')[0];
 
-  // Opt-in dual probe: default to ONE_WAY only so each debug hit costs ONE
-  // RapidAPI call (not two). Pass ?probeBoth=1 when you specifically need to
-  // confirm the Tripadvisor16 ONE_WAY-empty-but-ROUND_TRIP-OK quirk.
-  const probeBoth = searchParams.get('probeBoth') === '1';
+  // Default behavior changed: dual probe is now the DEFAULT (2 quota slots
+  // per hit) because the production wrapper always uses ROUND_TRIP — we need
+  // to see both shapes to debug effectively. Opt out with ?probeBoth=0 if
+  // you need to save a quota slot.
+  const probeBoth = searchParams.get('probeBoth') !== '0';
 
   const returnDate = new Date(date + 'T00:00:00Z');
   returnDate.setUTCDate(returnDate.getUTCDate() + 7);
