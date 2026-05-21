@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { Heart, Plane } from "lucide-react";
 import { getCityImageByIata } from "@/lib/cityImages";
+import { resolveCoordsForCity } from "@/lib/tripDetail";
 import type { ChatDeal } from "@/app/api/chat/route";
 
 type ChatDealCardProps = {
@@ -33,6 +35,7 @@ function formatPrice(amount: number, currency: string) {
 
 export function ChatDealCard({ deal }: ChatDealCardProps) {
   const router = useRouter();
+  const locale = useLocale();
   const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -41,21 +44,45 @@ export function ChatDealCard({ deal }: ChatDealCardProps) {
     "https://images.unsplash.com/photo-1488085061387-422e29b40080?w=600&h=300&fit=crop&q=80";
 
   function handleViewDeal() {
+    const [lat, lon] = resolveCoordsForCity(deal.city);
+    // Store in TripPackage (nested) shape so BOTH /trips/[id] and
+    // /plan/trip/[id]/* pages can parse it. Without nested destination,
+    // the map sub-page fails packageToTripDetail and bounces to home.
     sessionStorage.setItem(
       `trip_${deal.id}`,
       JSON.stringify({
-        destinationCode: deal.destination,
-        destinationCity: deal.city,
-        destinationCountry: deal.country,
+        id: deal.id,
+        destination: {
+          iata: deal.destination,
+          city: deal.city,
+          country: deal.country,
+          latitude: lat,
+          longitude: lon,
+        },
         nights: deal.days,
-        departureDate: deal.departureDate,
-        returnDate: deal.returnDate,
         currency: deal.currency,
         totalPrice: deal.price,
-        stops: 1,
+        flight: {
+          airline: "",
+          airlineCode: "",
+          price: 0,
+          departureTime: `${deal.departureDate}T00:00:00`,
+          arrivalTime: `${deal.departureDate}T00:00:00`,
+          duration: "",
+          stops: deal.isDirect ? 0 : 1,
+        },
+        hotel: {
+          name: "",
+          stars: 3,
+          price: 0,
+          pricePerNight: 0,
+          checkIn: deal.departureDate,
+          checkOut: deal.returnDate,
+        },
+        aiContent: null,
       })
     );
-    router.push(`/trips/${deal.id}`);
+    router.push(`/${locale}/trips/${deal.id}`);
   }
 
   return (
