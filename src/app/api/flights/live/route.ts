@@ -5,6 +5,10 @@ import { getCached, setCache } from '@/lib/cache';
 import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
 import type { NormalizedFlight } from '@/lib/supabase/types';
 
+// Never edge-cache — flight prices change minute-to-minute upstream.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   // Diagnostic — boots show whether the key is configured + which route is
   // being queried. Never logs the key itself.

@@ -12,6 +12,10 @@ import { createClient } from '@/lib/supabase/server';
 import { searchFlights, extractFlightPrice } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 
+// Never edge-cache this — diagnostic must always reflect live upstream state.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const TA_HOST = 'tripadvisor16.p.rapidapi.com';
 
 export async function GET(request: Request) {
