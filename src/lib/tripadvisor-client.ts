@@ -194,6 +194,10 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   const itineraryType = p.returnDate ? 'ROUND_TRIP' : 'ONE_WAY';
   const classOfService = (p.travelClass || 'ECONOMY').toUpperCase();
 
+  // Param set verified against the Tripadvisor16 PRO playground sample curl —
+  // numSeniors / nearby / nonstop / pageNumber are all required for the
+  // endpoint to consistently return results. Missing any of them sometimes
+  // gives an empty flights[] back instead of a 400.
   const params: Record<string, string | number> = {
     sourceAirportCode: p.origin.toUpperCase(),
     destinationAirportCode: p.destination.toUpperCase(),
@@ -201,8 +205,11 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
     itineraryType,
     sortOrder: 'ML_BEST_VALUE',
     numAdults: p.adults || '1',
+    numSeniors: '0',
     classOfService,
     pageNumber: 1,
+    nearby: 'no',
+    nonstop: 'no',
     currencyCode: 'EUR',
   };
   if (p.returnDate) params.returnDate = p.returnDate;
