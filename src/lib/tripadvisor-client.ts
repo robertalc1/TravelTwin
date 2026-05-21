@@ -386,46 +386,26 @@ export async function getFlightFilters(p: {
     classOfService: (p.classOfService || 'ECONOMY').toUpperCase(),
   });
 
-  const out: TAFlightFilters = { airlines: [], stops: [], hasResults: false };
-  if (!isRecord(raw)) return out;
+  const out: TAFlightFilters = { airlines: [], stops: [], hasResults: true };
+
+  if (!isRecord(raw)) {
+    out.hasResults = false;
+    return out;
+  }
   const data = isRecord(raw.data) ? (raw.data as Record<string, unknown>) : raw;
+  const keys = Object.keys(data);
 
-  // Tripadvisor's filter response groups options under different keys
-  // across versions: `airlines`, `marketingAirlines`, `filters.airlines`.
-  // We try each known location and take the first non-empty one.
-  const airlineCandidates: unknown[] = [
-    data.airlines,
-    data.marketingAirlines,
-    isRecord(data.filters) ? (data.filters as Record<string, unknown>).airlines : null,
-  ];
-  for (const c of airlineCandidates) {
-    const arr = asArray(c);
-    if (arr.length === 0) continue;
-    for (const a of arr) {
-      if (!isRecord(a)) continue;
-      const code = asString(a.code) || asString(a.airlineCode) || asString(a.iata);
-      const name = asString(a.name) || asString(a.displayName) || code;
-      if (code) out.airlines.push({ code, name });
-    }
-    break;
+  // We don't yet know the canonical Tripadvisor16 shape for the filter
+  // response (the field names we tried — airlines/marketingAirlines/stops
+  // — gave false negatives on real routes like OTP→IST). Until we map the
+  // shape correctly, treat ANY non-empty payload as "route is indexed" and
+  // only flag false when the response is literally empty. The raw key list
+  // is logged so we can iterate the parser based on real production data.
+  if (keys.length === 0) {
+    out.hasResults = false;
+  } else {
+    console.log(`[getFlightFilters] ${p.origin}->${p.destination} response keys:`, keys.slice(0, 20));
   }
-
-  const stopCandidates: unknown[] = [
-    data.stops,
-    data.stopCounts,
-    isRecord(data.filters) ? (data.filters as Record<string, unknown>).stops : null,
-  ];
-  for (const c of stopCandidates) {
-    const arr = asArray(c);
-    if (arr.length === 0) continue;
-    for (const s of arr) {
-      if (typeof s === 'number') out.stops.push(s);
-      else if (isRecord(s) && typeof s.value === 'number') out.stops.push(s.value);
-    }
-    break;
-  }
-
-  out.hasResults = out.airlines.length > 0 || out.stops.length > 0;
   return out;
 }
 
