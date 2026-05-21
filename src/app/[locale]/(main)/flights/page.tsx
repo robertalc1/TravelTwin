@@ -10,9 +10,30 @@ import {
 import { FlightResultCard } from "@/components/features/flights/FlightResultCard";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TripCard } from "@/components/results/TripCard";
 import type { NormalizedFlight } from "@/lib/supabase/types";
 import { useUser } from "@/hooks/useUser";
+import { useUserLocation } from "@/hooks/useUserLocation";
 import { useAuthModalStore } from "@/stores/authModalStore";
+import { getCityFromIata } from "@/lib/iataMapping";
+import { getCityImageByIata } from "@/lib/cityImages";
+
+/** Build a friendly "City (CODE)" display label for an IATA code. */
+function iataToDisplay(iata: string): string {
+    if (!iata) return "";
+    const city = getCityFromIata(iata);
+    return city && city !== iata ? `${city} (${iata})` : iata;
+}
+
+interface DealPackage {
+    id: string;
+    destination: { iata: string; city: string };
+    nights: number;
+    totalPrice: number;
+    currency: string;
+    flight: { stops: number } | null;
+    hotel: { checkIn: string; checkOut: string } | null;
+}
 
 const FLIGHT_CLASS_OPTIONS = [
     { value: "", en: "All Classes", ro: "Toate clasele" },
@@ -22,24 +43,6 @@ const FLIGHT_CLASS_OPTIONS = [
     { value: "FIRST", en: "First Class", ro: "First Class" },
 ];
 
-// Routes confirmed to have multi-carrier coverage on Tripadvisor16 RapidAPI.
-// Each one is served by at least 2 major airlines year-round so search
-// reliably returns results — picked from src/lib/commonRoutes.ts.
-const POPULAR_ROUTES: Array<[string, string, string]> = [
-    ["OTP", "LHR", "Bucharest → London"],
-    ["OTP", "CDG", "Bucharest → Paris"],
-    ["OTP", "FCO", "Bucharest → Rome"],
-    ["OTP", "BCN", "Bucharest → Barcelona"],
-    ["OTP", "MAD", "Bucharest → Madrid"],
-    ["OTP", "AMS", "Bucharest → Amsterdam"],
-    ["OTP", "MUC", "Bucharest → Munich"],
-    ["OTP", "VIE", "Bucharest → Vienna"],
-    ["OTP", "IST", "Bucharest → Istanbul"],
-    ["OTP", "ATH", "Bucharest → Athens"],
-    ["OTP", "DXB", "Bucharest → Dubai"],
-    ["LHR", "JFK", "London → New York"],
-];
-
 function FlightsPageContent() {
     const router = useRouter();
     const search = useSearchParams();
@@ -47,17 +50,32 @@ function FlightsPageContent() {
     const t = useTranslations("flights");
     const isRo = locale === "ro";
 
-    // Form state seeded from URL so back/share/refresh preserve the query.
-    const [originIata, setOriginIata] = useState(search.get("from") || "");
-    const [originDisplay, setOriginDisplay] = useState(search.get("from") || "");
-    const [destIata, setDestIata] = useState(search.get("to") || "");
-    const [destDisplay, setDestDisplay] = useState(search.get("to") || "");
+    // Form state — initial values hydrate the IATA code to a friendly
+    // "City (CODE)" display so deep-linked URLs don't show raw codes.
+    const initialFrom = search.get("from") || "";
+    const initialTo = search.get("to") || "";
+    const [originIata, setOriginIata] = useState(initialFrom);
+    const [originDisplay, setOriginDisplay] = useState(iataToDisplay(initialFrom));
+    const [destIata, setDestIata] = useState(initialTo);
+    const [destDisplay, setDestDisplay] = useState(iataToDisplay(initialTo));
     const [departureDate, setDepartureDate] = useState(search.get("departureDate") || "");
     const [returnDate, setReturnDate] = useState(search.get("returnDate") || "");
     const [flightClass, setFlightClass] = useState(search.get("travelClass") || "");
 
     const { user } = useUser();
     const openAuthModal = useAuthModalStore((s) => s.open);
+    const { iataCode: detectedIata, airportCity: detectedCity, isLoading: locLoading } = useUserLocation();
+
+    // Pre-fill origin with the user's IP-detected airport on cold loads so
+    // the empty state can render real "deals from your city" cards without
+    // forcing them to type anything (mirrors homepage behavior).
+    useEffect(() => {
+        if (locLoading) return;
+        if (originIata) return;
+        if (!detectedIata) return;
+        setOriginIata(detectedIata);
+        setOriginDisplay(`${detectedCity || getCityFromIata(detectedIata)} (${detectedIata})`);
+    }, [locLoading, detectedIata, detectedCity, originIata]);
 
     // Default departure date when not in URL — 7 days from today.
     useEffect(() => {
@@ -76,17 +94,54 @@ function FlightsPageContent() {
         const qsCls = search.get("travelClass") || "";
         if (qsFrom && qsFrom !== originIata) {
             setOriginIata(qsFrom);
-            setOriginDisplay(qsFrom);
+            setOriginDisplay(iataToDisplay(qsFrom));
         }
         if (qsTo && qsTo !== destIata) {
             setDestIata(qsTo);
-            setDestDisplay(qsTo);
+            setDestDisplay(iataToDisplay(qsTo));
         }
         if (qsDep && qsDep !== departureDate) setDepartureDate(qsDep);
         if (qsRet !== returnDate) setReturnDate(qsRet);
         if (qsCls !== flightClass) setFlightClass(qsCls);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [search]);
+
+    // ── Empty-state deals from origin ──────────────────────────────────
+    // When the user lands without a destination picked, show the same
+    // homepage-style grid of real Tripadvisor packages departing from
+    // their origin city. Card click navigates back to /flights with the
+    // route preselected so the user stays in the flights flow.
+    const [emptyDeals, setEmptyDeals] = useState<DealPackage[]>([]);
+    const [emptyDealsLoading, setEmptyDealsLoading] = useState(false);
+    const hasUrlSearch =
+        !!search.get("from") && !!search.get("to") && !!search.get("departureDate");
+
+    useEffect(() => {
+        if (hasUrlSearch) return;
+        if (!originIata) return;
+        if (!user) return; // /api/deals requires auth
+        let cancelled = false;
+        setEmptyDealsLoading(true);
+        fetch(`/api/deals/from/${originIata}`)
+            .then((r) => r.json())
+            .then((data: { packages?: DealPackage[] }) => {
+                if (cancelled) return;
+                setEmptyDeals((data.packages || []).slice(0, 12));
+            })
+            .catch(() => { if (!cancelled) setEmptyDeals([]); })
+            .finally(() => { if (!cancelled) setEmptyDealsLoading(false); });
+        return () => { cancelled = true; };
+    }, [hasUrlSearch, originIata, user]);
+
+    function buildFlightHref(pkg: DealPackage): string {
+        const qs = new URLSearchParams({
+            from: originIata,
+            to: pkg.destination.iata,
+            departureDate: pkg.hotel?.checkIn || departureDate,
+        });
+        if (pkg.hotel?.checkOut) qs.set("returnDate", pkg.hotel.checkOut);
+        return `/${locale}/flights?${qs.toString()}`;
+    }
 
     function handleSearch(e: React.FormEvent) {
         e.preventDefault();
@@ -144,7 +199,7 @@ function FlightsPageContent() {
                                     setOriginIata(code);
                                     setOriginDisplay(display);
                                 }}
-                                placeholder={isRo ? "Oraș sau aeroport" : "City or airport"}
+                                placeholder={isRo ? "București, Cluj, Constanța..." : "Bucharest, Cluj, Constanța..."}
                                 icon="origin"
                             />
                         </div>
@@ -158,7 +213,7 @@ function FlightsPageContent() {
                                     setDestIata(code);
                                     setDestDisplay(display);
                                 }}
-                                placeholder={isRo ? "Oraș sau aeroport" : "City or airport"}
+                                placeholder={isRo ? "Londra, Paris, Istanbul..." : "London, Paris, Istanbul..."}
                                 icon="destination"
                             />
                         </div>
@@ -235,37 +290,71 @@ function FlightsPageContent() {
                     travelClass={search.get("travelClass") || ""}
                 />
             ) : (
-                <div className="mx-auto max-w-[1280px] px-4 py-12 lg:px-8">
-                    <div className="text-center">
-                        <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
-                            <Plane className="h-8 w-8 text-primary-500" />
+                <div className="mx-auto max-w-[1280px] px-4 py-10 lg:px-8">
+                    {originIata && (
+                        <div className="mb-6">
+                            <h2 className="text-2xl font-extrabold text-text-primary">
+                                {isRo
+                                    ? `Cele mai ieftine zboruri din ${getCityFromIata(originIata)}`
+                                    : `Cheapest flights from ${getCityFromIata(originIata)}`}
+                            </h2>
+                            <p className="text-sm text-text-muted mt-1">
+                                {isRo
+                                    ? "Rute reale găsite live pe Tripadvisor — apasă pe orice card să vezi zborurile disponibile."
+                                    : "Live routes from Tripadvisor — click any card to see available flights."}
+                            </p>
                         </div>
-                        <h2 className="text-xl font-bold text-text-primary mb-2">
-                            {isRo ? "Unde vrei să zbori?" : "Where would you like to fly?"}
-                        </h2>
-                        <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
-                            {isRo
-                                ? "Alege plecarea și destinația de mai sus și apasă căutare — afișăm prețuri live cu filtre după preț, escale și durată."
-                                : "Pick departure and destination above and press search — we show live prices with filters for price, stops and duration."}
-                        </p>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                            {POPULAR_ROUTES.map(([from, to, label]) => (
-                                <button
-                                    key={label}
-                                    type="button"
-                                    onClick={() => {
-                                        setOriginIata(from);
-                                        setOriginDisplay(from);
-                                        setDestIata(to);
-                                        setDestDisplay(to);
-                                    }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
-                                >
-                                    {label}
-                                </button>
+                    )}
+
+                    {emptyDealsLoading && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {[1, 2, 3, 4, 5, 6].map((i) => (
+                                <Skeleton key={i} className="h-72 rounded-xl" />
                             ))}
                         </div>
-                    </div>
+                    )}
+
+                    {!emptyDealsLoading && emptyDeals.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {emptyDeals.map((pkg, i) => (
+                                <TripCard
+                                    key={pkg.id}
+                                    id={pkg.id}
+                                    destination={pkg.destination.iata}
+                                    destinationCity={pkg.destination.city}
+                                    origin={originIata}
+                                    originCity={getCityFromIata(originIata)}
+                                    imageUrl={getCityImageByIata(pkg.destination.iata)}
+                                    days={pkg.nights}
+                                    departureDate={pkg.hotel?.checkIn || ""}
+                                    returnDate={pkg.hotel?.checkOut || ""}
+                                    originalPrice={Math.round(pkg.totalPrice * 1.25)}
+                                    discountedPrice={pkg.totalPrice}
+                                    currency={pkg.currency}
+                                    isDirect={pkg.flight?.stops === 0}
+                                    travelers={1}
+                                    badge={i === 0 ? (isRo ? "Cel mai ieftin" : "Cheapest") : undefined}
+                                    viewDealHref={buildFlightHref(pkg)}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {!emptyDealsLoading && emptyDeals.length === 0 && (
+                        <div className="text-center py-12">
+                            <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
+                                <Plane className="h-8 w-8 text-primary-500" />
+                            </div>
+                            <h3 className="text-lg font-bold text-text-primary mb-2">
+                                {isRo ? "Unde vrei să zbori?" : "Where would you like to fly?"}
+                            </h3>
+                            <p className="text-sm text-text-muted max-w-md mx-auto">
+                                {isRo
+                                    ? "Scrie numele orașului de plecare și al destinației în câmpurile de mai sus (ex. București, Londra, Istanbul) și apasă căutare."
+                                    : "Type the city you're leaving from and your destination above (e.g. Bucharest, London, Istanbul) and press search."}
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
