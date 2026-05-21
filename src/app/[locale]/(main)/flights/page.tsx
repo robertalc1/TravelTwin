@@ -483,7 +483,13 @@ function ResultsSection(props: {
                         : "Cached results (last 30 min)."}
                 </div>
             )}
-            {warning && (
+            {warning && responseSource === "route_not_indexed" && (
+                <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    {warning}
+                </div>
+            )}
+            {warning && responseSource !== "route_not_indexed" && (
                 <div className="mb-4 flex items-start gap-3 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
                     <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                     {warning}

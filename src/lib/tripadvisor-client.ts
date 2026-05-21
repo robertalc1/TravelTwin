@@ -221,12 +221,14 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   const itineraryType = p.returnDate ? 'ROUND_TRIP' : 'ONE_WAY';
   const classOfService = (p.travelClass || 'ECONOMY').toUpperCase();
 
-  // Param set verified against Tripadvisor16 PRO playground sample curls.
-  // INTENTIONALLY OMITTED: `nonstop` and `nearby` — both are ambiguous
-  // server-side filters that have been observed to over-filter (e.g.
-  // OTP→IST returning 0 with nonstop=no in spite of multiple daily direct
-  // Turkish Airlines flights). We filter direct vs. stops client-side
-  // instead, so the wrapper just asks for everything Tripadvisor has.
+  // Param set matches the Tripadvisor16 PRO playground sample curl exactly.
+  // `nearby=yes` / `nonstop=yes` are INCLUSIVE hints (include nearby
+  // airports + non-stop flights as candidates), not restrictive filters —
+  // omitting them or setting them to 'no' yields a smaller result set.
+  // `region` is a routing hint that pairs with currencyCode — without it,
+  // requests for some OD pairs (e.g. CND → OTP) hang on the Tripadvisor
+  // backend for the full 15s wrapper timeout. UI filters (direct / max-1
+  // stop) stay client-side so we never under-fetch.
   const params: Record<string, string | number> = {
     sourceAirportCode: p.origin.toUpperCase(),
     destinationAirportCode: p.destination.toUpperCase(),
@@ -237,7 +239,10 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
     numSeniors: '0',
     classOfService,
     pageNumber: 1,
+    nearby: 'yes',
+    nonstop: 'yes',
     currencyCode: 'EUR',
+    region: 'EUR',
   };
   if (p.returnDate) params.returnDate = p.returnDate;
 
@@ -345,6 +350,83 @@ export function extractFlightPrice(
     }
   }
   return null;
+}
+
+/* ── Flight filters (cheap pre-flight check) ─────────────────── */
+
+export interface TAFlightFilters {
+  /** Airlines that serve the OD pair according to Tripadvisor's index. */
+  airlines: Array<{ code: string; name: string }>;
+  /** Distinct stop counts available (0 = direct, 1 = one stop, etc.). */
+  stops: number[];
+  /** False when both arrays are empty — Tripadvisor doesn't index the route. */
+  hasResults: boolean;
+}
+
+/**
+ * Hit Tripadvisor16's /api/v1/flights/getFilters endpoint to learn what
+ * airlines + stop counts are available for an OD pair. ~2-3s and 1 quota
+ * slot — much cheaper than burning a 15s timeout on a `searchFlights` call
+ * for a route Tripadvisor doesn't index at all.
+ *
+ * Used as a pre-flight gate in /api/flights/live to short-circuit
+ * impossible routes (CND → OTP, regional pairs Tripadvisor never indexes)
+ * with a clear "route not indexed" response instead of hanging.
+ */
+export async function getFlightFilters(p: {
+  origin: string;
+  destination: string;
+  itineraryType?: 'ONE_WAY' | 'ROUND_TRIP';
+  classOfService?: string;
+}): Promise<TAFlightFilters> {
+  const raw = await tripadvisorFetch<unknown>('/api/v1/flights/getFilters', {
+    sourceAirportCode: p.origin.toUpperCase(),
+    destinationAirportCode: p.destination.toUpperCase(),
+    itineraryType: p.itineraryType || 'ROUND_TRIP',
+    classOfService: (p.classOfService || 'ECONOMY').toUpperCase(),
+  });
+
+  const out: TAFlightFilters = { airlines: [], stops: [], hasResults: false };
+  if (!isRecord(raw)) return out;
+  const data = isRecord(raw.data) ? (raw.data as Record<string, unknown>) : raw;
+
+  // Tripadvisor's filter response groups options under different keys
+  // across versions: `airlines`, `marketingAirlines`, `filters.airlines`.
+  // We try each known location and take the first non-empty one.
+  const airlineCandidates: unknown[] = [
+    data.airlines,
+    data.marketingAirlines,
+    isRecord(data.filters) ? (data.filters as Record<string, unknown>).airlines : null,
+  ];
+  for (const c of airlineCandidates) {
+    const arr = asArray(c);
+    if (arr.length === 0) continue;
+    for (const a of arr) {
+      if (!isRecord(a)) continue;
+      const code = asString(a.code) || asString(a.airlineCode) || asString(a.iata);
+      const name = asString(a.name) || asString(a.displayName) || code;
+      if (code) out.airlines.push({ code, name });
+    }
+    break;
+  }
+
+  const stopCandidates: unknown[] = [
+    data.stops,
+    data.stopCounts,
+    isRecord(data.filters) ? (data.filters as Record<string, unknown>).stops : null,
+  ];
+  for (const c of stopCandidates) {
+    const arr = asArray(c);
+    if (arr.length === 0) continue;
+    for (const s of arr) {
+      if (typeof s === 'number') out.stops.push(s);
+      else if (isRecord(s) && typeof s.value === 'number') out.stops.push(s.value);
+    }
+    break;
+  }
+
+  out.hasResults = out.airlines.length > 0 || out.stops.length > 0;
+  return out;
 }
 
 /* ── Hotels ──────────────────────────────────────────────────── */

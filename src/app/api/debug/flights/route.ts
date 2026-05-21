@@ -44,9 +44,12 @@ async function probe(
   url.searchParams.set('numSeniors', '0');
   url.searchParams.set('classOfService', 'ECONOMY');
   url.searchParams.set('pageNumber', '1');
-  url.searchParams.set('nearby', 'no');
-  url.searchParams.set('nonstop', 'no');
+  // Match production param shape exactly so the debug endpoint reproduces
+  // real searchFlights behavior. See src/lib/tripadvisor-client.ts.
+  url.searchParams.set('nearby', 'yes');
+  url.searchParams.set('nonstop', 'yes');
   url.searchParams.set('currencyCode', 'EUR');
+  url.searchParams.set('region', 'EUR');
 
   const out: ProbeResult = {
     itineraryType,

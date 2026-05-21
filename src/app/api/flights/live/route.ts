@@ -1,10 +1,65 @@
 import { NextResponse } from 'next/server';
-import { searchFlights, type TAFlight } from '@/lib/tripadvisor-client';
+import { searchFlights, getFlightFilters, type TAFlight } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata } from '@/lib/iataMapping';
 import type { NormalizedFlight } from '@/lib/supabase/types';
+
+interface Suggestion {
+  origin: string;
+  destination: string;
+  destinationCity: string;
+  price: number;
+  currency: string;
+  airline: string;
+  airlineName: string;
+}
+
+/** Probe up to 6 common destinations from `origin` for live inventory and
+ *  return the cheapest viable flight per destination, sorted by price.
+ *  Used as the fallback "rute disponibile din X" UI bucket. */
+async function probeSuggestions(
+  origin: string,
+  exclude: string,
+  departureDate: string,
+  travelClass: string,
+  adults: string,
+  returnDate: string | undefined,
+): Promise<Suggestion[]> {
+  const seedDestinations = COMMON_ROUTES
+    .filter((r) => r.from === origin && r.to !== exclude)
+    .slice(0, 6)
+    .map((r) => r.to);
+  if (seedDestinations.length === 0) return [];
+  console.log(`[Flights] Probing ${seedDestinations.length} suggestion candidates from ${origin}`);
+
+  const probes = await Promise.allSettled(
+    seedDestinations.map(async (dest) => {
+      const result = await attemptSearch(
+        origin, dest, departureDate, travelClass, adults, returnDate,
+      );
+      return result.flights[0] ?? null;
+    }),
+  );
+  const out: Suggestion[] = [];
+  for (const p of probes) {
+    if (p.status === 'fulfilled' && p.value) {
+      out.push({
+        origin: p.value.origin,
+        destination: p.value.destination,
+        destinationCity: getCityFromIata(p.value.destination) || p.value.destination,
+        price: p.value.price,
+        currency: p.value.currency,
+        airline: p.value.airline,
+        airlineName: p.value.airlineName,
+      });
+    }
+  }
+  out.sort((a, b) => a.price - b.price);
+  console.log(`[Flights] Found ${out.length} viable suggestions from ${origin}`);
+  return out;
+}
 
 /** Format an OD pair as user-facing city names, with the IATA codes only as
  *  fallback when we don't have a city mapping. */
@@ -120,6 +175,35 @@ export async function GET(request: Request) {
     let usedDateExpansion = false;
     let cumulativeRawCount = 0;
 
+    // ── Pre-flight: ask Tripadvisor what airlines/stops serve this OD pair
+    //    (~2-3s, 1 quota slot). When `hasResults=false`, the route isn't in
+    //    their index at all — skip the date-expansion loop (which would
+    //    otherwise burn up to 5 × 15s timeouts on a hopeless lookup) and
+    //    return a clean "route not served" payload with suggestions instead.
+    try {
+      const filters = await getFlightFilters({ origin, destination });
+      console.log(
+        `[Flights] getFilters ${origin}->${destination}: airlines=${filters.airlines.length} stops=${filters.stops.length} hasResults=${filters.hasResults}`,
+      );
+      if (!filters.hasResults) {
+        const suggestions = await probeSuggestions(
+          origin, destination, departureDate, travelClass, adults, returnDate,
+        );
+        return NextResponse.json({
+          flights: [],
+          source: 'route_not_indexed',
+          count: 0,
+          rawCount: 0,
+          warning: `${fmtCity(origin)} → ${fmtCity(destination)} is not indexed by Tripadvisor — the route may not have scheduled commercial service. See available routes from ${fmtCity(origin)} below.`,
+          suggestions,
+        });
+      }
+    } catch (err: unknown) {
+      // getFilters itself failed — proceed with normal search path. We don't
+      // want a transient failure of the pre-flight gate to block real searches.
+      console.warn('[Flights] getFilters pre-flight failed, proceeding to searchFlights:', (err as Error)?.message);
+    }
+
     // Try the requested date first, then ±1, ±2 day expansions in case
     // Tripadvisor genuinely has no inventory on the exact date. We stop the
     // moment any attempt yields normalized flights. Max 5 serial attempts
@@ -176,55 +260,12 @@ export async function GET(request: Request) {
       warning = `${cumulativeRawCount} flights came back across attempts but none had a usable price. Tripadvisor's purchase links are missing for this route. Try a different date.`;
     }
 
-    // ── Suggestion mode ────────────────────────────────────────────
-    // The exact OD pair the user wanted has no inventory. Mimic the
-    // homepage-deals strategy: probe a small set of known destinations FROM
-    // the same origin (using COMMON_ROUTES as the seed) and surface any
-    // that DO have live flights as clickable suggestions. This is the same
-    // wrapper, same API — just different destinations that actually exist.
-    interface Suggestion {
-      origin: string;
-      destination: string;
-      destinationCity: string;
-      price: number;
-      currency: string;
-      airline: string;
-      airlineName: string;
-    }
-    const suggestions: Suggestion[] = [];
-    if (cumulativeRawCount === 0 && !lastError) {
-      const seedDestinations = COMMON_ROUTES
-        .filter((r) => r.from === origin && r.to !== destination)
-        .slice(0, 6)
-        .map((r) => r.to);
-
-      if (seedDestinations.length > 0) {
-        console.log(`[Flights] Probing ${seedDestinations.length} suggestion candidates from ${origin}`);
-        const probes = await Promise.allSettled(
-          seedDestinations.map(async (dest) => {
-            const result = await attemptSearch(
-              origin, dest, departureDate, travelClass, adults, returnDate,
-            );
-            return result.flights[0] ?? null;
-          }),
-        );
-        for (const p of probes) {
-          if (p.status === 'fulfilled' && p.value) {
-            suggestions.push({
-              origin: p.value.origin,
-              destination: p.value.destination,
-              destinationCity: getCityFromIata(p.value.destination) || p.value.destination,
-              price: p.value.price,
-              currency: p.value.currency,
-              airline: p.value.airline,
-              airlineName: p.value.airlineName,
-            });
-          }
-        }
-        suggestions.sort((a, b) => a.price - b.price);
-        console.log(`[Flights] Found ${suggestions.length} viable suggestions from ${origin}`);
-      }
-    }
+    // Empty-state suggestions — same logic as the route_not_indexed branch,
+    // shared via the probeSuggestions helper.
+    const suggestions =
+      cumulativeRawCount === 0 && !lastError
+        ? await probeSuggestions(origin, destination, departureDate, travelClass, adults, returnDate)
+        : [];
 
     return NextResponse.json({
       flights: [],
