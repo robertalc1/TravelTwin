@@ -121,6 +121,7 @@ export function ChatPanel() {
         userEmail: user.email ?? null,
         homepageDestinations,
         currentTripId: tripMatch?.[1] ?? null,
+        userOriginIata: origin || "OTP",
       };
 
       try {
@@ -133,7 +134,6 @@ export function ChatPanel() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: conversationMsgs,
-            origin: origin || "OTP",
             pageContext,
           }),
         });

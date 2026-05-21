@@ -62,9 +62,12 @@ WHAT THIS APP OFFERS:
 
 ALWAYS DO:
 1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — this returns the curated homepage list with LIVE Tripadvisor flight + hotel prices. Cite them by city + price + ID.
+   - English triggers: "deals", "offers", "show me something", "what's available", "cheap flights from here", "any recommendations", "give me an offer".
+   - Romanian triggers: "oferte", "ofertă", "deal-uri", "vreau o ofertă", "zboruri ieftine", "ce ai pentru mine", "ce zboruri ai", "arată-mi ceva", "vreau o ofertă acum", "ofertă te rog".
 2. Call searchFlights / searchHotels for specific routes or cities the user names that aren't already in the deals list. Never invent prices, airlines, or availability.
-3. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
-4. Be SHORT — under 120 words unless drafting an itinerary.
+3. NEVER answer "check our offers page" or "verifică pagina de oferte" as a text-only reply — that IS your job. Call getCurrentDeals and return the actual deals instead.
+4. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
+5. Be SHORT — under 120 words unless drafting an itinerary.
 
 OUT OF SCOPE (politely decline + redirect):
 - General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence offering travel help instead.
@@ -135,7 +138,8 @@ type ToolArgs = Record<string, unknown>;
 async function executeTool(
   name: string,
   args: ToolArgs,
-  baseUrl: string
+  baseUrl: string,
+  cookieHeader: string,
 ): Promise<Record<string, unknown>> {
   try {
     switch (name) {
@@ -220,17 +224,42 @@ async function executeTool(
       }
 
       case 'getCurrentDeals': {
-        // Read the same cache the homepage reads — guarantees the AI sees
-        // exactly the offers the user is looking at right now.
+        // Try the same cache the homepage reads first — guarantees the AI
+        // sees exactly the offers the user is looking at right now.
         const origin = String(args.origin || 'OTP').toUpperCase();
+        let arr: TripPackage[] | null = null;
         const cached = await getCached(`deals:${origin}`);
-        if (!cached?.data) {
+        if (cached?.data) {
+          arr = cached.data as TripPackage[];
+        } else {
+          // Cache miss — warm it by calling /api/deals/from/[iata] internally
+          // with the user's cookie so auth passes. This is the same path the
+          // homepage triggers, so the AI never returns "no deals available"
+          // just because the user hasn't visited the homepage yet.
+          console.log(`[Chat] Warming deals cache for ${origin} via internal fetch`);
+          try {
+            const res = await fetch(`${baseUrl}/api/deals/from/${origin}`, {
+              headers: cookieHeader ? { cookie: cookieHeader } : {},
+            });
+            if (res.ok) {
+              const data = (await res.json()) as { packages?: TripPackage[] };
+              arr = Array.isArray(data.packages) ? data.packages : null;
+            } else {
+              console.warn(`[Chat] Deal warm-up returned ${res.status}`);
+            }
+          } catch (e) {
+            console.warn('[Chat] Deal warm-up failed:', (e as Error).message);
+          }
+        }
+
+        if (!arr || arr.length === 0) {
           return {
             noResults: true,
-            message: `No active deals cached for ${origin}. The user can refresh the homepage to load fresh offers.`,
+            message:
+              `No active deals could be generated for ${origin}. The user can plan a custom trip at /plan or try /flights for a specific route.`,
           };
         }
-        const arr = (cached.data as TripPackage[]) || [];
+
         const deals: ChatDeal[] = arr.slice(0, 6).map((p) => ({
           id: p.id,
           destination: p.destination?.iata || '',
@@ -319,6 +348,10 @@ type PageContext = {
   userEmail?: string | null;
   homepageDestinations?: string[];
   currentTripId?: string | null;
+  /** IATA of the user's nearest airport (from IP geolocation). The model uses
+   *  this as the default `origin` for getCurrentDeals/searchFlights so it
+   *  never has to guess and never falls back to a hardcoded OTP. */
+  userOriginIata?: string | null;
 };
 
 // Heuristic — flags Romanian based on diacritics and common stop-words that
@@ -357,6 +390,10 @@ function buildSystemPrompt(
     if (ctx.locale) lines.push(`- Active locale: ${ctx.locale}`);
     if (ctx.pathname) lines.push(`- Current page: ${ctx.pathname}`);
     if (ctx.userEmail) lines.push(`- Signed-in user: ${ctx.userEmail}`);
+    if (ctx.userOriginIata) {
+      lines.push(`- User's nearest airport (USE THIS AS \`origin\` PARAMETER): ${ctx.userOriginIata}`);
+      lines.push('  → When calling getCurrentDeals or searchFlights and the user has not named an origin, pass this IATA.');
+    }
     if (ctx.homepageDestinations?.length) {
       lines.push(`- Homepage offers currently visible (IATA): ${ctx.homepageDestinations.join(', ')}`);
       lines.push('  → If user asks about deals, START with getCurrentDeals so you can cite these by name + price.');
@@ -367,6 +404,9 @@ function buildSystemPrompt(
 }
 
 export async function POST(req: NextRequest) {
+  // Declared at function scope so the catch handler can localize its
+  // fallback message even when something throws mid-request.
+  let replyLangIsRomanian = false;
   try {
     // Auth gate — chat is for authenticated users only (prevents anonymous abuse of provider quota).
     const supabase = await createClient();
@@ -395,10 +435,13 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = req.nextUrl.origin;
+    const cookieHeader = req.headers.get('cookie') ?? '';
     // Use the most recent user message for language detection — that's the
     // turn the model is responding to, so its language wins over older turns.
     const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
     const systemPrompt = buildSystemPrompt(pageContext, lastUserMsg);
+    replyLangIsRomanian =
+      detectRomanian(lastUserMsg) || (pageContext?.locale === 'ro' && !/[a-z]{6,}/i.test(lastUserMsg || ''));
 
     // Build OpenAI-style messages: system prompt first, then conversation.
     const groqMessages: GroqMessage[] = [
@@ -444,7 +487,17 @@ export async function POST(req: NextRequest) {
         }
         console.log(`[Chat] Executing tool: ${name}`, args);
 
-        const toolResult = await executeTool(name, args, baseUrl);
+        // Force the user's nearest-airport IATA into any tool call that
+        // expects an `origin` but didn't get one from the model — happens
+        // most often when the model assumes OTP for non-Romanian users.
+        if (
+          (name === 'getCurrentDeals' || name === 'searchFlights') &&
+          (!args.origin || args.origin === '') &&
+          pageContext?.userOriginIata
+        ) {
+          args.origin = pageContext.userOriginIata;
+        }
+        const toolResult = await executeTool(name, args, baseUrl, cookieHeader);
 
         if (toolResult.flights) structuredData.flights = toolResult.flights as ChatFlight[];
         if (toolResult.hotels) structuredData.hotels = toolResult.hotels as ChatHotel[];
@@ -461,9 +514,31 @@ export async function POST(req: NextRequest) {
       iterations++;
     }
 
-    const finalText =
-      groqResponse.choices?.[0]?.message?.content ||
-      'Sorry, I could not generate a response.';
+    const rawFinal = groqResponse.choices?.[0]?.message?.content?.trim();
+    // If the model returned empty content but we DO have structured data,
+    // synthesize a sensible reply so the cards aren't silent. If we have
+    // neither content nor data, fall back to a localized helper message
+    // pointing the user at /plan and /flights.
+    let finalText: string;
+    if (rawFinal && rawFinal.length > 0) {
+      finalText = rawFinal;
+    } else if (structuredData.deals?.length) {
+      finalText = replyLangIsRomanian
+        ? `Iată ofertele live disponibile acum din ${pageContext?.userOriginIata || 'aeroportul tău'}:`
+        : `Here are the live deals available right now from ${pageContext?.userOriginIata || 'your airport'}:`;
+    } else if (structuredData.flights?.length) {
+      finalText = replyLangIsRomanian
+        ? 'Am găsit aceste zboruri live pentru tine:'
+        : 'I found these live flights for you:';
+    } else if (structuredData.hotels?.length) {
+      finalText = replyLangIsRomanian
+        ? 'Iată hotelurile live disponibile:'
+        : 'Here are the live hotels available:';
+    } else {
+      finalText = replyLangIsRomanian
+        ? 'Nu am putut găsi oferte live chiar acum. Încearcă să planifici o călătorie la /plan sau caută un zbor specific la /flights.'
+        : "I couldn't pull live offers right now. Try planning a custom trip at /plan or searching a specific route at /flights.";
+    }
 
     return NextResponse.json({
       message: finalText,
@@ -474,7 +549,11 @@ export async function POST(req: NextRequest) {
     console.error('[Chat] Error message:', (error as Error)?.message);
     console.error('[Chat] Error stack:', (error as Error)?.stack);
     return NextResponse.json(
-      { message: 'Sorry, I had trouble processing that. Please try again! ✈️' },
+      {
+        message: replyLangIsRomanian
+          ? 'Îmi pare rău, ceva nu a mers bine. Încearcă din nou într-o clipă. ✈️'
+          : 'Sorry, I had trouble processing that. Please try again! ✈️',
+      },
       { status: 200 }
     );
   }
