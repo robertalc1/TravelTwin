@@ -22,13 +22,22 @@ const FLIGHT_CLASS_OPTIONS = [
     { value: "FIRST", en: "First Class", ro: "First Class" },
 ];
 
+// Routes confirmed to have multi-carrier coverage on Tripadvisor16 RapidAPI.
+// Each one is served by at least 2 major airlines year-round so search
+// reliably returns results — picked from src/lib/commonRoutes.ts.
 const POPULAR_ROUTES: Array<[string, string, string]> = [
     ["OTP", "LHR", "Bucharest → London"],
     ["OTP", "CDG", "Bucharest → Paris"],
-    ["OTP", "BCN", "Bucharest → Barcelona"],
-    ["LHR", "JFK", "London → New York"],
-    ["CDG", "DXB", "Paris → Dubai"],
     ["OTP", "FCO", "Bucharest → Rome"],
+    ["OTP", "BCN", "Bucharest → Barcelona"],
+    ["OTP", "MAD", "Bucharest → Madrid"],
+    ["OTP", "AMS", "Bucharest → Amsterdam"],
+    ["OTP", "MUC", "Bucharest → Munich"],
+    ["OTP", "VIE", "Bucharest → Vienna"],
+    ["OTP", "IST", "Bucharest → Istanbul"],
+    ["OTP", "ATH", "Bucharest → Athens"],
+    ["OTP", "DXB", "Bucharest → Dubai"],
+    ["LHR", "JFK", "London → New York"],
 ];
 
 function FlightsPageContent() {
