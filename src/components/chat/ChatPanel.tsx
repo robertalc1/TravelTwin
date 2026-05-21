@@ -25,17 +25,30 @@ type Message = {
   data?: MessageData | null;
 };
 
-const WELCOME_MESSAGE: Message = {
+const WELCOME_EN: Message = {
   id: "welcome",
   role: "assistant",
   content: "Hi! I can find cheap flights, hotels, and travel deals for you. Where would you like to go?",
   data: null,
 };
 
-const QUICK_PROMPTS = [
+const WELCOME_RO: Message = {
+  id: "welcome",
+  role: "assistant",
+  content: "Salut! Pot să-ți găsesc zboruri ieftine, hoteluri și oferte de călătorie. Unde ai vrea să mergi?",
+  data: null,
+};
+
+const QUICK_PROMPTS_EN = [
   "Cheap flights from my city",
   "Beach destinations in Europe",
   "City breaks under €200",
+];
+
+const QUICK_PROMPTS_RO = [
+  "Zboruri ieftine din orașul meu",
+  "Destinații de plajă în Europa",
+  "City break sub €200",
 ];
 
 export function ChatPanel() {
@@ -50,7 +63,9 @@ export function ChatPanel() {
   // Hide on the full-page route map — the floating button collides with
   // Google Maps' fullscreen control and the in-iframe controls.
   const hidden = pathname?.endsWith('/map') ?? false;
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const isRo = locale === "ro";
+  const [messages, setMessages] = useState<Message[]>([isRo ? WELCOME_RO : WELCOME_EN]);
+  const QUICK_PROMPTS = isRo ? QUICK_PROMPTS_RO : QUICK_PROMPTS_EN;
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +79,15 @@ export function ChatPanel() {
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
+
+  // Keep the welcome message in sync with the active locale — if the user
+  // switches language while the chat is empty, swap the welcome accordingly.
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length !== 1 || prev[0].id !== "welcome") return prev;
+      return [isRo ? WELCOME_RO : WELCOME_EN];
+    });
+  }, [isRo]);
 
   const sendText = useCallback(
     async (text: string) => {
@@ -136,7 +160,9 @@ export function ChatPanel() {
           {
             id: `err-${Date.now()}`,
             role: "assistant",
-            content: "Sorry, something went wrong. Please try again.",
+            content: isRo
+              ? "Ne pare rău, ceva nu a mers. Încearcă din nou."
+              : "Sorry, something went wrong. Please try again.",
             data: null,
           },
         ]);
@@ -144,7 +170,7 @@ export function ChatPanel() {
         setIsLoading(false);
       }
     },
-    [isLoading, messages, origin, user, openAuthModal, pathname, locale]
+    [isLoading, messages, origin, user, openAuthModal, pathname, locale, isRo]
   );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -171,10 +197,10 @@ export function ChatPanel() {
             transition={{ duration: 0.2, ease: "easeOut" }}
             onClick={openChat}
             className="fixed bottom-24 right-4 z-50 flex items-center gap-2 rounded-full bg-primary-500 px-4 py-3 text-white shadow-lg transition-all duration-200 hover:bg-primary-600 hover:shadow-xl lg:bottom-8 lg:right-8"
-            aria-label="Open travel assistant"
+            aria-label={isRo ? "Deschide asistentul de călătorii" : "Open travel assistant"}
           >
             <Sparkles className="h-4 w-4" />
-            <span className="text-sm font-semibold">Ask AI</span>
+            <span className="text-sm font-semibold">{isRo ? "Întreabă AI" : "Ask AI"}</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -198,13 +224,15 @@ export function ChatPanel() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-secondary-500 dark:text-white">TravelTwin AI</p>
-                  <p className="text-[10px] text-text-muted">Find flights &amp; deals</p>
+                  <p className="text-[10px] text-text-muted">
+                    {isRo ? "Găsește zboruri și oferte" : "Find flights & deals"}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={closeChat}
                 className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-neutral-100 dark:hover:bg-secondary-700"
-                aria-label="Close chat"
+                aria-label={isRo ? "Închide chat" : "Close chat"}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -256,7 +284,7 @@ export function ChatPanel() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask about flights, hotels, deals..."
+                placeholder={isRo ? "Întreabă despre zboruri, hoteluri, oferte..." : "Ask about flights, hotels, deals..."}
                 className="flex-1 rounded-full bg-neutral-100 px-4 py-2 text-sm text-text-primary outline-none placeholder:text-text-muted dark:bg-secondary-700 dark:text-white"
                 disabled={isLoading}
               />
@@ -264,7 +292,7 @@ export function ChatPanel() {
                 onClick={() => sendText(input)}
                 disabled={!input.trim() || isLoading}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Send message"
+                aria-label={isRo ? "Trimite mesaj" : "Send message"}
               >
                 <Send className="h-3.5 w-3.5" />
               </button>

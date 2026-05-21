@@ -63,12 +63,11 @@ WHAT THIS APP OFFERS:
 ALWAYS DO:
 1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — these are the actual offers visible on their homepage right now. Cite them by city + price + ID.
 2. Call searchFlights / searchHotels for specific routes or cities. Never invent prices, airlines, or availability.
-3. Match the user's language (English or Romanian based on locale).
-4. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
-5. Be SHORT — under 120 words unless drafting an itinerary.
+3. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
+4. Be SHORT — under 120 words unless drafting an itinerary.
 
 OUT OF SCOPE (politely decline + redirect):
-- General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence: "I only help with travel on TravelTwin — want me to find you a deal or plan a trip?"
+- General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence offering travel help instead.
 - Other travel sites / competitors → never compare or mention them.
 - Personal/medical/legal advice → decline + offer travel help.
 
@@ -373,11 +372,40 @@ type PageContext = {
   currentTripId?: string | null;
 };
 
-function buildSystemPrompt(ctx: PageContext | undefined): string {
-  const lines: string[] = [BASE_SYSTEM_PROMPT, ''];
+// Heuristic — flags Romanian based on diacritics and common stop-words that
+// don't appear in English. Used to switch reply language even when the
+// locale URL doesn't match what the user actually types.
+function detectRomanian(text: string): boolean {
+  if (!text) return false;
+  if (/[ăâîșțĂÂÎȘȚ]/.test(text)) return true;
+  const t = ` ${text.toLowerCase()} `;
+  const markers = [
+    ' și ', ' este ', ' sunt ', ' vreau ', ' caut ', ' merg ', ' poti ', ' poți ',
+    ' oferte ', ' zboruri ', ' hoteluri ', ' plaja ', ' munte ', ' ofera ', ' oferă ',
+    ' acum ', ' bună ', ' buna ', ' salut ', ' multumesc ', ' mulțumesc ',
+    ' bucuresti ', ' bucurești ', ' planifica ', ' planifică ',
+  ];
+  return markers.some((m) => t.includes(m));
+}
+
+function buildSystemPrompt(
+  ctx: PageContext | undefined,
+  lastUserMessage: string,
+): string {
+  // Determine reply language: prefer the language of the latest user message
+  // (so the chat flips when the user writes in a different tongue), fall back
+  // to locale, then default to English.
+  const userIsRomanian = detectRomanian(lastUserMessage);
+  const localeIsRomanian = ctx?.locale === 'ro';
+  const replyInRomanian = userIsRomanian || (localeIsRomanian && !/[a-z]{6,}/i.test(lastUserMessage || ''));
+  const langHeader = replyInRomanian
+    ? `LANGUAGE (HARD RULE): Reply ENTIRELY in Romanian (română). Every single word, including tool-result summaries, MUST be in Romanian. Do NOT mix English. If the user later switches to English mid-conversation, switch with them.`
+    : `LANGUAGE (HARD RULE): Reply ENTIRELY in English. Every single word, including tool-result summaries, MUST be in English. If the user later switches to Romanian mid-conversation, switch with them.`;
+
+  const lines: string[] = [langHeader, '', BASE_SYSTEM_PROMPT, ''];
   if (ctx) {
     lines.push('LIVE USER CONTEXT (use to ground answers — do NOT echo as raw data):');
-    if (ctx.locale) lines.push(`- Active locale: ${ctx.locale} (reply in this language)`);
+    if (ctx.locale) lines.push(`- Active locale: ${ctx.locale}`);
     if (ctx.pathname) lines.push(`- Current page: ${ctx.pathname}`);
     if (ctx.userEmail) lines.push(`- Signed-in user: ${ctx.userEmail}`);
     if (ctx.homepageDestinations?.length) {
@@ -418,7 +446,10 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = req.nextUrl.origin;
-    const systemPrompt = buildSystemPrompt(pageContext);
+    // Use the most recent user message for language detection — that's the
+    // turn the model is responding to, so its language wins over older turns.
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+    const systemPrompt = buildSystemPrompt(pageContext, lastUserMsg);
 
     // Build OpenAI-style messages: system prompt first, then conversation.
     const groqMessages: GroqMessage[] = [
