@@ -179,7 +179,7 @@ function buildPackageForRoute(
 }
 
 export async function GET(
-    _req: Request,
+    req: Request,
     { params }: { params: Promise<{ iata: string }> }
 ) {
     // Auth gate — deals are an authenticated-only feature.
@@ -197,10 +197,19 @@ export async function GET(
 
     const originCity = getCityFromIata(origin) || origin;
 
+    // Optional ?departureDate= and ?returnDate= overrides — used by /flights
+    // when the user picked an origin + date but no destination. When supplied
+    // we DON'T use the per-origin cache because dates change the result.
+    const { searchParams } = new URL(req.url);
+    const dateOverride = searchParams.get('departureDate');
+    const returnOverride = searchParams.get('returnDate');
+
     // Per-origin 60min cache. On every hit we re-shuffle so the UI looks
     // fresh while package content (id, price, AI text) stays stable —
     // sessionStorage lookups via `trip_${id}` keep working across reloads.
-    const cacheKey = `deals:${origin}`;
+    const cacheKey = dateOverride
+        ? `deals:${origin}:${dateOverride}:${returnOverride || ''}`
+        : `deals:${origin}`;
     const cached = await getCached(cacheKey);
     if (cached?.data) {
         const arr = cached.data as TripPackage[];
@@ -214,7 +223,17 @@ export async function GET(
     }
 
     const nights = DEFAULT_NIGHTS;
-    const { departureDate, returnDate } = futureDates(7, nights);
+    const generated = futureDates(7, nights);
+    const departureDate = dateOverride || generated.departureDate;
+    const returnDate = returnOverride || (
+        dateOverride
+            ? (() => {
+                const d = new Date(dateOverride + 'T00:00:00Z');
+                d.setUTCDate(d.getUTCDate() + nights);
+                return d.toISOString().split('T')[0];
+              })()
+            : generated.returnDate
+    );
     const currency = 'EUR';
 
     // 1. Build the CANDIDATE POOL (just IATA codes — no prices yet).

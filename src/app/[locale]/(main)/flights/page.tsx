@@ -122,7 +122,16 @@ function FlightsPageContent() {
         if (!user) return; // /api/deals requires auth
         let cancelled = false;
         setEmptyDealsLoading(true);
-        fetch(`/api/deals/from/${originIata}`)
+        // Pass user's date as override when present — same /api/deals
+        // pipeline, but searches on the date they picked.
+        const qs = new URLSearchParams();
+        if (departureDate) qs.set("departureDate", departureDate);
+        if (returnDate) qs.set("returnDate", returnDate);
+        const queryString = qs.toString();
+        const url = queryString
+            ? `/api/deals/from/${originIata}?${queryString}`
+            : `/api/deals/from/${originIata}`;
+        fetch(url)
             .then((r) => r.json())
             .then((data: { packages?: DealPackage[] }) => {
                 if (cancelled) return;
@@ -141,16 +150,19 @@ function FlightsPageContent() {
             .catch(() => { if (!cancelled) setEmptyDeals([]); })
             .finally(() => { if (!cancelled) setEmptyDealsLoading(false); });
         return () => { cancelled = true; };
-    }, [hasUrlSearch, originIata, user]);
+    }, [hasUrlSearch, originIata, departureDate, returnDate, user]);
 
     function handleSearch(e: React.FormEvent) {
         e.preventDefault();
-        if (!originIata || !destIata || !departureDate) return;
+        if (!originIata || !departureDate) return;
         const qs = new URLSearchParams({
             from: originIata,
-            to: destIata,
             departureDate,
         });
+        // Destination is optional — when omitted we land on the empty-state
+        // view which lists available routes from the origin on the given
+        // date (powered by /api/deals/from/{origin} with date override).
+        if (destIata) qs.set("to", destIata);
         if (returnDate) qs.set("returnDate", returnDate);
         if (flightClass) qs.set("travelClass", flightClass);
         const target = `/${locale}/flights?${qs.toString()}`;
@@ -269,7 +281,7 @@ function FlightsPageContent() {
                         <div className="md:col-span-12">
                             <button
                                 type="submit"
-                                disabled={!originIata || !destIata}
+                                disabled={!originIata || !departureDate}
                                 className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold rounded-xl py-3 transition-colors"
                             >
                                 <Search className="h-4 w-4" />
@@ -297,11 +309,16 @@ function FlightsPageContent() {
                                 {isRo
                                     ? `Cele mai ieftine zboruri din ${getCityFromIata(originIata)}`
                                     : `Cheapest flights from ${getCityFromIata(originIata)}`}
+                                {departureDate && (
+                                    <span className="text-text-muted font-bold">
+                                        {" "}· {departureDate}
+                                    </span>
+                                )}
                             </h2>
                             <p className="text-sm text-text-muted mt-1">
                                 {isRo
-                                    ? "Rute reale găsite live pe Tripadvisor — apasă pe orice card să vezi zborurile disponibile."
-                                    : "Live routes from Tripadvisor — click any card to see available flights."}
+                                    ? "Rute reale găsite live pe Tripadvisor — apasă pe orice card să vezi pachetul complet."
+                                    : "Live routes from Tripadvisor — click any card to see the full package."}
                             </p>
                         </div>
                     )}
