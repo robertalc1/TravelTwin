@@ -105,10 +105,13 @@ function HotelsPageContent() {
 
     return (
         <div className="min-h-screen bg-neutral-50 dark:bg-background">
-            {/* ── Hero + search form ───────────────────────────────────── */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+            {/* ── Hero + search form ─────────────────────────────────────
+                NOTE: overflow-hidden lives on the inner bg-image only, NOT on
+                the hero root — otherwise the LocationAutocomplete dropdown
+                gets clipped by the hero box. */}
+            <div className="relative bg-gradient-to-br from-primary-500 to-primary-600 text-white">
                 <div
-                    className="absolute inset-0 opacity-20"
+                    className="absolute inset-0 opacity-20 overflow-hidden"
                     style={{
                         backgroundImage:
                             "url(https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1920&h=600&fit=crop&q=80)",
@@ -117,17 +120,12 @@ function HotelsPageContent() {
                     }}
                 />
                 <div className="relative mx-auto max-w-[1400px] px-4 lg:px-8 py-10 lg:py-14">
-                    <div className="flex items-center gap-3 mb-2">
+                    <div className="flex items-center gap-3 mb-6">
                         <HotelIcon className="h-7 w-7" />
                         <h1 className="text-3xl md:text-4xl font-extrabold">
                             {isRo ? "Caută hoteluri din toată lumea" : "Search Worldwide Hotels"}
                         </h1>
                     </div>
-                    <p className="text-white/90 mb-6 max-w-xl">
-                        {isRo
-                            ? "Disponibilitate live și prețuri reale din mii de hoteluri — de la cazări boutique la resort-uri de 5 stele."
-                            : "Live availability and real prices from thousands of hotels — from boutique stays to 5-star resorts."}
-                    </p>
 
                     <form
                         onSubmit={handleSearch}

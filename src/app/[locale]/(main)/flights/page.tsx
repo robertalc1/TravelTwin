@@ -99,10 +99,11 @@ export default function FlightsPage() {
 
     return (
         <div className="min-h-screen bg-neutral-50 dark:bg-background">
-            {/* Hero */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-primary-500 to-primary-600 text-white">
+            {/* Hero — overflow-hidden lives on the bg image only so the
+                LocationAutocomplete dropdown can escape the hero box. */}
+            <div className="relative bg-gradient-to-br from-primary-500 to-primary-600 text-white">
                 <div
-                    className="absolute inset-0 opacity-20"
+                    className="absolute inset-0 opacity-20 overflow-hidden"
                     style={{
                         backgroundImage: 'url(https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1920&h=600&fit=crop&q=80)',
                         backgroundSize: 'cover',
