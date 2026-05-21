@@ -10,6 +10,11 @@ import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
 import { getCityImageByIata } from '@/lib/cityImages';
 import { getCached, setCache } from '@/lib/cache';
 import { VARIANT_SPECS, type VariantSpec, type VariantTier } from '@/lib/variants';
+import { fetchLivePackagesForDestinations } from '@/lib/live-packages';
+
+// Live mode fans out ~25 destinations × 2 Tripadvisor calls (flight + hotel)
+// in parallel; cache hits return instantly but cache misses can take 10-20s.
+export const maxDuration = 60;
 
 /** Build a DestinationProfile from an IATA code — uses DESTINATIONS row when
  *  available, falls back to iata-derived metadata so any airport works. */
@@ -235,57 +240,107 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No candidate destinations available' }, { status: 400 });
     }
 
-    // 2. Build packages from the deterministic estimator only — no RapidAPI
-    //    calls here. Tripadvisor's daily quota stays untouched for the views
-    //    the user actually opens later (Hotels tab, Car Rental tab, Hotel
-    //    detail page, restaurants on the route map).
+    // 2. Build packages: LIVE Tripadvisor flights + hotels for every candidate.
+    //    Estimator stays as per-destination fallback only — if Tripadvisor
+    //    returns nothing for a specific IATA, we still surface the card with
+    //    a deterministic price + isEstimated badge.
+    console.log(`[plan-trip] Fetching live Tripadvisor data for ${candidates.length} candidates from ${origin}`);
+    const liveResults = await fetchLivePackagesForDestinations({
+      origin,
+      destinations: candidates.map((c) => c.iata),
+      departureDate,
+      returnDate,
+      concurrency: 6,
+    }).catch((e) => {
+      console.warn('[plan-trip] live batch failed:', (e as Error).message);
+      return [];
+    });
+    const liveByIata = new Map(liveResults.map((r) => [r.destinationIata, r]));
+    console.log(`[plan-trip] Live results: ${liveResults.length}/${candidates.length} returned valid data`);
+
     const packages: TripPackage[] = [];
 
     for (const dest of candidates) {
-      const estimate = estimateTripPrice(origin, dest.iata, nights, budgetEur);
-      if (!estimate) continue;
+      const live = liveByIata.get(dest.iata.toUpperCase());
 
-      const flightPrice = Math.round(estimate.flightRoundTrip * totalAdults);
-      const hotelPrice = Math.round(estimate.hotelTotal);
+      let flightPrice: number;
+      let hotelPrice: number;
+      let isEstimated = false;
+      let flight: TripPackage['flight'];
+      let hotel: TripPackage['hotel'];
+
+      if (live) {
+        // Real live Tripadvisor data — for-1-adult prices scaled to group size
+        flightPrice = Math.round(live.flight.price * totalAdults);
+        hotelPrice = Math.round(live.hotel.totalPrice);
+        flight = {
+          outbound: live.flight,
+          price: flightPrice,
+          currency: live.flight.currency,
+          airline: live.flight.airline,
+          airlineCode: live.flight.airline,
+          duration: live.flight.duration,
+          stops: live.flight.stops,
+          departureTime: `${live.flight.departureDate}T${live.flight.departureTime || '08:00'}:00`,
+          arrivalTime: `${live.flight.arrivalDate}T${live.flight.arrivalTime || '12:00'}:00`,
+        };
+        hotel = {
+          id: live.hotel.id,
+          name: live.hotel.name,
+          stars: live.hotel.rating,
+          price: hotelPrice,
+          pricePerNight: Math.round(live.hotel.pricePerNight),
+          currency: live.hotel.currency,
+          checkIn: departureDate,
+          checkOut: returnDate,
+          amenities: live.hotel.amenities,
+        };
+      } else {
+        // Fallback estimator (Tripadvisor returned nothing for this IATA)
+        const estimate = estimateTripPrice(origin, dest.iata, nights, budgetEur);
+        if (!estimate) continue;
+        flightPrice = Math.round(estimate.flightRoundTrip * totalAdults);
+        hotelPrice = Math.round(estimate.hotelTotal);
+        const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
+        flight = {
+          outbound: null,
+          price: flightPrice,
+          currency: 'EUR',
+          airline: airlineCode,
+          airlineCode,
+          duration: estimate.durationISO,
+          stops: estimate.stops,
+          departureTime: '',
+          arrivalTime: '',
+        };
+        hotel = {
+          id: `est-${dest.iata}`,
+          name: `${dest.city} City Hotel`,
+          stars: 3,
+          price: hotelPrice,
+          pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
+          currency: 'EUR',
+          checkIn: departureDate,
+          checkOut: returnDate,
+          amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
+        };
+        isEstimated = true;
+      }
+
       const totalPrice = flightPrice + hotelPrice;
-      // No hard budget filter — over-budget packages ship with a badge and
-      // are sorted to the end, matching /deals UX.
       const isOverBudget = totalPrice > budgetEur;
-
-      const airlineCode = pickAirlineForRoute(origin, dest.iata, estimate.distanceKm);
-      const flight: TripPackage['flight'] = {
-        outbound: null,
-        price: flightPrice,
-        currency: 'EUR',
-        airline: airlineCode,
-        airlineCode,
-        duration: estimate.durationISO,
-        stops: estimate.stops,
-        departureTime: '',
-        arrivalTime: '',
-      };
-
-      const hotel: TripPackage['hotel'] = {
-        id: `est-${dest.iata}`,
-        name: `${dest.city} City Hotel`,
-        stars: 3,
-        price: hotelPrice,
-        pricePerNight: Math.round(hotelPrice / Math.max(1, nights)),
-        currency: 'EUR',
-        checkIn: departureDate,
-        checkOut: returnDate,
-        amenities: ['Free WiFi', 'Air Conditioning', 'Breakfast available'],
-      };
 
       // Score packages — preferences applied as boost (not as filter)
       let score = 0;
       if (totalPrice <= budgetEur * 0.6) score += 40;
       else if (totalPrice <= budgetEur * 0.8) score += 25;
       else if (totalPrice <= budgetEur) score += 10;
-      else score -= 100; // over-budget pushed down by sort below
+      else score -= 100;
       if (flight.stops === 0) score += 15;
       score += dest.tags.filter((t: string) => travelStyles.includes(t)).length * 10;
       if (climate !== 'no-preference' && dest.climate === climate) score += 15;
+      // Boost real live packages so they sort above fallbacks at equal price
+      if (!isEstimated) score += 5;
 
       packages.push({
         id: `${dest.iata}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -297,7 +352,7 @@ export async function POST(req: NextRequest) {
         nights,
         aiContent: null,
         score,
-        isEstimated: true,
+        isEstimated,
         isOverBudget,
       });
     }
@@ -335,6 +390,17 @@ export async function POST(req: NextRequest) {
           const languageInstruction = locale === 'ro'
             ? `LANGUAGE: Reply entirely in Romanian (limba română). All description text, day titles, activity descriptions, restaurant/cafe descriptions and localTips must be in Romanian. Keep proper place names (e.g. "Sagrada Familia") in their original form.`
             : `LANGUAGE: Reply entirely in English.`;
+
+          // Anchor Claude on the REAL hotel + flight Tripadvisor returned so the
+          // itinerary references the actual property the user will book, not a
+          // generic "City Hotel" placeholder.
+          const livePriceLine = pkg.isEstimated
+            ? `Pricing source: deterministic estimate (Tripadvisor did not return live data for this route).`
+            : `Pricing source: LIVE Tripadvisor — flight €${pkg.flight?.price}, hotel "${pkg.hotel?.name}" (${pkg.hotel?.stars}★) at €${pkg.hotel?.pricePerNight}/night.`;
+          const hotelContext = pkg.hotel
+            ? `Booked hotel: ${pkg.hotel.name} (${pkg.hotel.stars}★). Mention this hotel by NAME at least once in the description and on day 1.`
+            : '';
+
           const prompt = `You are a travel expert. Generate a trip itinerary for this trip:
 
 Destination: ${pkg.destination.city}, ${pkg.destination.country}
@@ -342,6 +408,8 @@ Dates: ${departureDate} to ${returnDate} (${nights} nights)
 Budget remaining for activities: €${activityBudget}
 Travel styles: ${travelStyles.join(', ')}
 Group: ${adults} adults, ${children} children
+${livePriceLine}
+${hotelContext}
 
 ${languageInstruction}
 
@@ -804,18 +872,36 @@ async function buildSingleDestinationVariants(input: BuildVariantsInput): Promis
     );
   }
 
+  // Try live Tripadvisor first — gives us real flight + real hotel as the
+  // baseline. Fall back to the deterministic estimator if live returns nothing.
+  console.log(`[plan-trip variants] Fetching live data for ${destinationIata}`);
+  const liveSingle = await fetchLivePackagesForDestinations({
+    origin,
+    destinations: [destinationIata],
+    departureDate,
+    returnDate,
+    concurrency: 1,
+  }).catch(() => []);
+  const live = liveSingle[0];
+
   const estimate = estimateTripPrice(origin, destinationIata, nights, budgetEur);
-  if (!estimate) {
+  if (!estimate && !live) {
     return NextResponse.json(
       { error: `Nu putem estima prețul pentru ${dest.city}. Încearcă altă origine sau destinație.` },
       { status: 400 },
     );
   }
 
-  const airlineCode = pickAirlineForRoute(origin, destinationIata, estimate.distanceKm);
-  const baseFlightPerPax = estimate.flightRoundTrip;
-  const baseHotelPerNight = Math.max(1, Math.round(estimate.hotelTotal / Math.max(1, nights)));
-  const baseStops = estimate.stops;
+  const airlineCode = live?.flight.airline
+    || (estimate ? pickAirlineForRoute(origin, destinationIata, estimate.distanceKm) : 'AF');
+  const baseFlightPerPax = live ? live.flight.price : estimate!.flightRoundTrip;
+  const baseHotelPerNight = live
+    ? Math.max(1, Math.round(live.hotel.pricePerNight))
+    : Math.max(1, Math.round(estimate!.hotelTotal / Math.max(1, nights)));
+  const baseStops = live ? live.flight.stops : estimate!.stops;
+  const baseDurationISO = live?.flight.duration ?? estimate!.durationISO;
+  const liveHotelName = live?.hotel.name;
+  const liveHotelStars = live?.hotel.rating;
 
   const packages: TripPackage[] = VARIANT_SPECS.map((spec) => {
     const hotelPricePerNight = Math.max(20, Math.round(baseHotelPerNight * spec.priceMultiplier));
@@ -835,27 +921,31 @@ async function buildSingleDestinationVariants(input: BuildVariantsInput): Promis
     const totalPrice = flightPrice + hotelPrice;
 
     const flight: TripPackage['flight'] = {
-      outbound: null,
+      outbound: live?.flight ?? null,
       price: flightPrice,
       currency: 'EUR',
       airline: airlineCode,
       airlineCode,
-      duration: estimate.durationISO,
+      duration: baseDurationISO,
       stops: flightStops,
-      departureTime: '',
-      arrivalTime: '',
+      departureTime: live ? `${live.flight.departureDate}T${live.flight.departureTime || '08:00'}:00` : '',
+      arrivalTime: live ? `${live.flight.arrivalDate}T${live.flight.arrivalTime || '12:00'}:00` : '',
     };
 
+    // Use live hotel name only for the standard tier (matches the real bookable
+    // baseline). Budget / premium are scaled variants of that price, so they keep
+    // the "{city} {zoneLabel} Hotel" placeholder to indicate the scaling.
+    const useLiveHotelExactly = !!live && spec.tier === 'standard';
     const hotel: TripPackage['hotel'] = {
-      id: `var-${destinationIata}-${spec.tier}`,
-      name: `${dest.city} ${spec.zoneLabel} Hotel`,
-      stars: spec.targetStars,
+      id: useLiveHotelExactly ? live.hotel.id : `var-${destinationIata}-${spec.tier}`,
+      name: useLiveHotelExactly ? liveHotelName! : `${dest.city} ${spec.zoneLabel} Hotel`,
+      stars: useLiveHotelExactly ? liveHotelStars! : spec.targetStars,
       price: hotelPrice,
       pricePerNight: hotelPricePerNight,
       currency: 'EUR',
       checkIn: departureDate,
       checkOut: returnDate,
-      amenities: spec.amenities,
+      amenities: useLiveHotelExactly && live.hotel.amenities.length > 0 ? live.hotel.amenities : spec.amenities,
     };
 
     return {
@@ -868,7 +958,7 @@ async function buildSingleDestinationVariants(input: BuildVariantsInput): Promis
       nights,
       aiContent: null,
       score: spec.tier === 'standard' ? 100 : spec.tier === 'premium' ? 90 : 80,
-      isEstimated: true,
+      isEstimated: !live,
       isOverBudget: totalPrice > budgetEur,
       variant: spec.tier,
       variantLabel: spec.label,

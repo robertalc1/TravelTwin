@@ -1,8 +1,10 @@
-// Tripadvisor RapidAPI rate limiter — sliding window 24h, 100 calls cap.
-// Free-tier on Tripadvisor16 is ~500 req/month; 100/day leaves comfortable
-// headroom and degrades gracefully (cache takes over).
+// Tripadvisor RapidAPI runaway protection — sliding window 24h, 500 calls cap.
+// The project is on Tripadvisor16 PAID PRO tier ($7.99/mo, ~10k req/mo) so the
+// cap below is NOT a quota fence — it's a safety net to keep a bug loop from
+// burning the monthly allowance in a single bad afternoon. 500/day still leaves
+// ~10x headroom against the monthly budget.
 const rapidApiTimestamps: number[] = [];
-const MAX_RAPIDAPI_PER_DAY = 100;
+const MAX_RAPIDAPI_PER_DAY = 500;
 
 export function canMakeRapidApiCall(): boolean {
   if (!process.env.RAPIDAPI_KEY) return false;
@@ -11,7 +13,7 @@ export function canMakeRapidApiCall(): boolean {
     rapidApiTimestamps.shift();
   }
   if (rapidApiTimestamps.length >= MAX_RAPIDAPI_PER_DAY) {
-    console.warn('[RateLimiter] RapidAPI daily limit reached:', rapidApiTimestamps.length);
+    console.warn('[RateLimiter] RapidAPI daily safety cap reached:', rapidApiTimestamps.length);
     return false;
   }
   return true;

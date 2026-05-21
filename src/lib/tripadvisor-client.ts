@@ -829,3 +829,4 @@ export async function searchFlightInspirations(origin: string): Promise<TAInspir
   out.sort((a, b) => a.price - b.price);
   return out;
 }
+

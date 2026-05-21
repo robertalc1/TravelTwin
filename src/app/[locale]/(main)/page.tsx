@@ -149,7 +149,10 @@ export default function Home() {
   const [visibleCount, setVisibleCount] = useState(12);
 
   const isDealsLoading = locLoading || dealsLoading;
-  const progress = useSearchProgress({ isLoading: isDealsLoading, estimatedDuration: 4000 });
+  // First load now hits Tripadvisor live for ~30 destinations in parallel
+  // (~10-15s on cache miss); cache hits return instantly. The estimator drives
+  // the progress bar gracefully across that window.
+  const progress = useSearchProgress({ isLoading: isDealsLoading, estimatedDuration: 15000 });
 
   // Enrich raw packages with category tags (memoised — only recalcs when packages change)
   const enrichedDeals = useMemo(() => enrichDeals(dealPackages), [dealPackages]);

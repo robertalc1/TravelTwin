@@ -6,7 +6,6 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { searchFlightInspirations } from '@/lib/tripadvisor-client';
 import { diversifyPackages } from '@/lib/diversify';
 import { COMMON_ROUTES } from '@/lib/commonRoutes';
 import { getCityFromIata, getCountryFromIata } from '@/lib/iataMapping';
@@ -16,6 +15,13 @@ import { DESTINATIONS } from '@/lib/destinations';
 import type { DestinationProfile } from '@/lib/destinations';
 import type { TripPackage } from '@/app/api/ai/plan-trip/route';
 import { getCached, setCache } from '@/lib/cache';
+import { fetchLivePackagesForDestinations, type LivePackageResult } from '@/lib/live-packages';
+
+// Live mode fans out ~30 destinations × 2 Tripadvisor calls (flight + hotel)
+// in parallel; cache hits return instantly but cache misses can take 10-20s.
+// Default Vercel function timeout is 10s — bump to the Hobby plan max so the
+// batch finishes on a cold cache.
+export const maxDuration = 60;
 
 /** Fisher-Yates shuffle that returns a fresh array — leaves the cached
  *  source array untouched so the next call still has all 18 packages. */
@@ -210,72 +216,123 @@ export async function GET(
     const nights = DEFAULT_NIGHTS;
     const { departureDate, returnDate } = futureDates(7, nights);
     const currency = 'EUR';
-    let packages: TripPackage[] = [];
 
+    // 1. Build the CANDIDATE POOL (just IATA codes — no prices yet).
+    //    COMMON_ROUTES + DESTINATIONS are now used ONLY as a "popular destinations
+    //    from this origin" seed list. Prices come from Tripadvisor live.
+    const seenCand = new Set<string>();
+    const candidates: string[] = [];
+    const pushCand = (iata: string) => {
+        const code = (iata || '').toUpperCase();
+        if (!/^[A-Z]{3}$/.test(code)) return;
+        if (code === origin) return;
+        if (seenCand.has(code)) return;
+        seenCand.add(code);
+        candidates.push(code);
+    };
+    COMMON_ROUTES.filter((r) => r.from === origin).forEach((r) => pushCand(r.to));
+    if (candidates.length < 8) {
+        // Exotic origin → seed with OTP's popular destinations
+        COMMON_ROUTES.filter((r) => r.from === 'OTP').forEach((r) => pushCand(r.to));
+    }
+    // Final supplement from DESTINATIONS so we hit 30+ candidates even for low-volume origins
+    DESTINATIONS.forEach((d) => pushCand(d.iata));
+    // Cap the candidate pool — 30 destinations × (1 flight call + 1 hotel call) ≈ 60 RapidAPI calls per cache miss
+    const candidatePool = candidates.slice(0, 30);
+
+    // 2. Fetch LIVE flight + hotel for each candidate in parallel batches.
+    console.log(`[deals] Fetching live Tripadvisor data for ${candidatePool.length} candidates from ${origin}`);
+    let liveResults: LivePackageResult[] = [];
     try {
-        const inspirations = await searchFlightInspirations(origin);
-        if (inspirations.length > 0) {
-            for (const insp of inspirations.slice(0, 20)) {
-                const dest = insp.destination;
-                if (!/^[A-Z]{3}$/.test(dest)) continue;
-
-                const inspFlightPrice = Math.round(insp.price || 0);
-                const estimate = estimateTripPrice(origin, dest, nights, 999999);
-
-                const inspDepDate = insp.departureDate || departureDate;
-                const inspRetDate = new Date(inspDepDate);
-                inspRetDate.setDate(inspRetDate.getDate() + nights);
-                const inspRetDateStr = inspRetDate.toISOString().split('T')[0];
-
-                const pkg = buildPackageForRoute(origin, dest, nights, inspDepDate, inspRetDateStr, currency);
-                if (!pkg) continue;
-
-                // Override estimator with inspiration price when it looks realistic
-                if (estimate && inspFlightPrice > 0 && inspFlightPrice >= estimate.flightRoundTrip * 0.4) {
-                    pkg.flight!.price = inspFlightPrice;
-                    pkg.totalPrice = Math.round(inspFlightPrice + estimate.hotelTotal + estimate.activitiesBudget);
-                }
-
-                packages.push(pkg);
-            }
-        }
+        liveResults = await fetchLivePackagesForDestinations({
+            origin,
+            destinations: candidatePool,
+            departureDate,
+            returnDate,
+            concurrency: 6,
+        });
+        console.log(`[deals] Live results: ${liveResults.length}/${candidatePool.length} destinations returned valid data`);
     } catch (e) {
-        console.warn('[deals] Inspiration source failed:', (e as Error).message);
+        console.warn('[deals] Live package batch failed entirely:', (e as Error).message);
     }
 
-    // Always supplement with COMMON_ROUTES fallbacks to ensure variety
-    {
-        const seen = new Set(packages.map(p => p.destination.iata));
-        const fallbacks = COMMON_ROUTES
-            .filter(r => r.from === origin && !seen.has(r.to))
-            .map(r => buildPackageForRoute(origin, r.to, nights, departureDate, returnDate, r.currency || currency))
-            .filter((p): p is TripPackage => p !== null);
+    // 3. Build TripPackage objects from live data.
+    let packages: TripPackage[] = liveResults.map((live) => {
+        const dest = live.destinationIata;
+        let destProfile: DestinationProfile | undefined = DESTINATIONS.find((d) => d.iata === dest);
+        if (!destProfile) {
+            const city = getCityFromIata(dest) || dest;
+            const country = getCountryFromIata(dest) || '';
+            const coords = getAirportCoords(dest);
+            destProfile = {
+                city,
+                country,
+                iata: dest,
+                tags: [],
+                climate: 'varied',
+                budgetLevel: 'budget',
+                bestMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                imageId: getCityImageByIata(dest).split('photo-')[1]?.split('?')[0] || '',
+                latitude: coords?.lat || 0,
+                longitude: coords?.lon || 0,
+            };
+        }
+
+        const flightPrice = Math.round(live.flight.price);
+        const hotelTotal = Math.round(live.hotel.totalPrice);
+        const totalPrice = flightPrice + hotelTotal;
+
+        const pkg: TripPackage = {
+            id: `deal-${origin}-${dest}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            destination: destProfile,
+            flight: {
+                outbound: live.flight,
+                price: flightPrice,
+                currency: live.flight.currency,
+                airline: live.flight.airline,
+                airlineCode: live.flight.airline,
+                duration: live.flight.duration,
+                stops: live.flight.stops,
+                departureTime: `${live.flight.departureDate}T${live.flight.departureTime || '08:00'}:00`,
+                arrivalTime: `${live.flight.arrivalDate}T${live.flight.arrivalTime || '12:00'}:00`,
+            },
+            hotel: {
+                id: live.hotel.id,
+                name: live.hotel.name,
+                stars: live.hotel.rating,
+                price: hotelTotal,
+                pricePerNight: Math.round(live.hotel.pricePerNight),
+                currency: live.hotel.currency,
+                checkIn: departureDate,
+                checkOut: returnDate,
+                amenities: live.hotel.amenities,
+            },
+            totalPrice,
+            currency,
+            nights,
+            aiContent: null,
+            score: 0,
+        };
+        return pkg;
+    });
+
+    // 4. Per-destination fallback: any candidate that didn't come back from
+    //    Tripadvisor falls back to estimator so we still surface the card.
+    const liveSet = new Set(liveResults.map((r) => r.destinationIata));
+    const missing = candidatePool.filter((c) => !liveSet.has(c));
+    if (missing.length > 0) {
+        console.log(`[deals] Falling back to estimator for ${missing.length} destinations: ${missing.join(', ')}`);
+        const fallbacks = missing
+            .map((dest) => buildPackageForRoute(origin, dest, nights, departureDate, returnDate, currency))
+            .filter((p): p is TripPackage => p !== null)
+            .map((p) => ({ ...p, isEstimated: true }));
         packages = [...packages, ...fallbacks];
     }
 
-    // Variety boost: when an origin has few direct COMMON_ROUTES (e.g. CND has only
-    // 2), supplement with OTP's popular destinations. Pricing is recalculated for
-    // the actual origin distance via estimateTripPrice, so CND→LHR stays correct.
-    if (packages.length < 8 && origin !== 'OTP') {
-        const seen = new Set(packages.map(p => p.destination.iata));
-        const otpFallbacks = COMMON_ROUTES
-            .filter(r => r.from === 'OTP' && !seen.has(r.to) && r.to !== origin)
-            .map(r => buildPackageForRoute(origin, r.to, nights, departureDate, returnDate, r.currency || currency))
-            .filter((p): p is TripPackage => p !== null);
-        packages = [...packages, ...otpFallbacks];
-    }
-
-    // Variety boost: shuffle the candidate pool so each cache-miss returns
-    // a different subset of destinations. With ~60-80 raw candidates and a
-    // target of 30, we first pick a random subset of 50 (or all if fewer),
-    // then sort+diversify. The cheapest of the subset still wins the top
-    // slot, but which "cheapest" depends on which 50 got picked → real
-    // rotation on every cache refresh (60min TTL).
-    const SUBSET_SIZE = 50;
-    packages = shuffleArray(packages).slice(0, SUBSET_SIZE);
+    // 5. Sort + diversify. Cheapest wins, regional diversity prevents 30 cards
+    //    from the same region.
     packages.sort((a, b) => a.totalPrice - b.totalPrice);
-    // Diversify so user doesn't see 30 destinations from the same region
-    const top = diversifyPackages(packages, 30); // up to 30 diverse deals (safety cap: 30)
+    const top = diversifyPackages(packages, 30);
 
     // Generate AI content — top 3 get real AI, rest use fallback (cost optimization)
     const apiKey = process.env.ANTHROPIC_API_KEY;

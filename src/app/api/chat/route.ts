@@ -61,12 +61,10 @@ WHAT THIS APP OFFERS:
 - Booking simulator at /booking/simulate.
 
 ALWAYS DO:
-1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — this returns the curated homepage list. IMPORTANT: the prices it returns are ESTIMATED package prices used for inspiration. They are NOT live airline/hotel quotes.
-2. Whenever you are about to recommend a specific destination from getCurrentDeals (or anywhere else), you MUST call searchFlights for that exact route to confirm the real live price BEFORE quoting it to the user. Quote ONLY the live searchFlights price in your reply — never the estimated price from getCurrentDeals.
-3. Call searchHotels for specific cities when the user wants accommodation. Never invent prices, airlines, or availability.
-4. Use searchInspiration only as a quick destination-discovery list. Treat its prices as average reference values, not bookable quotes — always re-check the chosen route with searchFlights before quoting.
-5. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
-6. Be SHORT — under 120 words unless drafting an itinerary.
+1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — this returns the curated homepage list with LIVE Tripadvisor flight + hotel prices. Cite them by city + price + ID.
+2. Call searchFlights / searchHotels for specific routes or cities the user names that aren't already in the deals list. Never invent prices, airlines, or availability.
+3. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
+4. Be SHORT — under 120 words unless drafting an itinerary.
 
 OUT OF SCOPE (politely decline + redirect):
 - General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence offering travel help instead.
@@ -118,24 +116,9 @@ const TOOL_DECLARATIONS = [
   {
     type: 'function' as const,
     function: {
-      name: 'searchInspiration',
-      description:
-        'Returns a quick list of popular destinations reachable from an origin airport with AVERAGE reference prices (NOT live quotes). Use only to surface destination ideas — you MUST call searchFlights afterwards on the chosen route to confirm the real bookable price before quoting it.',
-      parameters: {
-        type: 'object',
-        properties: {
-          origin: { type: 'string', description: 'Origin airport IATA code (e.g., OTP, LHR, CDG)' },
-        },
-        required: ['origin'],
-      },
-    },
-  },
-  {
-    type: 'function' as const,
-    function: {
       name: 'getCurrentDeals',
       description:
-        'Returns the curated package list currently shown on the user\'s homepage (up to 30 deals from their nearest airport). PRICES ARE ESTIMATED package totals (flight + hotel + activities), not live quotes. PREFER this over searchInspiration when the user asks about deals/offers/recommendations. CRITICAL: when you select one of these deals to recommend, you MUST call searchFlights for that exact route to get the live bookable price BEFORE quoting it to the user.',
+        'Returns the up-to-30 curated trip packages currently shown on the user\'s homepage. Prices are LIVE Tripadvisor (real bookable flight + hotel totals), cached server-side for 60 minutes. ALWAYS use this when the user asks about deals/offers/recommendations/"what is available" — prefer it over searchFlights for general questions, since the homepage is what the user is actually looking at.',
       parameters: {
         type: 'object',
         properties: {
@@ -234,42 +217,6 @@ async function executeTool(
           }));
 
         return { hotels, total: data.hotels.length };
-      }
-
-      case 'searchInspiration': {
-        const res = await fetch(
-          `${baseUrl}/api/flights/inspiration?origin=${encodeURIComponent(String(args.origin || ''))}`
-        );
-        const data = await res.json();
-
-        const deals: ChatDeal[] = (data.destinations || [])
-          .slice(0, 6)
-          .map((d: Record<string, unknown>, i: number) => {
-            const depDate = String(d.departureDate || '');
-            const retDate = String(d.returnDate || '');
-            const days =
-              depDate && retDate
-                ? Math.max(1, Math.ceil((new Date(retDate).getTime() - new Date(depDate).getTime()) / 86400000))
-                : 7;
-            const price = (d.price as number) || 0;
-            return {
-              id: `deal-${i}-${String(d.destination || '')}`,
-              destination: String(d.destination || ''),
-              city: String(d.destinationCity || d.destination || ''),
-              country: '',
-              days,
-              badge: price < 100 ? 'Hot Deal' : undefined,
-              isDirect: false,
-              departureDate: depDate,
-              returnDate: retDate,
-              originCity: String(args.origin || ''),
-              price,
-              originalPrice: price,
-              currency: String(d.currency || 'EUR'),
-            };
-          });
-
-        return { deals, total: deals.length };
       }
 
       case 'getCurrentDeals': {
@@ -471,7 +418,7 @@ export async function POST(req: NextRequest) {
       deals?: ChatDeal[];
     } = {};
 
-    while (iterations < 5) {
+    while (iterations < 3) {
       const choice = groqResponse.choices?.[0];
       if (!choice) break;
 
