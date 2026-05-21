@@ -3,13 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { Search, Calendar, Loader2, Hotel as HotelIcon, AlertCircle } from "lucide-react";
-import { HotelCard } from "@/components/features/hotels/HotelCard";
+import { Search, Calendar, Loader2, Hotel as HotelIcon } from "lucide-react";
 import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { getHotelImage } from "@/lib/hotelImages";
-import { useCurrencyStore } from "@/stores/currencyStore";
-import type { NormalizedHotel } from "@/lib/supabase/types";
 import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
 
@@ -39,12 +34,7 @@ export default function HotelsPage() {
     const [checkOutDate, setCheckOutDate] = useState("");
     const [tripId, setTripId] = useState<string | null>(null);
 
-    const formatCurrency = useCurrencyStore((s) => s.format);
-    const [hotels, setHotels] = useState<NormalizedHotel[]>([]);
     const [loading, setLoading] = useState(false);
-    const [hasSearched, setHasSearched] = useState(false);
-    const [warning, setWarning] = useState("");
-    const [responseSource, setResponseSource] = useState<string>("");
     const { user } = useUser();
     const openAuthModal = useAuthModalStore((s) => s.open);
 
@@ -74,46 +64,19 @@ export default function HotelsPage() {
         if (tid) setTripId(tid);
     }, []);
 
-    const nights =
-        checkInDate && checkOutDate
-            ? Math.max(
-                  1,
-                  Math.ceil(
-                      (new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / 86400000
-                  )
-              )
-            : 1;
-
     async function handleSearch(e: React.FormEvent) {
         e.preventDefault();
         if (!cityIata || !checkInDate || !checkOutDate) return;
+        const target = `/${locale}/hotels/search?cityCode=${encodeURIComponent(cityIata)}&cityName=${encodeURIComponent(cityDisplay || cityIata)}&checkIn=${checkInDate}&checkOut=${checkOutDate}${tripId ? `&tripId=${encodeURIComponent(tripId)}` : ""}`;
         if (!user) {
-            openAuthModal("login", `/${locale}/hotels`);
+            openAuthModal("login", target);
             return;
         }
-
         setLoading(true);
-        setHasSearched(true);
-        setHotels([]);
-        setWarning("");
-        setResponseSource("");
-
-        try {
-            const params = new URLSearchParams({
-                cityCode: cityIata,
-                checkInDate,
-                checkOutDate,
-            });
-            const res = await fetch(`/api/hotels/live?${params}`);
-            const data = await res.json();
-            setHotels(data.hotels || []);
-            setResponseSource(data.source || "");
-            if (data.warning) setWarning(data.warning);
-        } catch {
-            setWarning(t("errorGeneric"));
-        } finally {
-            setLoading(false);
-        }
+        // /hotels/search uses the same /api/hotels/search (Tripadvisor RapidAPI)
+        // as the plan-trip flow — same data, same filter sidebar UI, no duplicate
+        // search surface to maintain.
+        router.push(target);
     }
 
     return (
@@ -200,181 +163,36 @@ export default function HotelsPage() {
                 </div>
             </div>
 
-            {/* Results */}
-            <div className="mx-auto max-w-[1280px] px-4 py-10 lg:px-8">
-                {hasSearched && !loading && hotels.length > 0 && responseSource === "live" && (
-                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            {/* Popular cities — quick-pick chips. Submitting the form (or clicking
+                a chip and pressing search) routes the user to /hotels/search,
+                which renders the polished filter-driven results UI on the same
+                Tripadvisor RapidAPI used by the plan-trip flow. */}
+            <div className="mx-auto max-w-[1280px] px-4 py-12 lg:px-8">
+                <div className="text-center">
+                    <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
+                        <HotelIcon className="h-8 w-8 text-primary-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-text-primary mb-2">
+                        {isRo ? "Unde vrei să stai?" : "Where do you want to stay?"}
+                    </h2>
+                    <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
                         {isRo
-                            ? "Prețuri live + disponibilitate reală preluate acum de la Tripadvisor. Datele se actualizează la fiecare căutare."
-                            : "Live prices + real availability fetched right now from Tripadvisor. Data refreshes on every search."}
-                    </div>
-                )}
-
-                {hasSearched && !loading && hotels.length > 0 && responseSource === "cached" && (
-                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        {isRo
-                            ? "Rezultate din cache (ultimele 60 min). Refresh pagina pentru date noi."
-                            : "Cached results (last 60 min). Refresh the page for fresh data."}
-                    </div>
-                )}
-
-                {warning && (
-                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
-                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                        {warning}
-                    </div>
-                )}
-
-                {hasSearched && (
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div>
-                            <h2 className="text-2xl font-bold text-text-primary">
-                                {cityDisplay
-                                    ? (isRo ? `Hoteluri în ${cityDisplay}` : `Hotels in ${cityDisplay}`)
-                                    : (isRo ? "Rezultate căutare hoteluri" : "Hotel Search Results")}
-                            </h2>
-                            <p className="text-sm text-text-muted mt-1">
-                                {loading
-                                    ? (isRo ? "Se caută..." : "Searching...")
-                                    : isRo
-                                        ? `${hotels.length} ${hotels.length === 1 ? "hotel găsit" : "hoteluri găsite"} · ${nights} ${nights === 1 ? "noapte" : "nopți"}`
-                                        : `${hotels.length} hotel${hotels.length !== 1 ? "s" : ""} found · ${nights} night${nights !== 1 ? "s" : ""}`}
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {!hasSearched ? (
-                    <div className="text-center py-20">
-                        <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
-                            <HotelIcon className="h-8 w-8 text-primary-500" />
-                        </div>
-                        <h2 className="text-xl font-bold text-text-primary mb-2">
-                            {isRo ? "Unde vrei să stai?" : "Where do you want to stay?"}
-                        </h2>
-                        <p className="text-sm text-text-muted max-w-md mx-auto mb-6">
-                            {isRo
-                                ? "Introdu un oraș mai sus pentru a găsi hoteluri cu disponibilitate live. Funcționează cu orice oraș din lume."
-                                : "Enter a city above to find hotels with live availability. Supports any city worldwide."}
-                        </p>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                            {POPULAR_CITIES.map(([code, label]) => (
-                                <button
-                                    key={code}
-                                    type="button"
-                                    onClick={() => { setCityIata(code); setCityDisplay(label); }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                ) : loading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface overflow-hidden">
-                                <Skeleton className="aspect-[16/10] rounded-none" />
-                                <div className="p-4 space-y-2">
-                                    <Skeleton className="h-5 w-48" />
-                                    <Skeleton className="h-4 w-32" />
-                                    <Skeleton className="h-4 w-20" />
-                                </div>
-                            </div>
+                            ? "Alege un oraș și apasă căutare — afișăm rezultate live de la Tripadvisor cu filtre după stele, preț și sortare."
+                            : "Pick a city and press search — we show live results from Tripadvisor with star / price / sort filters."}
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
+                        {POPULAR_CITIES.map(([code, label]) => (
+                            <button
+                                key={code}
+                                type="button"
+                                onClick={() => { setCityIata(code); setCityDisplay(label); }}
+                                className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
+                            >
+                                {label}
+                            </button>
                         ))}
                     </div>
-                ) : hotels.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {hotels.map((hotel, i) => {
-                            const totalPrice = hotel.pricePerNight * nights;
-                            const goToDetail = () => {
-                                try {
-                                    sessionStorage.setItem(`hotelView_${hotel.id}`, JSON.stringify(hotel));
-                                } catch { /* ignore quota */ }
-                                const qs = new URLSearchParams({
-                                    cityCode: cityIata,
-                                    checkIn: checkInDate,
-                                    checkOut: checkOutDate,
-                                    name: hotel.name,
-                                    total: String(Math.round(totalPrice)),
-                                });
-                                if (tripId) qs.set("tripId", tripId);
-                                router.push(`/${locale}/hotels/${encodeURIComponent(hotel.id)}?${qs.toString()}`);
-                            };
-                            return (
-                                <div key={`${hotel.id}-${i}`} className="stagger-item">
-                                    <HotelCard
-                                        name={hotel.name}
-                                        location={hotel.cityName || hotel.address}
-                                        image={getHotelImage(hotel.name, hotel.cityName || hotel.cityCode, hotel.rating)}
-                                        rating={hotel.rating}
-                                        reviewCount={0}
-                                        price={hotel.pricePerNight}
-                                        currency={hotel.currency}
-                                        amenities={hotel.amenities.length > 0 ? hotel.amenities : ["WiFi"]}
-                                        source={hotel.source}
-                                        lastUpdated={hotel.lastUpdated}
-                                        roomType={hotel.roomType}
-                                        cancellationPolicy={hotel.cancellationPolicy}
-                                        onClick={goToDetail}
-                                        ctaLabel={isRo ? "Vezi detalii" : "View Details"}
-                                        badges={
-                                            hotel.pricePerNight < 80
-                                                ? [isRo ? "Preț excelent" : "Great Value"]
-                                                : hotel.rating >= 5
-                                                  ? [isRo ? "Lux" : "Luxury"]
-                                                  : []
-                                        }
-                                    />
-                                    <div
-                                        onClick={goToDetail}
-                                        className="px-4 pb-3 pt-2 flex items-center justify-between text-xs text-text-muted rounded-b-2xl border border-t-0 border-neutral-200 dark:border-border-default bg-white dark:bg-surface -mt-2 cursor-pointer"
-                                    >
-                                        <span>{hotel.roomType || (isRo ? "Cameră standard" : "Standard Room")} · {isRo ? `${nights} ${nights === 1 ? "noapte" : "nopți"}` : `${nights} night${nights !== 1 ? "s" : ""}`}</span>
-                                        <span className="font-mono font-semibold text-primary-500">
-                                            {isRo ? "Total" : "Total"}: {formatCurrency(totalPrice, hotel.currency || 'EUR')}
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-center py-12 rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default px-6">
-                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 dark:bg-primary-900/20 mb-4">
-                            <HotelIcon className="h-7 w-7 text-primary-500" />
-                        </div>
-                        <h3 className="text-lg font-bold text-text-primary mb-2">
-                            {isRo ? "Nu am putut obține hoteluri pentru acest oraș" : "We couldn’t fetch hotels for this city"}
-                        </h3>
-                        <p className="text-sm text-text-muted max-w-md mx-auto mb-5">
-                            {warning ||
-                                (isRo
-                                    ? "Tripadvisor nu are disponibilitate pentru acest oraș și aceste date. Încearcă alte date sau una dintre destinațiile populare de mai jos:"
-                                    : "Tripadvisor has no availability for this city on these dates. Try different dates or one of the popular destinations below:")}
-                        </p>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
-                            {[
-                                ["CDG", "Paris"],
-                                ["LHR", "London"],
-                                ["BCN", "Barcelona"],
-                                ["MAD", "Madrid"],
-                                ["BER", "Berlin"],
-                            ].map(([code, label]) => (
-                                <button
-                                    key={code}
-                                    type="button"
-                                    onClick={() => { setCityIata(code); setCityDisplay(label); }}
-                                    className="rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-medium text-text-secondary hover:border-primary-500 hover:text-primary-500 transition-colors"
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );
