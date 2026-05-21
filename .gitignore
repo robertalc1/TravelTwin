@@ -41,6 +41,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# claude worktrees + reserved windows names
+# Claude Code local state — must never be committed because it can contain
+# command-line permission grants with embedded API keys used during local
+# testing, plus per-machine worktrees and plan/cache files.
+# The shared project rules live in .claude/CLAUDE.md only — that one IS commit
+# safe.
+.claude/settings.local.json
 .claude/worktrees/
+.claude/plans/
+.claude/projects/
+.claude/cache/
+.claude/**/*.local.*
+
+# reserved windows names
 /NUL
