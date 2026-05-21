@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { searchFlights } from '@/lib/tripadvisor-client';
+import { searchFlights, type TAFlight } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
@@ -9,9 +9,22 @@ import type { NormalizedFlight } from '@/lib/supabase/types';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/** Add N days to a YYYY-MM-DD string. */
+function addDays(yyyyMmDd: string, days: number): string {
+  const d = new Date(yyyyMmDd + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+/** Keep only the outbound segment — for round-trip fallback when user wanted one-way. */
+function trimToOutbound(flights: TAFlight[]): TAFlight[] {
+  return flights.map((f) => ({
+    ...f,
+    segments: f.segments.length > 0 ? [f.segments[0]] : [],
+  }));
+}
+
 export async function GET(request: Request) {
-  // Diagnostic — boots show whether the key is configured + which route is
-  // being queried. Never logs the key itself.
   console.log('[Flights] RAPIDAPI_KEY configured:', !!process.env.RAPIDAPI_KEY);
   try {
     const { searchParams } = new URL(request.url);
@@ -30,7 +43,6 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Check cache (30 min TTL)
     const cacheKey = `flight:${origin}:${destination}:${departureDate}:${returnDate || ''}:${travelClass}`;
     const cached = await getCached(cacheKey);
     if (cached) {
@@ -45,15 +57,16 @@ export async function GET(request: Request) {
     let flights: NormalizedFlight[] = [];
     let rawCount = 0;
     let lastError: string | undefined;
+    let usedFallback = false;
 
-    // 2. Tripadvisor RapidAPI — sole live source
     if (!canMakeRapidApiCall()) {
       console.warn('[Flights] Rate limiter is blocking — RAPIDAPI_KEY missing or daily cap reached');
       lastError = 'Rate limiter blocked the call (no key configured or daily cap hit).';
     } else {
       recordRapidApiCall();
       try {
-        const rawFlights = await searchFlights({
+        // ── First attempt: honor the user's itinerary type as-is.
+        let rawFlights = await searchFlights({
           origin,
           destination,
           departureDate,
@@ -63,10 +76,39 @@ export async function GET(request: Request) {
         });
         rawCount = rawFlights.length;
         console.log(`[Flights] Tripadvisor returned ${rawCount} raw flights`);
+
+        // ── Tripadvisor16 quirk: many OD pairs return ZERO results for
+        //     ONE_WAY but plenty for ROUND_TRIP. When the user didn't pick a
+        //     return date and we got nothing, retry as round-trip with a
+        //     synthetic +7-day return and keep only the outbound segment.
+        if (rawCount === 0 && !returnDate) {
+          const syntheticReturn = addDays(departureDate, 7);
+          console.log(`[Flights] ONE_WAY empty — retrying as ROUND_TRIP with return=${syntheticReturn}`);
+          recordRapidApiCall();
+          try {
+            const rt = await searchFlights({
+              origin,
+              destination,
+              departureDate,
+              returnDate: syntheticReturn,
+              adults,
+              travelClass,
+            });
+            if (rt.length > 0) {
+              rawFlights = trimToOutbound(rt);
+              rawCount = rawFlights.length;
+              usedFallback = true;
+              console.log(`[Flights] Round-trip fallback returned ${rawCount} flights — using outbound segment only`);
+            }
+          } catch (err: unknown) {
+            console.warn('[Flights] Round-trip fallback also failed:', (err as Error)?.message);
+          }
+        }
+
         flights = rawFlights
           .map((f) => normalizeFlight(f, origin, destination, travelClass))
           .filter((f): f is NormalizedFlight => f !== null);
-        console.log(`[Flights] After normalize: ${flights.length} flights with usable price`);
+        console.log(`[Flights] After normalize: ${flights.length} flights with usable price (fallback=${usedFallback})`);
       } catch (err: unknown) {
         lastError = (err as Error)?.message ?? 'unknown error';
         console.error('[Flights] Tripadvisor search failed:', lastError);
@@ -77,10 +119,14 @@ export async function GET(request: Request) {
 
     if (flights.length > 0) {
       await setCache(cacheKey, flights, 30);
-      return NextResponse.json({ flights, source: 'live', count: flights.length });
+      return NextResponse.json({
+        flights,
+        source: 'live',
+        count: flights.length,
+        usedRoundTripFallback: usedFallback,
+      });
     }
 
-    // Empty result with a precise warning so the UI can tell the user why.
     let warning: string;
     if (!process.env.RAPIDAPI_KEY) {
       warning = `RAPIDAPI_KEY is not configured in this environment. Live flight search is unavailable.`;
