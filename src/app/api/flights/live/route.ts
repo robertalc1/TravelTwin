@@ -97,10 +97,12 @@ interface AttemptResult {
 }
 
 /** Issue a single Tripadvisor search + normalize round for the given outbound
- *  date. Always ROUND_TRIP-shaped — we synthesize a +7d return when the user
- *  didn't supply one because the round-trip pipeline returns reliable
- *  purchaseLinks while the one-way pipeline often comes back empty for the
- *  same OD pair. */
+ *  date. Honors the user's intent: ONE_WAY when they didn't pick a return,
+ *  ROUND_TRIP when they did. If a ONE_WAY call returns 0 we transparently
+ *  retry as ROUND_TRIP with a synthetic +7d return and trim the outbound
+ *  segment back to a one-way result — covers Tripadvisor's documented quirk
+ *  of returning 0 on ONE_WAY for some OD pairs even though ROUND_TRIP works.
+ */
 async function attemptSearch(
   origin: string,
   destination: string,
@@ -109,21 +111,44 @@ async function attemptSearch(
   adults: string,
   userReturnDate: string | undefined,
 ): Promise<AttemptResult> {
-  const wantsRoundTripOutput = !!userReturnDate;
-  const effectiveReturn = userReturnDate ?? addDays(outboundDate, 7);
-
-  const rawRoundTrip = await searchFlights({
+  // Honor user's choice first.
+  const primaryRaw = await searchFlights({
     origin,
     destination,
     departureDate: outboundDate,
-    returnDate: effectiveReturn,
+    returnDate: userReturnDate,
     adults,
     travelClass,
   });
 
-  const rawFlights = wantsRoundTripOutput
-    ? rawRoundTrip
-    : trimToOutbound(rawRoundTrip);
+  let rawFlights = primaryRaw;
+  let trimmed = false;
+  let rawCount = primaryRaw.length;
+
+  // ONE_WAY-empty fallback: if user asked for one-way and got 0, retry
+  // as round-trip and trim to outbound. Don't do this when the user
+  // explicitly picked a return date — that's a true round-trip search.
+  if (rawCount === 0 && !userReturnDate) {
+    const syntheticReturn = addDays(outboundDate, 7);
+    try {
+      const rt = await searchFlights({
+        origin,
+        destination,
+        departureDate: outboundDate,
+        returnDate: syntheticReturn,
+        adults,
+        travelClass,
+      });
+      if (rt.length > 0) {
+        rawFlights = trimToOutbound(rt);
+        rawCount = rt.length;
+        trimmed = true;
+        console.log(`[Flights] ONE_WAY empty for ${origin}->${destination} ${outboundDate}, ROUND_TRIP fallback returned ${rt.length} (trimmed to outbound)`);
+      }
+    } catch (err: unknown) {
+      console.warn(`[Flights] ROUND_TRIP fallback failed for ${origin}->${destination}:`, (err as Error)?.message);
+    }
+  }
 
   const flights = rawFlights
     .map((f) => normalizeFlight(f, origin, destination, travelClass))
@@ -131,9 +156,9 @@ async function attemptSearch(
 
   return {
     flights,
-    rawCount: rawRoundTrip.length,
+    rawCount,
     actualDate: outboundDate,
-    trimmed: !wantsRoundTripOutput,
+    trimmed,
   };
 }
 

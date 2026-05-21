@@ -389,6 +389,8 @@ function ResultsSection(props: {
     const [warning, setWarning] = useState<string | null>(null);
     const [responseSource, setResponseSource] = useState<string>("");
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+    const [actualDate, setActualDate] = useState<string>("");
+    const [dateExpansionUsed, setDateExpansionUsed] = useState(false);
 
     const [sortBy, setSortBy] = useState<"recommended" | "price" | "duration">("recommended");
     const [stopsFilter, setStopsFilter] = useState<"any" | "direct" | "one">("any");
@@ -403,6 +405,8 @@ function ResultsSection(props: {
         setWarning(null);
         setResponseSource("");
         setSuggestions([]);
+        setActualDate("");
+        setDateExpansionUsed(false);
 
         const params = new URLSearchParams({
             origin,
@@ -413,12 +417,14 @@ function ResultsSection(props: {
         });
         fetch(`/api/flights/live?${params}`)
             .then((r) => r.json())
-            .then((data: { flights?: NormalizedFlight[]; source?: string; warning?: string; suggestions?: Suggestion[] }) => {
+            .then((data: { flights?: NormalizedFlight[]; source?: string; warning?: string; suggestions?: Suggestion[]; actualDate?: string; usedDateExpansion?: boolean }) => {
                 if (cancelled) return;
                 setFlights(data.flights || []);
                 setResponseSource(data.source || "");
                 if (data.warning) setWarning(data.warning);
                 if (data.suggestions) setSuggestions(data.suggestions);
+                if (data.actualDate) setActualDate(data.actualDate);
+                if (data.usedDateExpansion) setDateExpansionUsed(true);
             })
             .catch(() => {
                 if (!cancelled) setWarning(t("errorGeneric"));
@@ -493,6 +499,14 @@ function ResultsSection(props: {
                 <div className="mb-4 flex items-start gap-3 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
                     <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                     {warning}
+                </div>
+            )}
+            {dateExpansionUsed && actualDate && actualDate !== departureDate && (
+                <div className="mb-4 flex items-start gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+                    <Calendar className="h-4 w-4 mt-0.5 shrink-0" />
+                    {isRo
+                        ? `Nu au fost zboruri pe ${departureDate}, dar am găsit pe ${actualDate} — căutare cu date flexibile.`
+                        : `No flights on ${departureDate}, showing results for ${actualDate} — flexible date search.`}
                 </div>
             )}
 

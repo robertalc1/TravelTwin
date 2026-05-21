@@ -221,14 +221,18 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   const itineraryType = p.returnDate ? 'ROUND_TRIP' : 'ONE_WAY';
   const classOfService = (p.travelClass || 'ECONOMY').toUpperCase();
 
-  // Param set matches the Tripadvisor16 PRO playground sample curl.
-  // `nearby=yes` / `nonstop=yes` are INCLUSIVE hints (include nearby
-  // airports + non-stop flights as candidates), not restrictive filters.
-  // `region` is INTENTIONALLY OMITTED — the docs example uses 'USA' but
-  // we don't know the canonical EU value; sending 'EUR' produced no
-  // results and 'USA' would obviously route wrong. Without it Tripadvisor
-  // falls back to a default region which appears to handle EU OD pairs
-  // fine. UI filters (direct / max-1 stop) stay client-side.
+  // Param set matches the Tripadvisor16 PRO playground sample curl, but
+  // with two intentional differences for our use case:
+  //
+  // - `nearby=yes` (broader inventory: include nearby airports as
+  //   alternatives, e.g. OTP search picks up BBU Băneasa flights too)
+  // - `nonstop=no` (broader inventory: INCLUDE flights with stops; the
+  //   docs example uses 'yes' which means ONLY direct flights — too
+  //   restrictive for our purposes. Most long-haul + many regional EU
+  //   routes only exist as 1-stop, so nonstop=yes filtered them out.
+  //   UI has a client-side 'Direct only' filter for users who want it.)
+  //
+  // `region` is omitted — docs example uses 'USA', no documented EU value.
   const params: Record<string, string | number> = {
     sourceAirportCode: p.origin.toUpperCase(),
     destinationAirportCode: p.destination.toUpperCase(),
@@ -240,7 +244,7 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
     classOfService,
     pageNumber: 1,
     nearby: 'yes',
-    nonstop: 'yes',
+    nonstop: 'no',
     currencyCode: 'EUR',
   };
   if (p.returnDate) params.returnDate = p.returnDate;
