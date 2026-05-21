@@ -4,7 +4,6 @@ import {
   geocodeCity,
   getDriveQuote,
   reverseGeocode,
-  midpoint,
   type GeocodeResult,
   type DriveQuote,
 } from '@/lib/google-maps-client';
@@ -13,7 +12,11 @@ import {
   searchHotelsByGeoId,
   type TAHotel,
 } from '@/lib/tripadvisor-client';
-import { buildRoadTripPrompt, type RoadTripAiContent } from '@/lib/road-trip-prompt';
+import {
+  buildRoadTripPrompt,
+  parseRoadTripAiJson,
+  type RoadTripAiContent,
+} from '@/lib/road-trip-prompt';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -31,10 +34,21 @@ interface RequestBody {
   locale?: string;
 }
 
+interface Stopover {
+  city: string;
+  lat: number;
+  lng: number;
+  order: number;
+  arrivalHourFromStart: number;
+  hotel: TAHotel | null;
+}
+
 interface RoadTripResponse {
   id: string;
   origin: { query: string; formatted: string; lat: number; lng: number };
   destination: { query: string; formatted: string; lat: number; lng: number };
+  destinationCity: string;
+  destinationCountry: string;
   mode: 'car' | 'bus';
   departureDate: string;
   returnDate?: string;
@@ -51,13 +65,9 @@ interface RoadTripResponse {
     total: number;
     currency: 'EUR';
   };
-  stopover?: { city: string; reason: string };
+  stopovers: Stopover[];
   hotelDestination: TAHotel | null;
-  hotelStopover: TAHotel | null;
-  externalLinks: {
-    googleMaps: string;
-    flixbus?: string;
-  };
+  externalLinks: { googleMaps: string; flixbus?: string };
   aiContent: RoadTripAiContent | null;
   warnings: string[];
 }
@@ -67,8 +77,15 @@ const CONSUMPTION_DEFAULT_L_PER_100KM = 7;
 const TOLL_PER_KM_EUR = 0.05;
 const BUS_FARE_PER_KM_EUR = 0.05;
 const STOPOVER_THRESHOLD_HOURS = 14;
+const HOURS_PER_STOPOVER = 12;
+const CLAUDE_TIMEOUT_MS = 45_000;
 
 export async function POST(req: NextRequest) {
+  console.log('[road-trip] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+  console.log(
+    '[road-trip] GOOGLE_MAPS_SERVER_API_KEY configured:',
+    !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
+  );
   try {
     const supabase = await createClient();
     const {
@@ -151,117 +168,111 @@ export async function POST(req: NextRequest) {
       : undefined;
 
     const fuel =
-      mode === 'car'
-        ? Math.round((distanceKm * consumption * fuelPrice) / 100)
-        : 0;
+      mode === 'car' ? Math.round((distanceKm * consumption * fuelPrice) / 100) : 0;
     const tolls = mode === 'car' ? Math.round(distanceKm * TOLL_PER_KM_EUR) : 0;
-    const busFarePerPerson =
-      mode === 'bus' ? Math.round(distanceKm * BUS_FARE_PER_KM_EUR) : 0;
+    const busFarePerPerson = mode === 'bus' ? Math.round(distanceKm * BUS_FARE_PER_KM_EUR) : 0;
     const total = fuel + tolls + busFarePerPerson * adults;
 
-    let stopover: { city: string; reason: string } | undefined;
-    if (durationHours > STOPOVER_THRESHOLD_HOURS) {
-      const mid = midpoint(origin, destination);
-      const midCityName = await reverseGeocode(mid.lat, mid.lng).catch(() => null);
-      if (midCityName) {
-        stopover = {
-          city: midCityName,
-          reason: `${durationHours.toFixed(1)}h is too long for a single day — overnight in ${midCityName} (geographic midpoint).`,
-        };
-      } else {
-        warnings.push(
-          `Trip is ${durationHours.toFixed(1)}h long but we couldn't auto-pick a midpoint city — plan an overnight stop manually.`,
-        );
-      }
-    }
+    const stopovers = await computeStopovers(durationHours, origin, destination, warnings);
 
-    let hotelDestination: TAHotel | null = null;
-    let hotelStopover: TAHotel | null = null;
-    const checkIn = stopover
-      ? new Date(new Date(departureDate).getTime() + 86400000).toISOString().split('T')[0]
-      : departureDate;
-    const checkOut = returnDate || addDays(checkIn, 2);
+    const checkInDates = computeCheckInDates(departureDate, stopovers.length, returnDate);
 
-    try {
-      const destGeo = await getGeoIdByQuery(destination.formatted);
-      if (destGeo) {
-        const hotels = await searchHotelsByGeoId({
-          geoId: destGeo,
-          checkIn,
-          checkOut,
-          adults: String(adults),
-        });
-        hotelDestination = hotels[0] ?? null;
-      }
-    } catch (e) {
-      warnings.push(`Could not load destination hotels: ${(e as Error).message}`);
-    }
+    const hotelPromises: Array<Promise<TAHotel | null>> = stopovers.map((s, i) =>
+      fetchFirstHotel(s.city, checkInDates.stopoverNights[i], checkInDates.stopoverNights[i + 1] || addDays(checkInDates.stopoverNights[i], 1), adults).catch((e) => {
+        warnings.push(`Could not load stopover hotel for ${s.city}: ${(e as Error).message}`);
+        return null;
+      }),
+    );
+    hotelPromises.push(
+      fetchFirstHotel(
+        destinationQuery,
+        checkInDates.destinationCheckIn,
+        checkInDates.destinationCheckOut,
+        adults,
+      ).catch((e) => {
+        warnings.push(`Could not load destination hotel: ${(e as Error).message}`);
+        return null;
+      }),
+    );
+    const hotelResults = await Promise.all(hotelPromises);
+    const stopoverHotels = hotelResults.slice(0, stopovers.length);
+    const hotelDestination = hotelResults[hotelResults.length - 1];
+    stopovers.forEach((s, i) => {
+      s.hotel = stopoverHotels[i];
+    });
 
-    if (stopover) {
-      try {
-        const stopGeo = await getGeoIdByQuery(stopover.city);
-        if (stopGeo) {
-          const stopHotels = await searchHotelsByGeoId({
-            geoId: stopGeo,
-            checkIn: departureDate,
-            checkOut: addDays(departureDate, 1),
-            adults: String(adults),
-          });
-          hotelStopover = stopHotels[0] ?? null;
-        }
-      } catch (e) {
-        warnings.push(`Could not load stopover hotel: ${(e as Error).message}`);
-      }
-    }
+    const destinationCity = shortCityName(destination);
+    const destinationCountry = extractCountry(destination.formatted);
 
     let aiContent: RoadTripAiContent | null = null;
     if (process.env.ANTHROPIC_API_KEY) {
       try {
         const prompt = buildRoadTripPrompt({
           originCity: shortCityName(origin),
-          destinationCity: shortCityName(destination),
+          destinationCity,
+          destinationCountry,
           mode,
           distanceKm,
           durationHours,
           departureDate,
           returnDate,
           adults,
-          stopoverCity: stopover?.city,
+          stopovers: stopovers.map((s) => ({ city: s.city })),
           destinationHotelName: hotelDestination?.title,
           locale,
         });
-        const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': process.env.ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2500,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
-        if (aiRes.ok) {
-          const aiData = (await aiRes.json()) as { content?: Array<{ text?: string }> };
-          const text = aiData.content?.[0]?.text || '';
-          aiContent = parseAiJson(text);
-        } else {
-          warnings.push(`Claude returned HTTP ${aiRes.status}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
+        try {
+          const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': process.env.ANTHROPIC_API_KEY,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 3500,
+              messages: [{ role: 'user', content: prompt }],
+            }),
+            signal: controller.signal,
+          });
+          if (aiRes.ok) {
+            const aiData = (await aiRes.json()) as { content?: Array<{ text?: string }> };
+            const text = aiData.content?.[0]?.text || '';
+            aiContent = parseRoadTripAiJson(text);
+            if (!aiContent) {
+              warnings.push('Claude returned unparseable JSON — itinerary skipped.');
+            }
+          } else {
+            const errText = await aiRes.text().catch(() => '');
+            warnings.push(
+              `Claude returned HTTP ${aiRes.status}: ${errText.slice(0, 200)}`,
+            );
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       } catch (e) {
-        warnings.push(`AI itinerary generation failed: ${(e as Error).message}`);
+        const err = e as Error;
+        if (err.name === 'AbortError') {
+          warnings.push('AI itinerary generation timed out (>45s).');
+        } else {
+          warnings.push(`AI itinerary generation failed: ${err.message}`);
+        }
       }
     } else {
-      warnings.push('ANTHROPIC_API_KEY missing — AI itinerary not generated.');
+      warnings.push(
+        'ANTHROPIC_API_KEY not configured on the server — AI itinerary not generated.',
+      );
     }
 
     const id = `rt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const googleMapsLink = `https://www.google.com/maps/dir/?api=1&origin=place_id:${origin.placeId}&destination=place_id:${destination.placeId}&travelmode=${mode === 'bus' ? 'transit' : 'driving'}`;
+    const googleMapsLink = buildGoogleMapsLink(origin, destination, stopovers, mode);
     const flixbusLink =
       mode === 'bus'
-        ? `https://www.flixbus.com/search?from=${encodeURIComponent(shortCityName(origin))}&to=${encodeURIComponent(shortCityName(destination))}&departureDate=${departureDate}`
+        ? `https://www.flixbus.com/search?from=${encodeURIComponent(shortCityName(origin))}&to=${encodeURIComponent(destinationCity)}&departureDate=${departureDate}`
         : undefined;
 
     const response: RoadTripResponse = {
@@ -278,6 +289,8 @@ export async function POST(req: NextRequest) {
         lat: destination.lat,
         lng: destination.lng,
       },
+      destinationCity,
+      destinationCountry,
       mode,
       departureDate,
       returnDate,
@@ -289,16 +302,9 @@ export async function POST(req: NextRequest) {
           ? Number(durationInTrafficHours.toFixed(2))
           : undefined,
       },
-      cost: {
-        fuel,
-        tolls,
-        busFarePerPerson,
-        total,
-        currency: 'EUR',
-      },
-      stopover,
-      hotelDestination,
-      hotelStopover,
+      cost: { fuel, tolls, busFarePerPerson, total, currency: 'EUR' },
+      stopovers,
+      hotelDestination: hotelDestination ?? null,
       externalLinks: { googleMaps: googleMapsLink, flixbus: flixbusLink },
       aiContent,
       warnings,
@@ -314,25 +320,96 @@ export async function POST(req: NextRequest) {
   }
 }
 
+async function computeStopovers(
+  durationHours: number,
+  origin: GeocodeResult,
+  destination: GeocodeResult,
+  warnings: string[],
+): Promise<Stopover[]> {
+  if (durationHours < STOPOVER_THRESHOLD_HOURS) return [];
+  const count = Math.min(3, Math.floor(durationHours / HOURS_PER_STOPOVER));
+  const stops: Stopover[] = [];
+  for (let i = 1; i <= count; i++) {
+    const t = i / (count + 1);
+    const lat = origin.lat + t * (destination.lat - origin.lat);
+    const lng = origin.lng + t * (destination.lng - origin.lng);
+    const city = await reverseGeocode(lat, lng).catch(() => null);
+    if (city) {
+      stops.push({
+        city,
+        lat,
+        lng,
+        order: i,
+        arrivalHourFromStart: Number((durationHours * t).toFixed(1)),
+        hotel: null,
+      });
+    } else {
+      warnings.push(
+        `Could not reverse-geocode midpoint ${i} — skipping that stopover.`,
+      );
+    }
+  }
+  return stops;
+}
+
+function computeCheckInDates(
+  departureDate: string,
+  stopoverCount: number,
+  returnDate: string | undefined,
+): { stopoverNights: string[]; destinationCheckIn: string; destinationCheckOut: string } {
+  const stopoverNights: string[] = [];
+  for (let i = 0; i < stopoverCount; i++) {
+    stopoverNights.push(addDays(departureDate, i));
+  }
+  const destinationCheckIn = addDays(departureDate, stopoverCount);
+  const destinationCheckOut = returnDate || addDays(destinationCheckIn, 2);
+  return { stopoverNights, destinationCheckIn, destinationCheckOut };
+}
+
+async function fetchFirstHotel(
+  cityQuery: string,
+  checkIn: string,
+  checkOut: string,
+  adults: number,
+): Promise<TAHotel | null> {
+  const geoId = await getGeoIdByQuery(cityQuery);
+  if (!geoId) return null;
+  const hotels = await searchHotelsByGeoId({
+    geoId,
+    checkIn,
+    checkOut,
+    adults: String(adults),
+  });
+  return hotels[0] ?? null;
+}
+
 function shortCityName(geo: GeocodeResult): string {
   return geo.formatted.split(',')[0]?.trim() || geo.formatted;
+}
+
+function extractCountry(formatted: string): string {
+  const parts = formatted.split(',').map((p) => p.trim());
+  return parts[parts.length - 1] || '';
 }
 
 function addDays(date: string, n: number): string {
   return new Date(new Date(date).getTime() + n * 86400000).toISOString().split('T')[0];
 }
 
-function parseAiJson(text: string): RoadTripAiContent | null {
-  if (!text) return null;
-  const first = text.indexOf('{');
-  const last = text.lastIndexOf('}');
-  if (first < 0 || last < 0) return null;
-  const slice = text.slice(first, last + 1);
-  try {
-    const parsed = JSON.parse(slice) as RoadTripAiContent;
-    if (!parsed.dayByDay || !Array.isArray(parsed.dayByDay)) return null;
-    return parsed;
-  } catch {
-    return null;
+function buildGoogleMapsLink(
+  origin: GeocodeResult,
+  destination: GeocodeResult,
+  stopovers: Stopover[],
+  mode: 'car' | 'bus',
+): string {
+  const params = new URLSearchParams({
+    api: '1',
+    origin: `${origin.lat},${origin.lng}`,
+    destination: `${destination.lat},${destination.lng}`,
+    travelmode: mode === 'bus' ? 'transit' : 'driving',
+  });
+  if (stopovers.length > 0) {
+    params.set('waypoints', stopovers.map((s) => `${s.lat},${s.lng}`).join('|'));
   }
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }

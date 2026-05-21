@@ -98,7 +98,7 @@ export default function RoadTripWizardPage() {
       } catch {
         /* ignore quota */
       }
-      router.push(`/${locale}/road-trip/result?id=${data.id}`);
+      router.push(`/${locale}/road-trip/result/${data.id}`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
