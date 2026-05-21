@@ -54,17 +54,19 @@ export type ChatDeal = {
 const BASE_SYSTEM_PROMPT = `You are TravelTwin AI — the live in-app concierge for TravelTwin, an AI-powered trip-planning platform. You are NOT a generic chatbot. You ONLY help users with travel inside this app.
 
 WHAT THIS APP OFFERS:
-- Live flights and hotels (real prices via Amadeus + TripAdvisor).
+- Live flights and hotels (real prices via Tripadvisor RapidAPI).
 - AI Trip Planner wizard at /plan that builds 3 ranked packages (flight + hotel + day-by-day itinerary) from origin + budget + style.
 - A rotating list of 30 curated deal packages on the homepage, refreshed periodically.
 - Destination guides, restaurants, attractions, visa info, weather, route maps.
 - Booking simulator at /booking/simulate.
 
 ALWAYS DO:
-1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — these are the actual offers visible on their homepage right now. Cite them by city + price + ID.
-2. Call searchFlights / searchHotels for specific routes or cities. Never invent prices, airlines, or availability.
-3. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
-4. Be SHORT — under 120 words unless drafting an itinerary.
+1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — this returns the curated homepage list. IMPORTANT: the prices it returns are ESTIMATED package prices used for inspiration. They are NOT live airline/hotel quotes.
+2. Whenever you are about to recommend a specific destination from getCurrentDeals (or anywhere else), you MUST call searchFlights for that exact route to confirm the real live price BEFORE quoting it to the user. Quote ONLY the live searchFlights price in your reply — never the estimated price from getCurrentDeals.
+3. Call searchHotels for specific cities when the user wants accommodation. Never invent prices, airlines, or availability.
+4. Use searchInspiration only as a quick destination-discovery list. Treat its prices as average reference values, not bookable quotes — always re-check the chosen route with searchFlights before quoting.
+5. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
+6. Be SHORT — under 120 words unless drafting an itinerary.
 
 OUT OF SCOPE (politely decline + redirect):
 - General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence offering travel help instead.
@@ -118,7 +120,7 @@ const TOOL_DECLARATIONS = [
     function: {
       name: 'searchInspiration',
       description:
-        'Find the cheapest flight deals from a specific airport. Use when the user wants travel inspiration or cheap deals without a specific destination.',
+        'Returns a quick list of popular destinations reachable from an origin airport with AVERAGE reference prices (NOT live quotes). Use only to surface destination ideas — you MUST call searchFlights afterwards on the chosen route to confirm the real bookable price before quoting it.',
       parameters: {
         type: 'object',
         properties: {
@@ -133,7 +135,7 @@ const TOOL_DECLARATIONS = [
     function: {
       name: 'getCurrentDeals',
       description:
-        'Returns the EXACT trip packages currently shown on the user\'s homepage (rotated set of up to 30 curated deals from their nearest airport). PREFER this over searchInspiration whenever the user asks about deals, offers, recommendations, "what is available", or "show me what you have".',
+        'Returns the curated package list currently shown on the user\'s homepage (up to 30 deals from their nearest airport). PRICES ARE ESTIMATED package totals (flight + hotel + activities), not live quotes. PREFER this over searchInspiration when the user asks about deals/offers/recommendations. CRITICAL: when you select one of these deals to recommend, you MUST call searchFlights for that exact route to get the live bookable price BEFORE quoting it to the user.',
       parameters: {
         type: 'object',
         properties: {
@@ -469,7 +471,7 @@ export async function POST(req: NextRequest) {
       deals?: ChatDeal[];
     } = {};
 
-    while (iterations < 3) {
+    while (iterations < 5) {
       const choice = groqResponse.choices?.[0];
       if (!choice) break;
 
