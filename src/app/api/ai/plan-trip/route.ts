@@ -123,6 +123,11 @@ export interface TripPackage {
 
 export async function POST(req: NextRequest) {
   try {
+    // Diagnostic — never logs the key value, only whether one exists. When
+    // this prints `false` in Vercel logs you know every package will fall
+    // back to deterministic content.
+    console.log('[plan-trip] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+
     // Auth gate — only authenticated users can generate AI trip plans.
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -357,16 +362,43 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Hard budget filter with a +20% safety margin so a destination doesn't
+    // get dropped over €10 of price jitter. Packages above `budget × 1.2` are
+    // never shown. The badge on cards in this band reads "+€X over budget".
+    const HARD_CAP_MULTIPLIER = 1.2;
+    const MIN_RESULTS = 6;
+    const MAX_RESULTS = 18;
+    const hardMax = budgetEur * HARD_CAP_MULTIPLIER;
+
+    let pool = packages.filter((p) => p.totalPrice <= hardMax);
+    let relaxed = false;
+    let inBudgetCount = packages.filter((p) => !p.isOverBudget).length;
+
+    // Relax: if too few destinations fit (including the +20% band), backfill
+    // with the cheapest over-cap options so the user always sees at least
+    // MIN_RESULTS cards instead of an almost-empty grid.
+    if (pool.length < MIN_RESULTS) {
+      const overflow = packages
+        .filter((p) => p.totalPrice > hardMax)
+        .sort((a, b) => a.totalPrice - b.totalPrice)
+        .slice(0, MIN_RESULTS - pool.length);
+      if (overflow.length > 0) {
+        pool = [...pool, ...overflow];
+        relaxed = true;
+      }
+    }
+
     // Sort: budget-fitting first (by cheapest), then over-budget (also by cheapest).
-    // Matches /deals UX while letting the user still see expensive options.
-    packages.sort((a, b) => {
+    pool.sort((a, b) => {
       if (!!a.isOverBudget !== !!b.isOverBudget) return a.isOverBudget ? 1 : -1;
       if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
       return b.score - a.score;
     });
 
-    // Cap at 18 like /deals — diversifyPackages prevents 18 carduri din aceeași țară.
-    const topPackages = diversifyPackages(packages, 18);
+    // Cap at MAX_RESULTS — diversifyPackages prevents 18 cards din aceeași țară.
+    const topPackages = diversifyPackages(pool, MAX_RESULTS);
+    const overflowCount = topPackages.filter((p) => p.isOverBudget).length;
+    inBudgetCount = topPackages.filter((p) => !p.isOverBudget).length;
 
     // With no hard budget filter this is rare — only fires when no airport
     // distance estimate could be computed (unknown IATA airports).
@@ -467,18 +499,38 @@ Return ONLY valid JSON (no markdown, no backticks):
             const aiData = await aiRes.json();
             const text = aiData.content?.[0]?.text || '';
             pkg.aiContent = JSON.parse(text);
+          } else {
+            console.error(
+              `[plan-trip] Claude non-OK for ${pkg.destination.iata}: status=${aiRes.status}`,
+            );
+            pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale);
           }
         } catch (e) {
-          console.warn('[plan-trip] AI generation failed for', pkg.destination.iata, e);
-          pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles);
+          const err = e as Error;
+          console.error(
+            `[plan-trip] Claude failed for ${pkg.destination.iata}:`,
+            err.message,
+            err.name,
+          );
+          pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale);
         }
       }));
     } else {
-      needAi.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
+      if (!apiKey) {
+        console.warn('[plan-trip] ANTHROPIC_API_KEY missing — all packages will use locale-aware fallback content');
+      }
+      needAi.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale); });
     }
-    useFallback.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles); });
+    useFallback.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale); });
 
-    const response = { packages: topPackages, total: topPackages.length };
+    const response = {
+      packages: topPackages,
+      total: topPackages.length,
+      budget: budgetEur,
+      inBudgetCount,
+      overflowCount,
+      relaxed,
+    };
     // Cache for 6h — same (origin, dates, budget, prefs) returns instantly.
     await setCache(cacheKey, response, 60 * 6);
     return NextResponse.json(response);
@@ -490,8 +542,14 @@ Return ONLY valid JSON (no markdown, no backticks):
 }
 
 
-function generateFallbackContent(dest: DestinationProfile, nights: number, styles: string[]) {
-  const styleText = styles.slice(0, 2).join(" and ") || "adventure";
+function generateFallbackContent(
+  dest: DestinationProfile,
+  nights: number,
+  styles: string[],
+  locale: 'en' | 'ro' = 'en',
+) {
+  const isRo = locale === 'ro';
+  const styleText = styles.slice(0, 2).join(isRo ? " și " : " and ") || (isRo ? "aventură" : "adventure");
   const city = dest.city;
   const country = dest.country;
 
@@ -776,23 +834,82 @@ function generateFallbackContent(dest: DestinationProfile, nights: number, style
     }
   };
 
-  const cityData: CityData = CITY_DATA[city] || {
-    attractions: [
-      { name: city + " Historic Center", description: "Explore the historic heart of " + city, category: "landmark" },
-      { name: city + " National Museum", description: "Discover the culture and history of " + country, category: "museum" },
-      { name: city + " Central Park", description: "Green oasis in the heart of the city", category: "park" }
-    ],
-    restaurants: [
-      { name: "Local Kitchen", cuisine: "Traditional " + country, priceRange: "€€", description: "Authentic local cuisine in a welcoming atmosphere" },
-      { name: "Central Bistro", cuisine: "International", priceRange: "€€", description: "Popular restaurant in the city center" },
-      { name: "Street Food Market", cuisine: "Street food", priceRange: "€", description: "Local street food and market stalls" }
-    ],
-    cafes: [
-      { name: "Morning Brew", specialty: "Coffee and pastries", description: "Popular local cafe for breakfast and coffee" },
-      { name: city + " Coffee House", specialty: "Local coffee blends", description: "Cozy spot for coffee and conversation" },
-      { name: "The Corner Cafe", specialty: "Specialty coffee", description: "Third-wave coffee in a relaxed setting" }
-    ]
-  };
+  const fallbackCityData: CityData = isRo
+    ? {
+        attractions: [
+          { name: "Centrul istoric " + city, description: "Explorează inima istorică a " + city, category: "landmark" },
+          { name: "Muzeul Național " + city, description: "Descoperă cultura și istoria țării " + country, category: "museum" },
+          { name: "Parcul central " + city, description: "Oază verde în mijlocul orașului", category: "park" },
+        ],
+        restaurants: [
+          { name: "Local Kitchen", cuisine: "Bucătărie tradițională " + country, priceRange: "€€", description: "Mâncare locală autentică, într-o atmosferă primitoare" },
+          { name: "Central Bistro", cuisine: "Internațional", priceRange: "€€", description: "Restaurant popular în centrul orașului" },
+          { name: "Piața Street Food", cuisine: "Street food", priceRange: "€", description: "Mâncare de stradă și standuri locale" },
+        ],
+        cafes: [
+          { name: "Morning Brew", specialty: "Cafea și produse de patiserie", description: "Cafenea locală populară pentru mic dejun" },
+          { name: city + " Coffee House", specialty: "Amestecuri locale de cafea", description: "Loc primitor pentru cafea și conversație" },
+          { name: "The Corner Cafe", specialty: "Cafea de specialitate", description: "Third-wave coffee într-un decor relaxat" },
+        ],
+      }
+    : {
+        attractions: [
+          { name: city + " Historic Center", description: "Explore the historic heart of " + city, category: "landmark" },
+          { name: city + " National Museum", description: "Discover the culture and history of " + country, category: "museum" },
+          { name: city + " Central Park", description: "Green oasis in the heart of the city", category: "park" },
+        ],
+        restaurants: [
+          { name: "Local Kitchen", cuisine: "Traditional " + country, priceRange: "€€", description: "Authentic local cuisine in a welcoming atmosphere" },
+          { name: "Central Bistro", cuisine: "International", priceRange: "€€", description: "Popular restaurant in the city center" },
+          { name: "Street Food Market", cuisine: "Street food", priceRange: "€", description: "Local street food and market stalls" },
+        ],
+        cafes: [
+          { name: "Morning Brew", specialty: "Coffee and pastries", description: "Popular local cafe for breakfast and coffee" },
+          { name: city + " Coffee House", specialty: "Local coffee blends", description: "Cozy spot for coffee and conversation" },
+          { name: "The Corner Cafe", specialty: "Specialty coffee", description: "Third-wave coffee in a relaxed setting" },
+        ],
+      };
+  const cityData: CityData = CITY_DATA[city] || fallbackCityData;
+
+  if (isRo) {
+    return {
+      description: `Descoperă magia destinației ${city} într-o călătorie de ${nights} nopți. De la repere iconice la comori locale, această ofertă combină cele mai bune experiențe din ${country}.`,
+      whyThisTrip: `Această călătorie este potrivită pentru cei care caută o experiență de neuitat în ${city}, la un preț bun.`,
+      dayByDay: Array.from({ length: Math.min(nights, 5) }, (_, i) => ({
+        day: i + 1,
+        title:
+          i === 0
+            ? `Sosire în ${city}`
+            : i === nights - 1
+              ? "Ultima zi & plecare"
+              : `Explorează ${city} - Ziua ${i + 1}`,
+        morning: {
+          activity: i === 0 ? "Sosire la aeroport & check-in la hotel" : "Mic dejun la o cafenea locală",
+          description: i === 0 ? `Acomodare și primii pași în ${city}` : "Începe ziua cu arome locale",
+          type: i === 0 ? "transport" : "dining",
+        },
+        afternoon: {
+          activity: `Explorează atracțiile din ${city}`,
+          description: "Vizitează cele mai importante locuri și cartierele locale",
+          type: "sightseeing",
+        },
+        evening: {
+          activity: "Cină la un restaurant local",
+          description: `Bucură-te de cele mai bune preparate din bucătăria ${country}`,
+          type: "dining",
+        },
+      })),
+      topAttractions: cityData.attractions,
+      topRestaurants: cityData.restaurants,
+      topCafes: cityData.cafes,
+      localTips: [
+        "Rezervă restaurantele și atracțiile populare din timp",
+        "Folosește transportul public local ca să economisești și să vezi mai mult",
+        "Vizitează atracțiile populare dimineața devreme pentru a evita aglomerația",
+      ],
+      estimatedDailyExpenses: { food: 35, transport: 15, activities: 25 },
+    };
+  }
 
   return {
     description: "Discover the magic of " + city + " on this perfectly curated " + nights + "-night journey. From iconic landmarks to hidden local gems, this trip combines the best of " + country + " culture and beauty.",
@@ -994,8 +1111,9 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
+    console.warn('[plan-trip:variant] ANTHROPIC_API_KEY missing — using locale-aware fallback');
     packages.forEach((pkg) => {
-      pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+      pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
     });
     return;
   }
@@ -1004,7 +1122,7 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
     packages.map(async (pkg) => {
       const spec = VARIANT_SPECS.find((v) => v.tier === pkg.variant);
       if (!spec) {
-        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
         return;
       }
       const activityBudget = Math.max(0, Math.round(ctx.budgetEur - pkg.totalPrice));
@@ -1029,11 +1147,18 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
           const text = aiData.content?.[0]?.text || '';
           pkg.aiContent = JSON.parse(text);
         } else {
-          pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+          console.error(
+            `[plan-trip:variant] Claude non-OK for ${pkg.destination.iata} (${pkg.variant}): status=${aiRes.status}`,
+          );
+          pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
         }
       } catch (e) {
-        console.warn('[plan-trip:variant] AI generation failed for', pkg.destination.iata, pkg.variant, e);
-        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles);
+        const err = e as Error;
+        console.error(
+          `[plan-trip:variant] Claude failed for ${pkg.destination.iata} (${pkg.variant}):`,
+          err.message,
+        );
+        pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
       }
     }),
   );

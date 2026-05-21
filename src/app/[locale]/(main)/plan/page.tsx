@@ -319,7 +319,15 @@ export default function PlanPage() {
       setLoadingProgress(100);
 
       // Store results in sessionStorage
-      sessionStorage.setItem("planResults_v2", JSON.stringify({ packages: data.packages, params: state, warning: data.warning || null }));
+      sessionStorage.setItem("planResults_v2", JSON.stringify({
+        packages: data.packages,
+        params: state,
+        warning: data.warning || null,
+        budget: data.budget ?? state.budget ?? null,
+        inBudgetCount: data.inBudgetCount ?? null,
+        overflowCount: data.overflowCount ?? null,
+        relaxed: data.relaxed ?? false,
+      }));
 
       setTimeout(() => router.push(`/${locale}/plan/results`), 500);
     } catch (e: any) {

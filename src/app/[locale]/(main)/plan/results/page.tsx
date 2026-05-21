@@ -59,6 +59,10 @@ export default function PlanResultsPage() {
   const [packages, setPackages] = useState<TripPackage[]>([]);
   const [params, setParams] = useState<PlanParams | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  const [budget, setBudget] = useState<number | null>(null);
+  const [inBudgetCount, setInBudgetCount] = useState<number | null>(null);
+  const [overflowCount, setOverflowCount] = useState<number | null>(null);
+  const [relaxed, setRelaxed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [missing, setMissing] = useState(false);
 
@@ -80,6 +84,10 @@ export default function PlanResultsPage() {
       setPackages(parsed.packages);
       setParams(parsed.params || null);
       setWarning(parsed.warning || null);
+      setBudget(typeof parsed.budget === 'number' ? parsed.budget : (parsed.params?.budget ?? null));
+      setInBudgetCount(typeof parsed.inBudgetCount === 'number' ? parsed.inBudgetCount : null);
+      setOverflowCount(typeof parsed.overflowCount === 'number' ? parsed.overflowCount : null);
+      setRelaxed(parsed.relaxed === true);
       setLoaded(true);
     } catch (e) {
       console.error("[plan/results] Failed to load session data:", e);
@@ -202,6 +210,33 @@ export default function PlanResultsPage() {
           )}
         </div>
 
+        {/* Budget fit summary — only in discovery mode where the budget filter applies */}
+        {!isSpecific && budget != null && inBudgetCount != null && (
+          <div className="mb-4 text-sm text-text-secondary">
+            {inBudgetCount > 0
+              ? t("budgetFitSummary", {
+                  count: inBudgetCount,
+                  budget: `${params?.currency || "EUR"} ${budget.toLocaleString(isRo ? "ro-RO" : "en-US")}`,
+                })
+              : t("budgetFitNone", {
+                  budget: `${params?.currency || "EUR"} ${budget.toLocaleString(isRo ? "ro-RO" : "en-US")}`,
+                })}
+          </div>
+        )}
+
+        {/* Relaxed banner — fewer than MIN_RESULTS fit, so we added overflow */}
+        {!isSpecific && relaxed && overflowCount != null && overflowCount > 0 && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-5 py-4">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              {t("relaxedNotice", {
+                inBudget: inBudgetCount ?? 0,
+                overflow: overflowCount,
+              })}
+            </p>
+          </div>
+        )}
+
         {/* Warning banner */}
         {warning && (
           <div className="mb-6 flex items-start gap-3 rounded-xl bg-amber-50 border border-amber-200 px-5 py-4">
@@ -213,7 +248,13 @@ export default function PlanResultsPage() {
         {/* Package cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {displayedPackages.map((pkg, i) => (
-            <PackageCard key={pkg.id} pkg={pkg} index={i} isBestMatch={!isSpecific && i === 0} />
+            <PackageCard
+              key={pkg.id}
+              pkg={pkg}
+              index={i}
+              isBestMatch={!isSpecific && i === 0}
+              budget={budget}
+            />
           ))}
         </div>
 
@@ -233,13 +274,19 @@ export default function PlanResultsPage() {
   );
 }
 
-function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: number; isBestMatch: boolean }) {
+function PackageCard({ pkg, index, isBestMatch, budget }: { pkg: TripPackage; index: number; isBestMatch: boolean; budget: number | null }) {
   const dest = pkg.destination;
   const heroUrl = `https://images.unsplash.com/${dest.imageId}?w=800&h=500&fit=crop&q=80`;
   const { format } = useCurrency();
   const locale = useLocale();
   const t = useTranslations("plan.results");
   const isRo = locale === "ro";
+
+  // Exact overshoot amount for the badge — e.g. "+€144 peste buget" instead
+  // of the generic "Peste buget" label.
+  const overshoot = pkg.isOverBudget && budget != null
+    ? Math.max(0, Math.round(pkg.totalPrice - budget))
+    : 0;
 
   const variantStyle = pkg.variant ? VARIANT_BADGE_STYLES[pkg.variant] : null;
   const VariantIcon = variantStyle?.icon;
@@ -281,7 +328,9 @@ function PackageCard({ pkg, index, isBestMatch }: { pkg: TripPackage; index: num
         )}
         {pkg.isOverBudget && (
           <span className={`absolute ${variantStyle ? "top-12" : "top-3"} left-3 rounded-full bg-amber-500/95 px-3 py-1 text-xs font-bold text-white shadow-md`}>
-            ⚠ {t("overBudget")}
+            ⚠ {overshoot > 0
+              ? t("overBudgetBy", { amount: format(overshoot, pkg.currency) })
+              : t("overBudget")}
           </span>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
