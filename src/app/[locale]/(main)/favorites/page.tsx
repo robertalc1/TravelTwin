@@ -92,8 +92,8 @@ export default function FavoritesPage() {
                             ? "Explorează destinațiile noastre și salvează-ți favoritele ca să le accesezi rapid mai târziu."
                             : "Explore our destinations and save your favorites to access them quickly later."}
                     </p>
-                    <Button variant="primary" size="lg" onClick={() => window.location.href = `/${locale}/flights`}>
-                        {isRo ? "Caută zboruri" : "Search Flights"}
+                    <Button variant="primary" size="lg" onClick={() => window.location.href = `/${locale}/explore`}>
+                        {isRo ? "Explorează destinații" : "Explore destinations"}
                     </Button>
                 </div>
             ) : (

@@ -256,7 +256,7 @@ async function executeTool(
           return {
             noResults: true,
             message:
-              `No active deals could be generated for ${origin}. The user can plan a custom trip at /plan or try /flights for a specific route.`,
+              `No active deals could be generated for ${origin}. The user can plan a custom trip at /plan.`,
           };
         }
 
@@ -518,7 +518,7 @@ export async function POST(req: NextRequest) {
     // If the model returned empty content but we DO have structured data,
     // synthesize a sensible reply so the cards aren't silent. If we have
     // neither content nor data, fall back to a localized helper message
-    // pointing the user at /plan and /flights.
+    // pointing the user at /plan.
     let finalText: string;
     if (rawFinal && rawFinal.length > 0) {
       finalText = rawFinal;
@@ -536,8 +536,8 @@ export async function POST(req: NextRequest) {
         : 'Here are the live hotels available:';
     } else {
       finalText = replyLangIsRomanian
-        ? 'Nu am putut găsi oferte live chiar acum. Încearcă să planifici o călătorie la /plan sau caută un zbor specific la /flights.'
-        : "I couldn't pull live offers right now. Try planning a custom trip at /plan or searching a specific route at /flights.";
+        ? 'Nu am putut găsi oferte live chiar acum. Încearcă să planifici o călătorie la /plan.'
+        : "I couldn't pull live offers right now. Try planning a custom trip at /plan.";
     }
 
     return NextResponse.json({

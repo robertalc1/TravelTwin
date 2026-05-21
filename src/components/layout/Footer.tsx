@@ -44,12 +44,6 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href={lp("/flights")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
-                  <Plane className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
-                  {locale === "ro" ? "Caută zboruri" : "Search Flights"}
-                </Link>
-              </li>
-              <li>
                 <Link href={lp("/hotels")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
                   <Hotel className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
                   {locale === "ro" ? "Caută hoteluri" : "Search Hotels"}

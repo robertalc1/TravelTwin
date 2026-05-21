@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import TransportCard from './TransportCard';
 import AddAccommodationsCard from './AddAccommodationsCard';
@@ -26,7 +25,6 @@ interface Props {
  * on the bullet's vertical rule, spanning into the accommodations gap row.
  */
 export default function ItinerarySection({ legs: initialLegs, stops: initialStops, tripId }: Props) {
-  const router = useRouter();
   // Allow removing non-first legs at runtime
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
@@ -34,14 +32,6 @@ export default function ItinerarySection({ legs: initialLegs, stops: initialStop
   const visibleStops = initialStops.filter((_, i) => !removedIds.has(initialLegs[i]?.id ?? ''));
 
   if (visibleLegs.length === 0) return null;
-
-  function handleChangeFlight(leg: TransportLeg) {
-    const params = new URLSearchParams({
-      from: leg.from.iataCode ?? '',
-      to: leg.to.iataCode ?? '',
-    });
-    router.push(`/flights?${params.toString()}`);
-  }
 
   return (
     <section>
@@ -72,7 +62,6 @@ export default function ItinerarySection({ legs: initialLegs, stops: initialStop
                 <TransportCard
                   leg={leg}
                   isFirst={isFirstLeg}
-                  onChangeFlight={() => handleChangeFlight(leg)}
                   onRemove={() => setRemovedIds(prev => new Set([...prev, leg.id]))}
                 />
               </motion.div>

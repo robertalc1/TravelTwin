@@ -475,23 +475,8 @@ export default function Home() {
           </div>
 
           {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {[
-              {
-                href: lp("/flights"),
-                emoji: "✈️",
-                title: isRo ? "Zboruri" : "Flights",
-                stat: "500+",
-                statLabel: isRo ? "linii aeriene comparate" : "airlines compared",
-                description: isRo
-                  ? "Prețuri live, escale transparente și filtre round-trip care chiar funcționează."
-                  : "Live prices, transparent stops, and round-trip filters that actually work.",
-                cta: isRo ? "Caută zboruri" : "Search flights",
-                gradient: "from-sky-100 via-blue-50 to-white dark:from-sky-900/30 dark:via-blue-900/20 dark:to-surface",
-                ring: "ring-blue-500/30",
-                accent: "text-blue-600 dark:text-blue-400",
-                glow: "bg-blue-500/15",
-              },
               {
                 href: lp("/hotels"),
                 emoji: "🏨",

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
     LogOut, Heart, Loader2, Menu, Sparkles, Headphones, User,
-    ChevronLeft, ChevronRight, CalendarDays, Search, Hotel,
+    ChevronLeft, ChevronRight, CalendarDays, Hotel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -240,12 +240,6 @@ export function Header() {
                         href={lp("/plan")}
                         icon={<Sparkles className="h-5 w-5" />}
                         label={t("planTrip")}
-                        onClick={() => setMenuOpen(false)}
-                    />
-                    <MenuLink
-                        href={lp("/flights")}
-                        icon={<Search className="h-5 w-5" />}
-                        label={locale === "ro" ? "Caută zboruri" : "Search Flights"}
                         onClick={() => setMenuOpen(false)}
                     />
                     <MenuLink

@@ -42,9 +42,9 @@ export default function BookingPage() {
         <div className="min-h-screen bg-background">
             <div className="bg-primary-700 py-4">
                 <div className="mx-auto max-w-5xl px-4 lg:px-8">
-                    <Link href="/flights" className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors mb-2">
+                    <Link href="/" className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white transition-colors mb-2">
                         <ArrowLeft className="h-4 w-4" />
-                        Back to flight details
+                        Back to home
                     </Link>
                     <h1 className="text-h3 text-white">Complete your booking</h1>
                 </div>

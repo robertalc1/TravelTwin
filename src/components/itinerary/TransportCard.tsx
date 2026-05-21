@@ -10,7 +10,7 @@ interface Props {
   leg: TransportLeg;
   /** First leg cannot be removed */
   isFirst: boolean;
-  onChangeFlight: () => void;
+  onChangeFlight?: () => void;
   onRemove: () => void;
 }
 
@@ -36,13 +36,15 @@ export default function TransportCard({ leg, isFirst, onChangeFlight, onRemove }
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onChangeFlight}
-            className="rounded-full border border-orange-400 px-4 py-1 text-sm text-orange-500 transition-colors hover:bg-orange-50 dark:hover:bg-orange-900/20"
-          >
-            Change
-          </button>
+          {onChangeFlight && (
+            <button
+              type="button"
+              onClick={onChangeFlight}
+              className="rounded-full border border-orange-400 px-4 py-1 text-sm text-orange-500 transition-colors hover:bg-orange-50 dark:hover:bg-orange-900/20"
+            >
+              Change
+            </button>
+          )}
 
           {/* × only on non-first legs */}
           {!isFirst && (
