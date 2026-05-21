@@ -12,8 +12,10 @@ import { getCityFromIata, getCountryFromIata } from './iataMapping';
 import { canMakeRapidApiCall, recordRapidApiCall } from './rateLimiter';
 
 /** Hard upper bound on any single upstream Tripadvisor call. Without this a
- *  hung RapidAPI request can eat the entire 60s Vercel function budget. */
-const TRIPADVISOR_TIMEOUT_MS = 10_000;
+ *  hung RapidAPI request can eat the entire 60s Vercel function budget.
+ *  15s leaves room for the slower endpoints (searchHotels, getHotelDetails)
+ *  which can legitimately take 8-12s when the upstream is under load. */
+const TRIPADVISOR_TIMEOUT_MS = 15_000;
 
 const HOST = 'tripadvisor16.p.rapidapi.com';
 const BASE = `https://${HOST}`;
