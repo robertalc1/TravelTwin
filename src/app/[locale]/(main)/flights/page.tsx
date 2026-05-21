@@ -287,10 +287,20 @@ function ResultsSection(props: {
     const isRo = locale === "ro";
     const { origin, destination, departureDate, returnDate, travelClass } = props;
 
+    interface Suggestion {
+        origin: string;
+        destination: string;
+        destinationCity: string;
+        price: number;
+        currency: string;
+        airline: string;
+        airlineName: string;
+    }
     const [flights, setFlights] = useState<NormalizedFlight[]>([]);
     const [loading, setLoading] = useState(true);
     const [warning, setWarning] = useState<string | null>(null);
     const [responseSource, setResponseSource] = useState<string>("");
+    const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
     const [sortBy, setSortBy] = useState<"recommended" | "price" | "duration">("recommended");
     const [stopsFilter, setStopsFilter] = useState<"any" | "direct" | "one">("any");
@@ -304,6 +314,7 @@ function ResultsSection(props: {
         setFlights([]);
         setWarning(null);
         setResponseSource("");
+        setSuggestions([]);
 
         const params = new URLSearchParams({
             origin,
@@ -314,11 +325,12 @@ function ResultsSection(props: {
         });
         fetch(`/api/flights/live?${params}`)
             .then((r) => r.json())
-            .then((data: { flights?: NormalizedFlight[]; source?: string; warning?: string }) => {
+            .then((data: { flights?: NormalizedFlight[]; source?: string; warning?: string; suggestions?: Suggestion[] }) => {
                 if (cancelled) return;
                 setFlights(data.flights || []);
                 setResponseSource(data.source || "");
                 if (data.warning) setWarning(data.warning);
+                if (data.suggestions) setSuggestions(data.suggestions);
             })
             .catch(() => {
                 if (!cancelled) setWarning(t("errorGeneric"));
@@ -528,12 +540,45 @@ function ResultsSection(props: {
                                     {isRo ? "Resetează filtrele" : "Reset filters"}
                                 </button>
                             )}
+                            {flights.length === 0 && suggestions.length > 0 && (
+                                <div className="mt-8 max-w-2xl mx-auto">
+                                    <p className="text-sm font-semibold text-text-primary mb-3">
+                                        {isRo
+                                            ? `Rute disponibile din ${origin} pe ${departureDate}:`
+                                            : `Routes available from ${origin} on ${departureDate}:`}
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {suggestions.map((s) => {
+                                            const href = `/${locale}/flights?from=${s.origin}&to=${s.destination}&departureDate=${departureDate}${returnDate ? `&returnDate=${returnDate}` : ""}${travelClass ? `&travelClass=${travelClass}` : ""}`;
+                                            return (
+                                                <a
+                                                    key={s.destination}
+                                                    href={href}
+                                                    className="flex items-center justify-between px-4 py-3 rounded-xl border border-neutral-200 dark:border-border-default bg-neutral-50 dark:bg-surface-elevated hover:border-primary-500 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors text-left"
+                                                >
+                                                    <div>
+                                                        <div className="font-semibold text-sm text-text-primary">
+                                                            {s.origin} → {s.destination}
+                                                        </div>
+                                                        <div className="text-xs text-text-muted mt-0.5">
+                                                            {s.destinationCity} · {s.airlineName}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-base font-bold text-primary-600 dark:text-primary-400 whitespace-nowrap">
+                                                        €{Math.round(s.price)}
+                                                    </div>
+                                                </a>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             {flights.length === 0 && origin && destination && departureDate && (
                                 <a
                                     href={`/api/debug/flights?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${encodeURIComponent(departureDate)}&probeBoth=1`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="mt-4 inline-block text-xs text-text-muted hover:text-primary-500 hover:underline"
+                                    className="mt-6 inline-block text-xs text-text-muted hover:text-primary-500 hover:underline"
                                 >
                                     {isRo ? "Vezi ce zice Tripadvisor pentru ruta asta" : "See what Tripadvisor returned for this route"}
                                 </a>

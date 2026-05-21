@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { searchFlights, type TAFlight } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
+import { COMMON_ROUTES } from '@/lib/commonRoutes';
+import { getCityFromIata } from '@/lib/iataMapping';
 import type { NormalizedFlight } from '@/lib/supabase/types';
 
 // Never edge-cache — flight prices change minute-to-minute upstream.
@@ -162,9 +164,59 @@ export async function GET(request: Request) {
     } else if (lastError) {
       warning = `Tripadvisor request failed: ${lastError}`;
     } else if (cumulativeRawCount === 0) {
-      warning = `Tripadvisor has no flights for ${origin} → ${destination} on ${departureDate} (or ±2 days). The route may be served only by airlines outside Tripadvisor's index. Try a different OD pair.`;
+      warning = `Tripadvisor has no flights for ${origin} → ${destination} on ${departureDate} (or ±2 days). The route may not have commercial service. See available routes from ${origin} below.`;
     } else {
       warning = `${cumulativeRawCount} flights came back across attempts but none had a usable price. Tripadvisor's purchase links are missing for this route. Try a different date.`;
+    }
+
+    // ── Suggestion mode ────────────────────────────────────────────
+    // The exact OD pair the user wanted has no inventory. Mimic the
+    // homepage-deals strategy: probe a small set of known destinations FROM
+    // the same origin (using COMMON_ROUTES as the seed) and surface any
+    // that DO have live flights as clickable suggestions. This is the same
+    // wrapper, same API — just different destinations that actually exist.
+    interface Suggestion {
+      origin: string;
+      destination: string;
+      destinationCity: string;
+      price: number;
+      currency: string;
+      airline: string;
+      airlineName: string;
+    }
+    const suggestions: Suggestion[] = [];
+    if (cumulativeRawCount === 0 && !lastError) {
+      const seedDestinations = COMMON_ROUTES
+        .filter((r) => r.from === origin && r.to !== destination)
+        .slice(0, 6)
+        .map((r) => r.to);
+
+      if (seedDestinations.length > 0) {
+        console.log(`[Flights] Probing ${seedDestinations.length} suggestion candidates from ${origin}`);
+        const probes = await Promise.allSettled(
+          seedDestinations.map(async (dest) => {
+            const result = await attemptSearch(
+              origin, dest, departureDate, travelClass, adults, returnDate,
+            );
+            return result.flights[0] ?? null;
+          }),
+        );
+        for (const p of probes) {
+          if (p.status === 'fulfilled' && p.value) {
+            suggestions.push({
+              origin: p.value.origin,
+              destination: p.value.destination,
+              destinationCity: getCityFromIata(p.value.destination) || p.value.destination,
+              price: p.value.price,
+              currency: p.value.currency,
+              airline: p.value.airline,
+              airlineName: p.value.airlineName,
+            });
+          }
+        }
+        suggestions.sort((a, b) => a.price - b.price);
+        console.log(`[Flights] Found ${suggestions.length} viable suggestions from ${origin}`);
+      }
     }
 
     return NextResponse.json({
@@ -173,6 +225,7 @@ export async function GET(request: Request) {
       count: 0,
       rawCount: cumulativeRawCount,
       warning,
+      suggestions,
     });
   } catch (error) {
     console.error('[Flights] Unexpected error:', error);
