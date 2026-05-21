@@ -5,6 +5,17 @@
 
 import { NextResponse } from 'next/server';
 import { getCityFromIata } from '@/lib/iataMapping';
+import { createClient } from '@/lib/supabase/server';
+
+async function requireAdmin(): Promise<NextResponse | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!user || !adminEmail || user.email?.toLowerCase() !== adminEmail.toLowerCase()) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  return null;
+}
 
 const HOST = 'tripadvisor16.p.rapidapi.com';
 const BASE = `https://${HOST}`;
@@ -74,6 +85,8 @@ async function probe(path: string, params: Record<string, string | number>): Pro
 }
 
 export async function GET(req: Request) {
+  const denied = await requireAdmin();
+  if (denied) return denied;
   if (!process.env.RAPIDAPI_KEY) {
     return NextResponse.json(
       { status: 'error', message: 'RAPIDAPI_KEY missing' },

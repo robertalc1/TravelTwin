@@ -270,11 +270,18 @@ type GeminiContent = {
 };
 
 async function callGemini(apiKey: string, contents: GeminiContent[]) {
+  // SECURITY: API key MUST go in the `x-goog-api-key` header — not as a URL
+  // query param — so it never appears in browser history, Referer headers,
+  // CDN/proxy logs, or server access logs. Google AI Studio flags any key
+  // observed in a URL as "publicly exposed".
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify({
         contents,
         systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
@@ -285,10 +292,10 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
   );
 
   if (!res.ok) {
-    const errorBody = await res.text();
+    // Log status only — never log the response body, which can contain
+    // internal model error details or surface request payload fragments.
     console.error('[Gemini API Error] Status:', res.status);
-    console.error('[Gemini API Error] Body:', errorBody);
-    throw new Error(`Gemini API error ${res.status}: ${errorBody}`);
+    throw new Error(`Gemini API error ${res.status}`);
   }
 
   return res.json();
@@ -296,10 +303,10 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[Chat] API Key exists:', !!process.env.GEMINI_API_KEY);
-    console.log('[Chat] API Key prefix:', process.env.GEMINI_API_KEY?.slice(0, 10));
-    const { messages } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
+    // SECURITY: log only presence as a boolean — never log the key, even partial.
+    console.log('[Chat] API Key configured:', !!apiKey);
+    const { messages } = await req.json();
 
     if (!apiKey) {
       return NextResponse.json(

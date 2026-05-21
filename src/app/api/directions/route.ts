@@ -132,13 +132,15 @@ export async function POST(req: NextRequest): Promise<Response> {
     return NextResponse.json({ error: 'Origin and destination are the same' }, { status: 400 });
   }
 
+  // SECURITY: never fall back to the NEXT_PUBLIC_* key — that key is meant
+  // for browser-side use (domain-restricted in Google Cloud Console) and
+  // using it server-side would mix security models. Fail explicitly instead.
   const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY
-    || process.env.GOOGLE_MAPS_API_KEY
-    || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    || process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'Google Maps API key not configured on the server.' },
-      { status: 500 },
+      { error: 'Server misconfigured: directions provider unavailable.' },
+      { status: 503 },
     );
   }
 
