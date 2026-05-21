@@ -1,7 +1,10 @@
 "use client";
 
-import { Plane } from "lucide-react";
+import { Plane, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { formatDuration } from "@/lib/hotelImages";
+import { useChatStore } from "@/stores/chatStore";
 import type { ChatFlight } from "@/app/api/chat/route";
 
 type ChatFlightCardProps = {
@@ -22,10 +25,22 @@ function formatPrice(amount: number, currency: string) {
 }
 
 export function ChatFlightCard({ flight }: ChatFlightCardProps) {
+  const router = useRouter();
+  const locale = useLocale();
+  const closeChat = useChatStore((s) => s.close);
   const logoUrl = `https://pics.avs.io/200/200/${flight.airlineCode}.png`;
   const durationStr = flight.duration ? formatDuration(flight.duration) : "";
   const stopsLabel =
     flight.stops === 0 ? "Direct" : `${flight.stops} stop${flight.stops > 1 ? "s" : ""}`;
+
+  function handleViewOffer() {
+    const params = new URLSearchParams({
+      from: flight.origin,
+      to: flight.destination,
+    });
+    closeChat();
+    router.push(`/${locale}/flights?${params.toString()}`);
+  }
 
   return (
     <div className="w-full max-w-[320px] overflow-hidden rounded-xl border border-neutral-200 bg-white p-3 shadow-sm dark:border-border-default dark:bg-surface">
@@ -64,6 +79,15 @@ export function ChatFlightCard({ flight }: ChatFlightCardProps) {
           {formatPrice(flight.price, flight.currency)}
         </span>
       </div>
+
+      <button
+        type="button"
+        onClick={handleViewOffer}
+        className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-600"
+      >
+        View offer
+        <ArrowRight className="h-3 w-3" />
+      </button>
     </div>
   );
 }

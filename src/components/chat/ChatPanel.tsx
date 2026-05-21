@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
+import { useLocale } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Plane, Sparkles } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { useUserLocation } from "@/hooks/useUserLocation";
 import { useChatStore } from "@/stores/chatStore";
+import { useUser } from "@/hooks/useUser";
+import { useAuthModalStore } from "@/stores/authModalStore";
 import type { ChatDeal, ChatFlight, ChatHotel } from "@/app/api/chat/route";
 
 type MessageData = {
@@ -37,6 +40,9 @@ const QUICK_PROMPTS = [
 
 export function ChatPanel() {
   const pathname = usePathname();
+  const locale = useLocale();
+  const { user } = useUser();
+  const openAuthModal = useAuthModalStore(s => s.open);
   const isOpen = useChatStore(s => s.isOpen);
   const openChat = useChatStore(s => s.open);
   const closeChat = useChatStore(s => s.close);
@@ -62,18 +68,38 @@ export function ChatPanel() {
   const sendText = useCallback(
     async (text: string) => {
       if (!text.trim() || isLoading) return;
+      // Auth gate — open the same login popup used everywhere else.
+      if (!user) {
+        openAuthModal("login", pathname || `/${locale}`);
+        return;
+      }
 
       const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content: text };
-      setMessages(prev => {
-        const updated = [...prev, userMsg];
-        // Build conversation for API (exclude welcome message)
-        return updated;
-      });
+      setMessages(prev => [...prev, userMsg]);
       setInput("");
       setIsLoading(true);
 
+      // Build the page-aware context the backend uses to ground the model.
+      let homepageDestinations: string[] = [];
       try {
-        // Capture current messages for the API call
+        const raw = sessionStorage.getItem("homepage_destinations");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            homepageDestinations = parsed.filter((c): c is string => typeof c === "string");
+          }
+        }
+      } catch { /* ignore */ }
+      const tripMatch = pathname?.match(/\/trip\/([^/]+)/);
+      const pageContext = {
+        pathname: pathname || "",
+        locale,
+        userEmail: user.email ?? null,
+        homepageDestinations,
+        currentTripId: tripMatch?.[1] ?? null,
+      };
+
+      try {
         const conversationMsgs = [...messages, userMsg]
           .filter(m => m.id !== "welcome")
           .map(m => ({ role: m.role, content: m.content }));
@@ -84,8 +110,15 @@ export function ChatPanel() {
           body: JSON.stringify({
             messages: conversationMsgs,
             origin: origin || "OTP",
+            pageContext,
           }),
         });
+
+        if (res.status === 401) {
+          openAuthModal("login", pathname || `/${locale}`);
+          setIsLoading(false);
+          return;
+        }
 
         const data = await res.json();
         setMessages(prev => [
@@ -111,7 +144,7 @@ export function ChatPanel() {
         setIsLoading(false);
       }
     },
-    [isLoading, messages, origin]
+    [isLoading, messages, origin, user, openAuthModal, pathname, locale]
   );
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

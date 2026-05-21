@@ -1,6 +1,9 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { Star, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
+import { useChatStore } from "@/stores/chatStore";
 import type { ChatHotel } from "@/app/api/chat/route";
 
 type ChatHotelCardProps = {
@@ -29,7 +32,23 @@ function formatPrice(amount: number, currency: string) {
 }
 
 export function ChatHotelCard({ hotel }: ChatHotelCardProps) {
+  const router = useRouter();
+  const locale = useLocale();
+  const closeChat = useChatStore((s) => s.close);
   const stars = Math.min(5, Math.max(1, hotel.stars));
+
+  function handleViewOffer() {
+    // city here is a label string, but ChatHotel doesn't carry the IATA city code
+    // separately. The hotels search page accepts any text for prefill; passing
+    // it through is the closest we can do without changing the tool contract.
+    const params = new URLSearchParams({
+      city: hotel.city,
+      checkIn: hotel.checkIn,
+      checkOut: hotel.checkOut,
+    });
+    closeChat();
+    router.push(`/${locale}/hotels?${params.toString()}`);
+  }
 
   return (
     <div className="w-full max-w-[320px] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-sm dark:border-border-default dark:bg-surface">
@@ -69,6 +88,15 @@ export function ChatHotelCard({ hotel }: ChatHotelCardProps) {
             {formatDate(hotel.checkIn)} – {formatDate(hotel.checkOut)}
           </span>
         </div>
+
+        <button
+          type="button"
+          onClick={handleViewOffer}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-primary-600"
+        >
+          View offer
+          <ArrowRight className="h-3 w-3" />
+        </button>
       </div>
     </div>
   );

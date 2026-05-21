@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
+import { getCached } from '@/lib/cache';
+import { getCityFromIata } from '@/lib/iataMapping';
+import type { TripPackage } from '@/app/api/ai/plan-trip/route';
 
 export type ChatFlight = {
   id: string;
@@ -47,36 +51,31 @@ export type ChatDeal = {
   currency: string;
 };
 
-const SYSTEM_PROMPT = `You are TravelTwin AI — the in-app travel concierge for TravelTwin, an AI-powered trip-planning platform. You help users build complete trips: flights, hotels, destinations, and day-by-day itineraries — exactly like our "Plan My Trip" wizard, but conversationally.
+const BASE_SYSTEM_PROMPT = `You are TravelTwin AI — the live in-app concierge for TravelTwin, an AI-powered trip-planning platform. You are NOT a generic chatbot. You ONLY help users with travel inside this app.
 
-CONTEXT ABOUT TRAVELTWIN:
-- We aggregate live flights and hotels via Amadeus (real prices, real availability).
-- We curate destination guides with photos, top attractions, restaurants, cafés, local tips, daily expense estimates, and visa info.
-- Our "/plan" wizard collects: origin → destination preferences → dates → budget → travelers → returns ranked trip packages (flight + hotel + AI itinerary).
-- Currency follows the user's profile (RON, EUR, USD, etc.) — quote prices in the currency the tools return.
-- Most users depart from Romanian airports (OTP Bucharest, CLJ Cluj, TSR Timișoara, IAS Iași, SBZ Sibiu).
+WHAT THIS APP OFFERS:
+- Live flights and hotels (real prices via Amadeus + TripAdvisor).
+- AI Trip Planner wizard at /plan that builds 3 ranked packages (flight + hotel + day-by-day itinerary) from origin + budget + style.
+- A rotating list of 30 curated deal packages on the homepage, refreshed periodically.
+- Destination guides, restaurants, attractions, visa info, weather, route maps.
+- Booking simulator at /booking/simulate.
 
-YOUR JOB — mirror the Plan My Trip flow:
-1. ASK what they want (destination, dates, budget, vibe — beach/city/culture/adventure).
-2. SEARCH real options using tools (searchInspiration for "anywhere cheap", searchFlights for specific routes, searchHotels for accommodation).
-3. RECOMMEND with rationale: "Bali fits your beach + budget criteria — €260 direct flight, 4-star hotels from €40/night."
-4. SUGGEST next steps: "Want me to find hotels there too?" or "Should I draft a 5-day itinerary?".
+ALWAYS DO:
+1. Call getCurrentDeals FIRST when the user asks about deals/offers/recommendations/"what's available" — these are the actual offers visible on their homepage right now. Cite them by city + price + ID.
+2. Call searchFlights / searchHotels for specific routes or cities. Never invent prices, airlines, or availability.
+3. Match the user's language (English or Romanian based on locale).
+4. End each offer recommendation with a clear next step: "Open this deal", "See more options", or "Plan a custom trip at /plan".
+5. Be SHORT — under 120 words unless drafting an itinerary.
 
-PERSONALITY:
-- Warm, knowledgeable, concise. Like a well-traveled friend, not a chatbot.
-- Match the user's language (English, Romanian, etc.).
-- Max 1-2 emojis per message. No filler.
-- Keep replies under ~150 words unless drafting an itinerary.
+OUT OF SCOPE (politely decline + redirect):
+- General knowledge ("what's the capital of X", "tell me a joke", coding, math, news, weather outside travel) → 1 short sentence: "I only help with travel on TravelTwin — want me to find you a deal or plan a trip?"
+- Other travel sites / competitors → never compare or mention them.
+- Personal/medical/legal advice → decline + offer travel help.
 
-TOOL USAGE:
-- Always call tools when the user asks about specific routes, hotels, or "cheap deals" — never invent prices, dates, or airlines.
-- If the user gives a vague hint ("somewhere warm in March"), guess sensible defaults (departureDate ~30 days out, sample destinations) and call searchInspiration first.
-- After tool results, present them in plain text — the UI auto-renders rich cards from the structured data.
-
-IMPORTANT:
-- Default origin if user doesn't specify: ask once, otherwise assume OTP (Bucharest).
-- After showing results, ALWAYS suggest a logical next step (search hotels, see more options, or "send me to /plan to book this").
-- If a tool returns no results, propose alternative dates or nearby airports.`;
+TONE:
+- Warm, expert, concise — like a well-traveled friend, not corporate.
+- Max 1 emoji per message. No filler.
+- Quote prices in the currency the tools return.`;
 
 const TOOL_DECLARATIONS = {
   functionDeclarations: [
@@ -117,6 +116,18 @@ const TOOL_DECLARATIONS = {
         type: 'OBJECT',
         properties: {
           origin: { type: 'STRING', description: 'Origin airport IATA code (e.g., OTP, LHR, CDG)' },
+        },
+        required: ['origin'],
+      },
+    },
+    {
+      name: 'getCurrentDeals',
+      description:
+        'Returns the EXACT trip packages currently shown on the user\'s homepage (rotated set of up to 30 curated deals from their nearest airport). PREFER this over searchInspiration whenever the user asks about deals, offers, recommendations, "what is available", or "show me what you have".',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          origin: { type: 'STRING', description: 'Origin airport IATA — usually inferred from pageContext' },
         },
         required: ['origin'],
       },
@@ -249,6 +260,36 @@ async function executeTool(
         return { deals, total: deals.length };
       }
 
+      case 'getCurrentDeals': {
+        // Read the same cache the homepage reads — guarantees the AI sees
+        // exactly the offers the user is looking at right now.
+        const origin = String(args.origin || 'OTP').toUpperCase();
+        const cached = await getCached(`deals:${origin}`);
+        if (!cached?.data) {
+          return {
+            noResults: true,
+            message: `No active deals cached for ${origin}. The user can refresh the homepage to load fresh offers.`,
+          };
+        }
+        const arr = (cached.data as TripPackage[]) || [];
+        const deals: ChatDeal[] = arr.slice(0, 6).map((p) => ({
+          id: p.id,
+          destination: p.destination?.iata || '',
+          city: p.destination?.city || p.destination?.iata || '',
+          country: p.destination?.country || '',
+          days: p.nights,
+          badge: p.totalPrice < 200 ? 'Hot Deal' : undefined,
+          isDirect: (p.flight?.stops ?? 0) === 0,
+          departureDate: p.flight?.departureTime?.slice(0, 10) || '',
+          returnDate: p.hotel?.checkOut || '',
+          originCity: getCityFromIata(origin) || origin,
+          price: p.totalPrice,
+          originalPrice: p.totalPrice,
+          currency: p.currency || 'EUR',
+        }));
+        return { deals, total: deals.length };
+      }
+
       default:
         return { error: 'Unknown tool' };
     }
@@ -269,7 +310,7 @@ type GeminiContent = {
   parts: GeminiPart[];
 };
 
-async function callGemini(apiKey: string, contents: GeminiContent[]) {
+async function callGemini(apiKey: string, contents: GeminiContent[], systemPrompt: string) {
   // SECURITY: API key MUST go in the `x-goog-api-key` header — not as a URL
   // query param — so it never appears in browser history, Referer headers,
   // CDN/proxy logs, or server access logs. Google AI Studio flags any key
@@ -284,7 +325,7 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
       },
       body: JSON.stringify({
         contents,
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: [TOOL_DECLARATIONS],
         generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
       }),
@@ -301,12 +342,46 @@ async function callGemini(apiKey: string, contents: GeminiContent[]) {
   return res.json();
 }
 
+type PageContext = {
+  pathname?: string;
+  locale?: string;
+  userEmail?: string | null;
+  homepageDestinations?: string[];
+  currentTripId?: string | null;
+};
+
+function buildSystemPrompt(ctx: PageContext | undefined): string {
+  const lines: string[] = [BASE_SYSTEM_PROMPT, ''];
+  if (ctx) {
+    lines.push('LIVE USER CONTEXT (use to ground answers — do NOT echo as raw data):');
+    if (ctx.locale) lines.push(`- Active locale: ${ctx.locale} (reply in this language)`);
+    if (ctx.pathname) lines.push(`- Current page: ${ctx.pathname}`);
+    if (ctx.userEmail) lines.push(`- Signed-in user: ${ctx.userEmail}`);
+    if (ctx.homepageDestinations?.length) {
+      lines.push(`- Homepage offers currently visible (IATA): ${ctx.homepageDestinations.join(', ')}`);
+      lines.push('  → If user asks about deals, START with getCurrentDeals so you can cite these by name + price.');
+    }
+    if (ctx.currentTripId) lines.push(`- Active trip the user is viewing: ${ctx.currentTripId}`);
+  }
+  return lines.join('\n');
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // Auth gate — chat is for authenticated users only (prevents anonymous abuse of Gemini quota).
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     // SECURITY: log only presence as a boolean — never log the key, even partial.
     console.log('[Chat] API Key configured:', !!apiKey);
-    const { messages } = await req.json();
+    const { messages, pageContext } = (await req.json()) as {
+      messages?: Array<{ role: string; content: string }>;
+      pageContext?: PageContext;
+    };
 
     if (!apiKey) {
       return NextResponse.json(
@@ -328,7 +403,8 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    let geminiResponse = await callGemini(apiKey, geminiContents);
+    const systemPrompt = buildSystemPrompt(pageContext);
+    let geminiResponse = await callGemini(apiKey, geminiContents, systemPrompt);
 
     let iterations = 0;
     const structuredData: {
@@ -360,7 +436,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', parts: [{ functionResponse: { name, response: toolResult } }] }
       );
 
-      geminiResponse = await callGemini(apiKey, geminiContents);
+      geminiResponse = await callGemini(apiKey, geminiContents, systemPrompt);
       iterations++;
     }
 
