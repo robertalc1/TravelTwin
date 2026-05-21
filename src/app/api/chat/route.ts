@@ -77,63 +77,74 @@ TONE:
 - Max 1 emoji per message. No filler.
 - Quote prices in the currency the tools return.`;
 
-const TOOL_DECLARATIONS = {
-  functionDeclarations: [
-    {
+// OpenAI-compatible tool definitions (consumed by Groq / Llama 3.3 70B).
+const TOOL_DECLARATIONS = [
+  {
+    type: 'function' as const,
+    function: {
       name: 'searchFlights',
       description:
         'Search for real-time flight offers between two airports. Use when the user asks about flights, prices, or travel between cities.',
       parameters: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          origin: { type: 'STRING', description: 'Origin airport IATA code (e.g., OTP, CDG, LHR)' },
-          destination: { type: 'STRING', description: 'Destination airport IATA code (e.g., BCN, IST, DXB)' },
-          departureDate: { type: 'STRING', description: 'Departure date in YYYY-MM-DD format' },
-          returnDate: { type: 'STRING', description: 'Optional return date in YYYY-MM-DD format' },
+          origin: { type: 'string', description: 'Origin airport IATA code (e.g., OTP, CDG, LHR)' },
+          destination: { type: 'string', description: 'Destination airport IATA code (e.g., BCN, IST, DXB)' },
+          departureDate: { type: 'string', description: 'Departure date in YYYY-MM-DD format' },
+          returnDate: { type: 'string', description: 'Optional return date in YYYY-MM-DD format' },
         },
         required: ['origin', 'destination', 'departureDate'],
       },
     },
-    {
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'searchHotels',
       description:
         'Search for hotel availability and prices in a city. Use when the user asks about accommodation or hotels.',
       parameters: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          cityCode: { type: 'STRING', description: 'City IATA code (e.g., BCN, IST, CDG)' },
-          checkInDate: { type: 'STRING', description: 'Check-in date YYYY-MM-DD' },
-          checkOutDate: { type: 'STRING', description: 'Check-out date YYYY-MM-DD' },
+          cityCode: { type: 'string', description: 'City IATA code (e.g., BCN, IST, CDG)' },
+          checkInDate: { type: 'string', description: 'Check-in date YYYY-MM-DD' },
+          checkOutDate: { type: 'string', description: 'Check-out date YYYY-MM-DD' },
         },
         required: ['cityCode', 'checkInDate', 'checkOutDate'],
       },
     },
-    {
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'searchInspiration',
       description:
         'Find the cheapest flight deals from a specific airport. Use when the user wants travel inspiration or cheap deals without a specific destination.',
       parameters: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          origin: { type: 'STRING', description: 'Origin airport IATA code (e.g., OTP, LHR, CDG)' },
+          origin: { type: 'string', description: 'Origin airport IATA code (e.g., OTP, LHR, CDG)' },
         },
         required: ['origin'],
       },
     },
-    {
+  },
+  {
+    type: 'function' as const,
+    function: {
       name: 'getCurrentDeals',
       description:
         'Returns the EXACT trip packages currently shown on the user\'s homepage (rotated set of up to 30 curated deals from their nearest airport). PREFER this over searchInspiration whenever the user asks about deals, offers, recommendations, "what is available", or "show me what you have".',
       parameters: {
-        type: 'OBJECT',
+        type: 'object',
         properties: {
-          origin: { type: 'STRING', description: 'Origin airport IATA — usually inferred from pageContext' },
+          origin: { type: 'string', description: 'Origin airport IATA — usually inferred from pageContext' },
         },
         required: ['origin'],
       },
     },
-  ],
-};
+  },
+];
 
 type ToolArgs = Record<string, unknown>;
 
@@ -299,44 +310,56 @@ async function executeTool(
   }
 }
 
-type GeminiPart = {
-  text?: string;
-  functionCall?: { name: string; args: ToolArgs };
-  functionResponse?: { name: string; response: Record<string, unknown> };
+// OpenAI-compatible message shape (consumed by Groq).
+type GroqToolCall = {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
 };
 
-type GeminiContent = {
-  role: string;
-  parts: GeminiPart[];
+type GroqMessage = {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: GroqToolCall[];
+  tool_call_id?: string;
+  name?: string;
 };
 
-async function callGemini(apiKey: string, contents: GeminiContent[], systemPrompt: string) {
-  // SECURITY: API key MUST go in the `x-goog-api-key` header — not as a URL
-  // query param — so it never appears in browser history, Referer headers,
-  // CDN/proxy logs, or server access logs. Google AI Studio flags any key
-  // observed in a URL as "publicly exposed".
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        tools: [TOOL_DECLARATIONS],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
-      }),
-    }
-  );
+type GroqChoice = {
+  index: number;
+  message: {
+    role: 'assistant';
+    content: string | null;
+    tool_calls?: GroqToolCall[];
+  };
+  finish_reason: string;
+};
+
+type GroqResponse = {
+  choices?: GroqChoice[];
+};
+
+async function callGroq(apiKey: string, messages: GroqMessage[]): Promise<GroqResponse> {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages,
+      tools: TOOL_DECLARATIONS,
+      tool_choice: 'auto',
+      temperature: 0.7,
+      max_tokens: 1024,
+    }),
+  });
 
   if (!res.ok) {
-    // Log status only — never log the response body, which can contain
-    // internal model error details or surface request payload fragments.
-    console.error('[Gemini API Error] Status:', res.status);
-    throw new Error(`Gemini API error ${res.status}`);
+    // Status only — never log body, may contain prompt fragments.
+    console.error('[Groq API Error] Status:', res.status);
+    throw new Error(`Groq API error ${res.status}`);
   }
 
   return res.json();
@@ -368,14 +391,14 @@ function buildSystemPrompt(ctx: PageContext | undefined): string {
 
 export async function POST(req: NextRequest) {
   try {
-    // Auth gate — chat is for authenticated users only (prevents anonymous abuse of Gemini quota).
+    // Auth gate — chat is for authenticated users only (prevents anonymous abuse of provider quota).
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     // SECURITY: log only presence as a boolean — never log the key, even partial.
     console.log('[Chat] API Key configured:', !!apiKey);
     const { messages, pageContext } = (await req.json()) as {
@@ -385,7 +408,7 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { message: 'AI chat is not configured. Please add GEMINI_API_KEY to your environment.' },
+        { message: 'AI chat is not configured. Please add GROQ_API_KEY to your environment.' },
         { status: 500 }
       );
     }
@@ -395,16 +418,18 @@ export async function POST(req: NextRequest) {
     }
 
     const baseUrl = req.nextUrl.origin;
-
-    const geminiContents: GeminiContent[] = messages.map(
-      (m: { role: string; content: string }) => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }],
-      })
-    );
-
     const systemPrompt = buildSystemPrompt(pageContext);
-    let geminiResponse = await callGemini(apiKey, geminiContents, systemPrompt);
+
+    // Build OpenAI-style messages: system prompt first, then conversation.
+    const groqMessages: GroqMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map<GroqMessage>((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+    ];
+
+    let groqResponse = await callGroq(apiKey, groqMessages);
 
     let iterations = 0;
     const structuredData: {
@@ -414,37 +439,51 @@ export async function POST(req: NextRequest) {
     } = {};
 
     while (iterations < 3) {
-      const candidate = geminiResponse.candidates?.[0];
-      if (!candidate) break;
+      const choice = groqResponse.choices?.[0];
+      if (!choice) break;
 
-      const parts: GeminiPart[] = candidate.content?.parts || [];
-      const functionCallPart = parts.find((p: GeminiPart) => p.functionCall);
+      const toolCalls = choice.message?.tool_calls ?? [];
+      if (toolCalls.length === 0) break;
 
-      if (!functionCallPart?.functionCall) break;
+      // Push the assistant message that requested the tool calls — required
+      // by OpenAI-style multi-turn so the next call sees the request/response pair.
+      groqMessages.push({
+        role: 'assistant',
+        content: choice.message.content ?? null,
+        tool_calls: toolCalls,
+      });
 
-      const { name, args } = functionCallPart.functionCall;
-      console.log(`[Chat] Executing tool: ${name}`, args);
+      // Execute every tool call the model requested in this turn.
+      for (const toolCall of toolCalls) {
+        const name = toolCall.function.name;
+        let args: ToolArgs = {};
+        try {
+          args = JSON.parse(toolCall.function.arguments || '{}') as ToolArgs;
+        } catch {
+          args = {};
+        }
+        console.log(`[Chat] Executing tool: ${name}`, args);
 
-      const toolResult = await executeTool(name, args, baseUrl);
+        const toolResult = await executeTool(name, args, baseUrl);
 
-      if (toolResult.flights) structuredData.flights = toolResult.flights as ChatFlight[];
-      if (toolResult.hotels) structuredData.hotels = toolResult.hotels as ChatHotel[];
-      if (toolResult.deals) structuredData.deals = toolResult.deals as ChatDeal[];
+        if (toolResult.flights) structuredData.flights = toolResult.flights as ChatFlight[];
+        if (toolResult.hotels) structuredData.hotels = toolResult.hotels as ChatHotel[];
+        if (toolResult.deals) structuredData.deals = toolResult.deals as ChatDeal[];
 
-      geminiContents.push(
-        { role: 'model', parts: [{ functionCall: functionCallPart.functionCall }] },
-        { role: 'user', parts: [{ functionResponse: { name, response: toolResult } }] }
-      );
+        groqMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(toolResult),
+        });
+      }
 
-      geminiResponse = await callGemini(apiKey, geminiContents, systemPrompt);
+      groqResponse = await callGroq(apiKey, groqMessages);
       iterations++;
     }
 
     const finalText =
-      geminiResponse.candidates?.[0]?.content?.parts
-        ?.filter((p: GeminiPart) => p.text)
-        ?.map((p: GeminiPart) => p.text)
-        ?.join('\n') || 'Sorry, I could not generate a response.';
+      groqResponse.choices?.[0]?.message?.content ||
+      'Sorry, I could not generate a response.';
 
     return NextResponse.json({
       message: finalText,
