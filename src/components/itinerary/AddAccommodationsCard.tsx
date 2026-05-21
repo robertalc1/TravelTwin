@@ -54,7 +54,7 @@ export default function AddAccommodationsCard({
       checkOut,
       tripId,
     });
-    router.push(`/hotels/search?${qs.toString()}`);
+    router.push(`/hotels?${qs.toString()}`);
   }
 
   function openSelectedHotel() {

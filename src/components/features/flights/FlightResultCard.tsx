@@ -1,6 +1,8 @@
 "use client";
 
 import { Plane, Clock, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { getCityImageByIata } from "@/lib/cityImages";
 import { formatDuration } from "@/lib/hotelImages";
 import { SourceBadge } from "@/components/ui/SourceBadge";
@@ -13,6 +15,9 @@ interface FlightResultCardProps {
 
 export function FlightResultCard({ flight }: FlightResultCardProps) {
     const formatCurrency = useCurrencyStore((s) => s.format);
+    const router = useRouter();
+    const locale = useLocale();
+    const isRo = locale === "ro";
     const destImage = getCityImageByIata(flight.destination, flight.id);
     const airlineLogoUrl = `https://pics.avs.io/200/200/${flight.airline}.png`;
     const durationDisplay = formatDuration(flight.duration) || flight.duration;
@@ -21,11 +26,22 @@ export function FlightResultCard({ flight }: FlightResultCardProps) {
         try {
             sessionStorage.setItem(`flightView_${flight.id}`, JSON.stringify(flight));
         } catch { /* ignore */ }
-        window.location.href = `/flights/${flight.id}`;
+        router.push(`/${locale}/flights/${encodeURIComponent(flight.id)}`);
     }
 
     return (
-        <div className="group rounded-xl overflow-hidden bg-white dark:bg-surface border border-neutral-200 dark:border-border-default transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+        <div
+            onClick={handleViewDetails}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleViewDetails();
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            className="group rounded-xl overflow-hidden bg-white dark:bg-surface border border-neutral-200 dark:border-border-default transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        >
             {/* Hero image */}
             <div className="relative aspect-[16/9] overflow-hidden">
                 <img
@@ -116,10 +132,13 @@ export function FlightResultCard({ flight }: FlightResultCardProps) {
                         <p className="text-xs text-text-muted">per person · {flight.travelClass || "Economy"}</p>
                     </div>
                     <button
-                        onClick={handleViewDetails}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails();
+                        }}
                         className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-600 hover:shadow-md active:scale-[0.98]"
                     >
-                        View Details
+                        {isRo ? "Vezi detalii" : "View Details"}
                     </button>
                 </div>
             </div>

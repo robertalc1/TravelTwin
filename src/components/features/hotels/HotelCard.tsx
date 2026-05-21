@@ -27,6 +27,11 @@ interface HotelCardProps {
     roomType?: string;
     cancellationPolicy?: string;
     className?: string;
+    /** Fired when the user clicks the card surface or the View Deal button.
+     *  Without this prop the card stays purely display-only (legacy use). */
+    onClick?: () => void;
+    /** Localized CTA label override — falls back to "View Deal". */
+    ctaLabel?: string;
 }
 
 const amenityIcons: Record<string, typeof Wifi> = {
@@ -53,14 +58,26 @@ export function HotelCard({
     roomType,
     cancellationPolicy,
     className,
+    onClick,
+    ctaLabel,
 }: HotelCardProps) {
     const [liked, setLiked] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
 
     return (
         <div
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (onClick && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+            role={onClick ? "button" : undefined}
+            tabIndex={onClick ? 0 : undefined}
             className={cn(
                 "group overflow-hidden rounded-radius-lg border border-border-default bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:border-border-emphasis",
+                onClick && "cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2",
                 className
             )}
         >
@@ -81,6 +98,7 @@ export function HotelCard({
                 <button
                     onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         setLiked(!liked);
                     }}
                     className={cn(
@@ -173,8 +191,17 @@ export function HotelCard({
                         </div>
                         <span className="text-caption text-text-muted">per night</span>
                     </div>
-                    <Button variant="primary" size="sm">
-                        View Deal
+                    <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={(e) => {
+                            if (onClick) {
+                                e.stopPropagation();
+                                onClick();
+                            }
+                        }}
+                    >
+                        {ctaLabel || "View Deal"}
                     </Button>
                 </div>
             </div>

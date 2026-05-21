@@ -1,56 +1,81 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import {
-  ArrowLeft, Plane, Clock, Briefcase, CreditCard, Shield,
-  ChevronUp, ChevronDown, Check, Luggage, Wifi, Coffee,
+  ArrowLeft, Plane, Clock, Share2, ExternalLink, Briefcase, Shield, MapPin,
 } from "lucide-react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useCurrencyStore } from "@/stores/currencyStore";
+import { useToastStore } from "@/stores/toastStore";
 import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
+import { getCityImageByIata } from "@/lib/cityImages";
+import type { NormalizedFlight } from "@/lib/supabase/types";
+import { handleAirlineLogoError } from "@/lib/imageFallback";
 
-const FARE_OPTIONS = [
-  {
-    name: "Economy Light",
-    price: 487,
-    bags: "Carry-on only",
-    change: "No changes",
-    perks: ["Standard seat", "In-flight entertainment"],
-  },
-  {
-    name: "Economy Flex",
-    price: 612,
-    bags: "1 checked bag (23kg)",
-    change: "Free changes",
-    perks: ["Choose your seat", "Meal included", "Priority boarding"],
-    highlight: true,
-  },
-  {
-    name: "Business",
-    price: 2340,
-    bags: "2 checked bags (32kg)",
-    change: "Free changes & refunds",
-    perks: ["Lie-flat seat", "Premium meals", "Lounge access", "Express security"],
-  },
-];
+function formatDuration(iso: string): string {
+  if (!iso) return "";
+  const h = iso.match(/(\d+)H/)?.[1];
+  const m = iso.match(/(\d+)M/)?.[1];
+  return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(" ");
+}
 
 export default function FlightDetailPage() {
-  const [selectedFare, setSelectedFare] = useState(1);
-  const [pricingExpanded, setPricingExpanded] = useState(true);
+  const params = useParams();
   const router = useRouter();
   const locale = useLocale();
+  const isRo = locale === "ro";
+  const id = (params?.id as string) || "";
+
+  const [flight, setFlight] = useState<NormalizedFlight | null>(null);
+  const [missing, setMissing] = useState(false);
+  const [sharePending, setSharePending] = useState(false);
+
+  const formatCurrency = useCurrencyStore((s) => s.format);
+  const showToast = useToastStore((s) => s.show);
   const { user } = useUser();
   const openAuthModal = useAuthModalStore((s) => s.open);
 
-  const fare = FARE_OPTIONS[selectedFare];
-  const taxesAndFees = Math.round(fare.price * 0.18 * 100) / 100;
-  const total = fare.price + taxesAndFees;
+  // Flights aren't kept in long-lived storage — FlightResultCard stuffs the
+  // selected one into sessionStorage at click time. If that key is missing
+  // (refresh after cache eviction, direct URL share) we show a friendly
+  // empty state instead of fabricating fake data.
+  useEffect(() => {
+    if (!id) return;
+    try {
+      const raw = sessionStorage.getItem(`flightView_${id}`);
+      if (!raw) {
+        setMissing(true);
+        return;
+      }
+      const parsed = JSON.parse(raw) as NormalizedFlight;
+      setFlight(parsed);
+    } catch {
+      setMissing(true);
+    }
+  }, [id]);
+
+  const taxesAndFees = useMemo(
+    () => (flight ? Math.round(flight.price * 0.18 * 100) / 100 : 0),
+    [flight],
+  );
+  const total = useMemo(
+    () => (flight ? Math.round((flight.price + taxesAndFees) * 100) / 100 : 0),
+    [flight, taxesAndFees],
+  );
 
   function goToBooking() {
-    const target = `/${locale}/booking/simulate?type=flight&fare=${fare.name.replace(/ /g, "_")}&total=${total}`;
+    if (!flight) return;
+    const qs = new URLSearchParams({
+      type: "flight",
+      flightId: flight.id,
+      origin: flight.origin,
+      destination: flight.destination,
+      total: String(total),
+    });
+    const target = `/${locale}/booking/simulate?${qs.toString()}`;
     if (!user) {
       openAuthModal("login", target);
       return;
@@ -58,308 +83,312 @@ export default function FlightDetailPage() {
     router.push(target);
   }
 
+  async function handleShare() {
+    if (sharePending) return;
+    setSharePending(true);
+    try {
+      const url = typeof window !== "undefined" ? window.location.href : "";
+      const navWithShare = navigator as Navigator & {
+        share?: (data: ShareData) => Promise<void>;
+      };
+      if (navWithShare.share) {
+        try {
+          await navWithShare.share({
+            title: flight ? `${flight.origin} → ${flight.destination}` : "Flight",
+            text: isRo ? "Vezi acest zbor pe TravelTwin" : "Check out this flight on TravelTwin",
+            url,
+          });
+          return;
+        } catch { /* user cancelled */ }
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        showToast(isRo ? "Link copiat în clipboard" : "Link copied to clipboard", "success");
+      }
+    } finally {
+      setSharePending(false);
+    }
+  }
+
+  if (missing) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background px-4">
+        <div className="max-w-md text-center">
+          <div className="text-5xl mb-4">✈️</div>
+          <h2 className="text-2xl font-bold text-text-primary mb-2">
+            {isRo ? "Zbor indisponibil" : "Flight not available"}
+          </h2>
+          <p className="text-text-secondary mb-6">
+            {isRo
+              ? "Acest zbor nu mai e în cache. Întoarce-te la căutare ca să primești prețuri live actualizate."
+              : "This flight is no longer cached. Go back to search to get live updated prices."}
+          </p>
+          <button
+            onClick={() => router.push(`/${locale}/flights`)}
+            className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-all"
+          >
+            {isRo ? "← Înapoi la căutare" : "← Back to search"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!flight) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
+        <div className="text-center">
+          <div className="text-4xl mb-4 animate-bounce">✈️</div>
+          <p className="text-text-secondary">{isRo ? "Se încarcă zborul..." : "Loading flight..."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const heroImg = getCityImageByIata(flight.destination);
+  const stops = flight.stops;
+  const stopsLabel = stops === 0
+    ? (isRo ? "Direct" : "Direct")
+    : isRo
+      ? `${stops} ${stops === 1 ? "escală" : "escale"}`
+      : `${stops} stop${stops !== 1 ? "s" : ""}`;
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-background">
-      {/* Hero */}
-      <div className="relative overflow-hidden">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage:
-              "url(https://images.unsplash.com/photo-1488085061387-422e29b40080?w=1920&h=600&fit=crop&q=80)",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-secondary-700/85 via-secondary-700/70 to-secondary-700/40" />
-        <div className="relative mx-auto max-w-[1280px] px-4 lg:px-8 py-12 lg:py-16">
-          <Link
-            href="/flights"
-            className="inline-flex items-center gap-2 text-sm text-white/80 hover:text-white mb-4 transition-colors"
+      {/* Sticky header */}
+      <div className="sticky top-0 z-40 bg-white/95 dark:bg-surface/95 backdrop-blur-md border-b border-neutral-200 dark:border-border-default">
+        <div className="mx-auto max-w-[1400px] px-4 lg:px-8 py-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label={isRo ? "Înapoi" : "Back"}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" /> Back to results
-          </Link>
-          <h1 className="text-3xl md:text-5xl font-extrabold text-white">
-            New York → London
+            <ArrowLeft className="h-4 w-4 text-text-primary" />
+          </button>
+          <h1 className="flex-1 text-base sm:text-lg font-bold text-text-primary truncate">
+            {flight.originCity || flight.origin} → {flight.destinationCity || flight.destination}
           </h1>
-          <p className="text-white/80 mt-2 text-lg">
-            06:30 – 14:45 · 7h 15m · Round trip · 1 adult
-          </p>
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={sharePending}
+            aria-label="Share"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors disabled:opacity-50"
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* Main layout */}
-      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+      <main className="mx-auto max-w-[1400px] px-4 lg:px-8 py-6 lg:py-10">
+        {/* Hero */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative aspect-[21/9] lg:aspect-[3/1] rounded-2xl overflow-hidden mb-8"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={heroImg}
+            alt={flight.destinationCity || flight.destination}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+          <div className="absolute bottom-6 left-6 right-6 text-white">
+            <div className="flex items-center gap-2 mb-2">
+              <Plane className="h-5 w-5" />
+              <span className="text-xs font-semibold uppercase tracking-wider opacity-90">
+                {isRo ? "Zbor live de la Tripadvisor" : "Live flight from Tripadvisor"}
+              </span>
+            </div>
+            <h2 className="text-2xl md:text-4xl font-extrabold">
+              {flight.originCity || flight.origin} → {flight.destinationCity || flight.destination}
+            </h2>
+            <p className="text-sm opacity-90 mt-1">
+              {flight.departureDate}{flight.arrivalDate && flight.arrivalDate !== flight.departureDate ? ` · ${flight.arrivalDate}` : ""}
+              {" · "}{stopsLabel}{" · "}{formatDuration(flight.duration)}
+            </p>
+          </div>
+        </motion.div>
 
-          {/* Left column (2/3) */}
-          <div className="lg:col-span-2 space-y-6">
-
-            {/* Outbound */}
-            <section className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-500 px-3 py-1 text-xs font-semibold">
-                  Outbound
-                </span>
-                <span className="text-sm text-text-muted">Saturday, March 15</span>
-              </div>
-
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-900/20">
-                  <Plane className="h-6 w-6 text-primary-500" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-secondary-500 dark:text-white">Emirates</p>
-                  <p className="text-sm text-text-muted">EK 201 · Boeing 777-300ER</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <p className="font-mono text-3xl font-extrabold text-text-primary">06:30</p>
-                  <p className="text-sm font-bold text-text-secondary mt-1">JFK</p>
-                  <p className="text-xs text-text-muted">New York</p>
-                </div>
-
-                <div className="flex-1 flex flex-col items-center gap-1.5 px-2">
-                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <Clock className="h-3 w-3" />
-                    7h 15m
-                  </div>
-                  <div className="w-full relative h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border-emphasis to-transparent">
-                    <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-primary-500 rotate-90 bg-white dark:bg-surface px-0.5" />
-                  </div>
-                  <span className="rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-0.5 text-[10px] font-semibold">
-                    Direct
-                  </span>
-                </div>
-
-                <div className="text-center">
-                  <p className="font-mono text-3xl font-extrabold text-text-primary">14:45</p>
-                  <p className="text-sm font-bold text-text-secondary mt-1">LHR</p>
-                  <p className="text-xs text-text-muted">London</p>
-                </div>
-              </div>
-
-              <div className="mt-5 pt-5 border-t border-neutral-100 dark:border-border-default flex flex-wrap gap-3 text-xs text-text-secondary">
-                <span className="flex items-center gap-1.5"><Wifi className="h-3.5 w-3.5" /> Wi-Fi onboard</span>
-                <span className="flex items-center gap-1.5"><Coffee className="h-3.5 w-3.5" /> Meal included</span>
-                <span className="flex items-center gap-1.5"><Luggage className="h-3.5 w-3.5" /> Cabin baggage</span>
-              </div>
-            </section>
-
-            {/* Return */}
-            <section className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-3 py-1 text-xs font-semibold">
-                  Return
-                </span>
-                <span className="text-sm text-text-muted">Saturday, March 22</span>
-              </div>
-
-              <div className="flex items-center gap-3 mb-5">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-900/20">
-                  <Plane className="h-6 w-6 text-primary-500" />
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-secondary-500 dark:text-white">Emirates</p>
-                  <p className="text-sm text-text-muted">EK 202 · Boeing 777-300ER</p>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
+          {/* Main column */}
+          <div className="space-y-6">
+            {/* Itinerary card */}
+            <section className="rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-text-primary">
+                  {isRo ? "Detalii itinerar" : "Itinerary details"}
+                </h3>
+                {flight.airline && (
+                  <img
+                    src={`https://pics.avs.io/120/40/${flight.airline}.png`}
+                    alt={flight.airlineName || flight.airline}
+                    className="h-8 object-contain"
+                    onError={handleAirlineLogoError}
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <p className="font-mono text-3xl font-extrabold text-text-primary">10:30</p>
-                  <p className="text-sm font-bold text-text-secondary mt-1">LHR</p>
-                  <p className="text-xs text-text-muted">London</p>
-                </div>
-
-                <div className="flex-1 flex flex-col items-center gap-1.5 px-2">
-                  <div className="flex items-center gap-1.5 text-xs text-text-muted">
-                    <Clock className="h-3 w-3" />
-                    8h 25m
-                  </div>
-                  <div className="w-full relative h-px bg-gradient-to-r from-transparent via-neutral-300 dark:via-border-emphasis to-transparent">
-                    <Plane className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-4 w-4 text-primary-500 -rotate-90 bg-white dark:bg-surface px-0.5" />
-                  </div>
-                  <span className="rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-2.5 py-0.5 text-[10px] font-semibold">
-                    Direct
-                  </span>
-                </div>
-
-                <div className="text-center">
-                  <p className="font-mono text-3xl font-extrabold text-text-primary">13:55</p>
-                  <p className="text-sm font-bold text-text-secondary mt-1">JFK</p>
-                  <p className="text-xs text-text-muted">New York</p>
-                </div>
-              </div>
-            </section>
-
-            {/* Choose your fare */}
-            <section>
-              <h2 className="text-xl font-bold text-secondary-500 dark:text-white mb-4">Choose your fare</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {FARE_OPTIONS.map((f, idx) => (
-                  <button
-                    type="button"
-                    key={f.name}
-                    onClick={() => setSelectedFare(idx)}
-                    className={`relative rounded-2xl border-2 p-5 text-left transition-all ${
-                      selectedFare === idx
-                        ? "border-primary-500 bg-primary-50/40 dark:bg-primary-900/10 shadow-md"
-                        : "border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-primary-300"
-                    }`}
-                  >
-                    {f.highlight && selectedFare !== idx && (
-                      <span className="absolute -top-2 right-4 rounded-full bg-primary-500 text-white text-[10px] font-bold px-2 py-0.5">
-                        BEST VALUE
-                      </span>
-                    )}
-                    <p className="font-bold text-secondary-500 dark:text-white">{f.name}</p>
-                    <p className="font-mono text-2xl font-extrabold text-primary-500 mt-1 mb-3">
-                      ${f.price}
+                {/* Origin */}
+                <div className="flex-1">
+                  <p className="text-xs text-text-muted font-semibold uppercase tracking-wider">
+                    {isRo ? "Plecare" : "Departure"}
+                  </p>
+                  <p className="text-2xl font-extrabold text-text-primary">{flight.departureTime}</p>
+                  <p className="text-sm font-semibold text-text-secondary mt-0.5">{flight.origin}</p>
+                  {flight.originCity && (
+                    <p className="text-xs text-text-muted flex items-center gap-1 mt-0.5">
+                      <MapPin className="h-3 w-3" /> {flight.originCity}
                     </p>
-                    <ul className="space-y-1.5 text-xs text-text-secondary">
-                      <li className="flex items-start gap-1.5">
-                        <Briefcase className="h-3.5 w-3.5 mt-0.5 shrink-0 text-text-muted" />
-                        {f.bags}
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5 mt-0.5 shrink-0 text-text-muted" />
-                        {f.change}
-                      </li>
-                      {f.perks.map((p) => (
-                        <li key={p} className="flex items-start gap-1.5">
-                          <Check className="h-3.5 w-3.5 mt-0.5 shrink-0 text-green-500" />
-                          {p}
-                        </li>
-                      ))}
-                    </ul>
-                  </button>
-                ))}
+                  )}
+                </div>
+
+                {/* Connector */}
+                <div className="flex-1 max-w-[200px]">
+                  <div className="flex flex-col items-center">
+                    <p className="text-xs text-text-muted mb-1.5">{formatDuration(flight.duration)}</p>
+                    <div className="relative w-full h-px bg-neutral-300 dark:bg-border-default">
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary-500" />
+                      <div className="absolute right-0 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary-500" />
+                      <div className="absolute left-1/2 top-1/2 -translate-y-1/2 -translate-x-1/2 bg-white dark:bg-surface px-2">
+                        <Plane className="h-4 w-4 text-primary-500 rotate-90" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-muted mt-1.5">{stopsLabel}</p>
+                  </div>
+                </div>
+
+                {/* Destination */}
+                <div className="flex-1 text-right">
+                  <p className="text-xs text-text-muted font-semibold uppercase tracking-wider">
+                    {isRo ? "Sosire" : "Arrival"}
+                  </p>
+                  <p className="text-2xl font-extrabold text-text-primary">{flight.arrivalTime}</p>
+                  <p className="text-sm font-semibold text-text-secondary mt-0.5">{flight.destination}</p>
+                  {flight.destinationCity && (
+                    <p className="text-xs text-text-muted flex items-center gap-1 mt-0.5 justify-end">
+                      <MapPin className="h-3 w-3" /> {flight.destinationCity}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              <div className="mt-6 pt-5 border-t border-neutral-200 dark:border-border-default grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-text-muted text-xs">{isRo ? "Operator" : "Airline"}</p>
+                  <p className="font-semibold text-text-primary mt-0.5">{flight.airlineName || flight.airline}</p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs">{isRo ? "Clasă" : "Class"}</p>
+                  <p className="font-semibold text-text-primary mt-0.5 capitalize">
+                    {flight.travelClass.toLowerCase().replace("_", " ")}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs">{isRo ? "Durată" : "Duration"}</p>
+                  <p className="font-semibold text-text-primary mt-0.5 inline-flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> {formatDuration(flight.duration)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-text-muted text-xs">{isRo ? "Escale" : "Stops"}</p>
+                  <p className="font-semibold text-text-primary mt-0.5">{stopsLabel}</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Whats included */}
+            <section className="rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default p-6">
+              <h3 className="text-lg font-bold text-text-primary mb-4">
+                {isRo ? "Ce este inclus" : "What's included"}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-start gap-3">
+                  <Briefcase className="h-5 w-5 text-primary-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">
+                      {isRo ? "Bagaj de mână" : "Carry-on bag"}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {isRo ? "Inclus pentru toți pasagerii" : "Included for every passenger"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-primary-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-text-primary">
+                      {isRo ? "Suport 24/7" : "24/7 support"}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {isRo ? "Asistență TravelTwin pentru rezervare" : "TravelTwin booking assistance"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-text-muted">
+                {isRo
+                  ? "Bagaj de cală, schimbări și anulări depind de tariful operatorului — verifică în pasul de rezervare."
+                  : "Checked bags, changes and cancellations depend on the airline fare — confirmed at booking step."}
+              </p>
             </section>
           </div>
 
-          {/* Right column — sticky sidebar (1/3) */}
-          <aside className="lg:col-span-1">
-            <div className="sticky top-20 space-y-4">
+          {/* Sticky sidebar — Price */}
+          <aside className="lg:sticky lg:top-[110px] lg:self-start">
+            <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-5 shadow-sm">
+              <p className="text-xs text-text-muted uppercase tracking-wider font-semibold">
+                {isRo ? "Preț pe pasager" : "Price per traveler"}
+              </p>
+              <p className="text-3xl font-extrabold text-primary-500 mt-1">
+                {formatCurrency(flight.price, flight.currency)}
+              </p>
 
-              {/* Price card */}
-              <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden shadow-md">
-                <button
-                  type="button"
-                  onClick={() => setPricingExpanded((v) => !v)}
-                  className="w-full p-5 flex items-center justify-between text-left"
+              <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-border-default space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">{isRo ? "Tarif de bază" : "Base fare"}</span>
+                  <span className="font-semibold text-text-primary">{formatCurrency(flight.price, flight.currency)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-secondary">{isRo ? "Taxe estimate" : "Estimated taxes"}</span>
+                  <span className="font-semibold text-text-primary">{formatCurrency(taxesAndFees, flight.currency)}</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-neutral-100 dark:border-border-default">
+                  <span className="font-bold text-text-primary">{isRo ? "Total" : "Total"}</span>
+                  <span className="font-extrabold text-primary-500">{formatCurrency(total, flight.currency)}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={goToBooking}
+                className="mt-5 w-full rounded-xl bg-primary-500 px-6 py-3.5 text-sm font-bold text-white hover:bg-primary-600 transition-all shadow hover:shadow-md"
+              >
+                {isRo ? "Rezervă zbor" : "Book Flight"}
+              </button>
+
+              {flight.bookingLink && (
+                <a
+                  href={flight.bookingLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default px-6 py-2.5 text-sm font-semibold text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors"
                 >
-                  <div>
-                    <p className="text-xs text-text-muted uppercase tracking-wide">Total Price</p>
-                    <motion.p
-                      key={total}
-                      initial={{ scale: 1.1 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 380, damping: 18 }}
-                      className="text-3xl font-extrabold text-primary-500"
-                    >
-                      ${total.toFixed(2)}
-                    </motion.p>
-                    <p className="text-xs text-text-muted mt-0.5">
-                      1 adult · {fare.name} · all included
-                    </p>
-                  </div>
-                  {pricingExpanded ? (
-                    <ChevronUp className="h-5 w-5 text-text-muted" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-text-muted" />
-                  )}
-                </button>
+                  <ExternalLink className="h-4 w-4" />
+                  {isRo ? "Vezi pe Tripadvisor" : "View on Tripadvisor"}
+                </a>
+              )}
 
-                <AnimatePresence initial={false}>
-                  {pricingExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.22 }}
-                      className="border-t border-neutral-100 dark:border-border-default overflow-hidden"
-                    >
-                      <div className="p-5 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                              <Plane className="h-4 w-4 text-blue-500" />
-                            </div>
-                            <span className="text-sm text-text-secondary">Flight (1 adult)</span>
-                          </div>
-                          <span className="text-sm font-semibold text-text-primary">
-                            ${fare.price.toFixed(2)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 bg-neutral-100 dark:bg-surface-elevated rounded-lg flex items-center justify-center">
-                              <CreditCard className="h-4 w-4 text-text-muted" />
-                            </div>
-                            <span className="text-sm text-text-secondary">Taxes &amp; fees</span>
-                          </div>
-                          <span className="text-sm font-semibold text-text-primary">
-                            ${taxesAndFees.toFixed(2)}
-                          </span>
-                        </div>
-
-                        <div className="border-t border-neutral-200 dark:border-border-default pt-3 flex items-center justify-between">
-                          <span className="text-sm font-bold text-text-primary">Total</span>
-                          <span className="text-lg font-extrabold text-primary-500">
-                            ${total.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="px-5 pb-5">
-                        <button
-                          type="button"
-                          onClick={goToBooking}
-                          className="block w-full text-center bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 rounded-xl transition-colors"
-                        >
-                          Book Now — ${total.toFixed(2)}
-                        </button>
-                        <div className="flex items-center justify-center gap-1.5 mt-2 text-xs text-text-muted">
-                          <Shield className="h-3.5 w-3.5 text-green-500" />
-                          Secure checkout · Free cancellation 24h
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* What's included card */}
-              <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5">
-                <p className="text-xs text-text-muted uppercase tracking-wide mb-3">What&apos;s included</p>
-                <ul className="space-y-2 text-sm text-text-secondary">
-                  <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                    Round-trip flights
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                    {fare.bags}
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                    {fare.change}
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                    All taxes &amp; airport fees
-                  </li>
-                </ul>
-              </div>
+              <p className="mt-3 text-[11px] text-text-muted text-center">
+                {isRo ? "Nu vei fi taxat încă" : "You won't be charged yet"}
+              </p>
             </div>
           </aside>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

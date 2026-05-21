@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Search, Calendar, Loader2, Hotel as HotelIcon, AlertCircle } from "lucide-react";
 import { HotelCard } from "@/components/features/hotels/HotelCard";
@@ -28,6 +29,7 @@ const POPULAR_CITIES: Array<[string, string]> = [
 ];
 
 export default function HotelsPage() {
+    const router = useRouter();
     const locale = useLocale();
     const t = useTranslations("hotels");
     const isRo = locale === "ro";
@@ -35,6 +37,7 @@ export default function HotelsPage() {
     const [cityDisplay, setCityDisplay] = useState("");
     const [checkInDate, setCheckInDate] = useState("");
     const [checkOutDate, setCheckOutDate] = useState("");
+    const [tripId, setTripId] = useState<string | null>(null);
 
     const formatCurrency = useCurrencyStore((s) => s.format);
     const [hotels, setHotels] = useState<NormalizedHotel[]>([]);
@@ -57,8 +60,18 @@ export default function HotelsPage() {
     useEffect(() => {
         if (typeof window === "undefined") return;
         const params = new URLSearchParams(window.location.search);
-        const city = params.get("city");
-        if (city) { setCityIata(city); setCityDisplay(city); }
+        const city = params.get("city") || params.get("cityCode");
+        const cityName = params.get("cityName");
+        const ciQs = params.get("checkIn");
+        const coQs = params.get("checkOut");
+        const tid = params.get("tripId");
+        if (city) {
+            setCityIata(city.toUpperCase());
+            setCityDisplay(cityName || city.toUpperCase());
+        }
+        if (ciQs) setCheckInDate(ciQs);
+        if (coQs) setCheckOutDate(coQs);
+        if (tid) setTripId(tid);
     }, []);
 
     const nights =
@@ -274,37 +287,59 @@ export default function HotelsPage() {
                     </div>
                 ) : hotels.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {hotels.map((hotel, i) => (
-                            <div key={`${hotel.id}-${i}`} className="stagger-item">
-                                <HotelCard
-                                    name={hotel.name}
-                                    location={hotel.cityName || hotel.address}
-                                    image={getHotelImage(hotel.name, hotel.cityName || hotel.cityCode, hotel.rating)}
-                                    rating={hotel.rating}
-                                    reviewCount={0}
-                                    price={hotel.pricePerNight}
-                                    currency={hotel.currency}
-                                    amenities={hotel.amenities.length > 0 ? hotel.amenities : ["WiFi"]}
-                                    source={hotel.source}
-                                    lastUpdated={hotel.lastUpdated}
-                                    roomType={hotel.roomType}
-                                    cancellationPolicy={hotel.cancellationPolicy}
-                                    badges={
-                                        hotel.pricePerNight < 80
-                                            ? [isRo ? "Preț excelent" : "Great Value"]
-                                            : hotel.rating >= 5
-                                              ? [isRo ? "Lux" : "Luxury"]
-                                              : []
-                                    }
-                                />
-                                <div className="px-4 pb-3 pt-2 flex items-center justify-between text-xs text-text-muted rounded-b-2xl border border-t-0 border-neutral-200 dark:border-border-default bg-white dark:bg-surface -mt-2">
-                                    <span>{hotel.roomType || (isRo ? "Cameră standard" : "Standard Room")} · {isRo ? `${nights} ${nights === 1 ? "noapte" : "nopți"}` : `${nights} night${nights !== 1 ? "s" : ""}`}</span>
-                                    <span className="font-mono font-semibold text-primary-500">
-                                        {isRo ? "Total" : "Total"}: {formatCurrency(hotel.pricePerNight * nights, hotel.currency || 'EUR')}
-                                    </span>
+                        {hotels.map((hotel, i) => {
+                            const totalPrice = hotel.pricePerNight * nights;
+                            const goToDetail = () => {
+                                try {
+                                    sessionStorage.setItem(`hotelView_${hotel.id}`, JSON.stringify(hotel));
+                                } catch { /* ignore quota */ }
+                                const qs = new URLSearchParams({
+                                    cityCode: cityIata,
+                                    checkIn: checkInDate,
+                                    checkOut: checkOutDate,
+                                    name: hotel.name,
+                                    total: String(Math.round(totalPrice)),
+                                });
+                                if (tripId) qs.set("tripId", tripId);
+                                router.push(`/${locale}/hotels/${encodeURIComponent(hotel.id)}?${qs.toString()}`);
+                            };
+                            return (
+                                <div key={`${hotel.id}-${i}`} className="stagger-item">
+                                    <HotelCard
+                                        name={hotel.name}
+                                        location={hotel.cityName || hotel.address}
+                                        image={getHotelImage(hotel.name, hotel.cityName || hotel.cityCode, hotel.rating)}
+                                        rating={hotel.rating}
+                                        reviewCount={0}
+                                        price={hotel.pricePerNight}
+                                        currency={hotel.currency}
+                                        amenities={hotel.amenities.length > 0 ? hotel.amenities : ["WiFi"]}
+                                        source={hotel.source}
+                                        lastUpdated={hotel.lastUpdated}
+                                        roomType={hotel.roomType}
+                                        cancellationPolicy={hotel.cancellationPolicy}
+                                        onClick={goToDetail}
+                                        ctaLabel={isRo ? "Vezi detalii" : "View Details"}
+                                        badges={
+                                            hotel.pricePerNight < 80
+                                                ? [isRo ? "Preț excelent" : "Great Value"]
+                                                : hotel.rating >= 5
+                                                  ? [isRo ? "Lux" : "Luxury"]
+                                                  : []
+                                        }
+                                    />
+                                    <div
+                                        onClick={goToDetail}
+                                        className="px-4 pb-3 pt-2 flex items-center justify-between text-xs text-text-muted rounded-b-2xl border border-t-0 border-neutral-200 dark:border-border-default bg-white dark:bg-surface -mt-2 cursor-pointer"
+                                    >
+                                        <span>{hotel.roomType || (isRo ? "Cameră standard" : "Standard Room")} · {isRo ? `${nights} ${nights === 1 ? "noapte" : "nopți"}` : `${nights} night${nights !== 1 ? "s" : ""}`}</span>
+                                        <span className="font-mono font-semibold text-primary-500">
+                                            {isRo ? "Total" : "Total"}: {formatCurrency(totalPrice, hotel.currency || 'EUR')}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="text-center py-12 rounded-2xl bg-white dark:bg-surface border border-neutral-200 dark:border-border-default px-6">
