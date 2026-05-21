@@ -415,6 +415,81 @@ export async function getFlightFilters(p: {
 /* ── Hotels ──────────────────────────────────────────────────── */
 
 /**
+ * Resolve a free-form city query (e.g. "Sofia, Bulgaria" from Google
+ * geocoding) to a Tripadvisor geoId. Used by /road-trip where we don't
+ * have an IATA code to start from.
+ */
+export async function getGeoIdByQuery(query: string): Promise<number | null> {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const cacheKey = `geoIdQuery:v1:${trimmed.toLowerCase()}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'number') return cached.data;
+
+  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query: trimmed });
+  if (!isRecord(raw)) return null;
+  const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
+  const first = items[0];
+  if (!first) return null;
+  const gid = first.geoId;
+  const numeric =
+    typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  await setCache(cacheKey, numeric, 60 * 24 * 30);
+  return numeric;
+}
+
+export async function searchHotelsByGeoId(p: {
+  geoId: number;
+  checkIn: string;
+  checkOut: string;
+  adults?: string;
+  rooms?: string;
+}): Promise<TAHotel[]> {
+  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchHotels', {
+    geoId: p.geoId,
+    checkIn: p.checkIn,
+    checkOut: p.checkOut,
+    pageNumber: 1,
+    adults: p.adults || '1',
+    rooms: p.rooms || '1',
+    currencyCode: 'EUR',
+  });
+  if (!isRecord(raw)) return [];
+  const data = isRecord(raw.data) ? raw.data : raw;
+  const hotelsRaw = asArray((data as Record<string, unknown>).data);
+
+  const result: TAHotel[] = [];
+  for (const h of hotelsRaw) {
+    if (!isRecord(h)) continue;
+    const br = isRecord(h.bubbleRating) ? h.bubbleRating : {};
+    const photosRaw = asArray(h.cardPhotos);
+    const cardPhotos: TAHotelPhoto[] = [];
+    for (const ph of photosRaw) {
+      if (!isRecord(ph)) continue;
+      const sizes = isRecord(ph.sizes) ? ph.sizes : undefined;
+      cardPhotos.push({
+        sizes: sizes ? { urlTemplate: asString(sizes.urlTemplate) } : undefined,
+      });
+    }
+    const amenitiesRaw = asArray(h.amenities).filter((a): a is string => typeof a === 'string');
+    result.push({
+      id: asString(h.id) || crypto.randomUUID(),
+      title: asString(h.title),
+      primaryInfo: asString(h.primaryInfo),
+      secondaryInfo: asString(h.secondaryInfo),
+      bubbleRating: { count: asString(br.count), rating: asNumber(br.rating) },
+      priceForDisplay: asString(h.priceForDisplay),
+      strikethroughPrice: asString(h.strikethroughPrice),
+      priceDetails: asString(h.priceDetails),
+      cardPhotos,
+      amenities: amenitiesRaw,
+    });
+  }
+  return result;
+}
+
+/**
  * Resolve an IATA city code (or arbitrary city name) to a Tripadvisor geoId.
  * Caches the result for 30 days in the api_cache table to save quota.
  */

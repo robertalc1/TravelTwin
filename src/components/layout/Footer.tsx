@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, Plane, Hotel, CalendarDays, User, MapPin } from "lucide-react";
+import { Heart, Plane, Hotel, CalendarDays, User, MapPin, Car } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 export function Footer() {
@@ -41,6 +41,12 @@ export function Footer() {
                 <Link href={lp("/plan")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
                   <Plane className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
                   {t("planTrip")}
+                </Link>
+              </li>
+              <li>
+                <Link href={lp("/road-trip")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
+                  <Car className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
+                  {locale === "ro" ? "Road trip" : "Road trip"}
                 </Link>
               </li>
               <li>

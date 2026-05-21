@@ -475,8 +475,23 @@ export default function Home() {
           </div>
 
           {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {[
+              {
+                href: lp("/road-trip"),
+                emoji: "🚗",
+                title: isRo ? "Road trip" : "Road trip",
+                stat: "0",
+                statLabel: isRo ? "zboruri necesare" : "flights needed",
+                description: isRo
+                  ? "Cu mașina sau autobuzul — distanță reală, popasuri sugerate de AI și hotel la destinație."
+                  : "By car or bus — real distance, AI-suggested rest stops and a hotel at the destination.",
+                cta: isRo ? "Planifică pe drum" : "Plan on the road",
+                gradient: "from-teal-100 via-emerald-50 to-white dark:from-teal-900/30 dark:via-emerald-900/20 dark:to-surface",
+                ring: "ring-teal-500/30",
+                accent: "text-teal-600 dark:text-teal-400",
+                glow: "bg-teal-500/15",
+              },
               {
                 href: lp("/hotels"),
                 emoji: "🏨",
