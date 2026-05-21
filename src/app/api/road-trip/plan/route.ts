@@ -81,7 +81,13 @@ const HOURS_PER_STOPOVER = 12;
 const CLAUDE_TIMEOUT_MS = 45_000;
 
 export async function POST(req: NextRequest) {
-  console.log('[road-trip] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const anthropicPreview = anthropicKey
+    ? `${anthropicKey.slice(0, 7)}...${anthropicKey.slice(-4)}`
+    : '(empty)';
+  console.log(
+    `[road-trip] ANTHROPIC_API_KEY configured: ${!!anthropicKey} preview=${anthropicPreview}`,
+  );
   console.log(
     '[road-trip] GOOGLE_MAPS_SERVER_API_KEY configured:',
     !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
@@ -177,20 +183,30 @@ export async function POST(req: NextRequest) {
 
     const checkInDates = computeCheckInDates(departureDate, stopovers.length, returnDate);
 
+    // Build the queries we'll send to Tripadvisor. Prefer the user's typed
+    // value (Latin alphabet, simple) over Google's formatted name which can
+    // include non-Latin characters like "İstanbul, Türkiye" that don't match
+    // Tripadvisor's index cleanly.
+    const destShortName = shortCityName(destination);
     const hotelPromises: Array<Promise<TAHotel | null>> = stopovers.map((s, i) =>
-      fetchFirstHotel(s.city, checkInDates.stopoverNights[i], checkInDates.stopoverNights[i + 1] || addDays(checkInDates.stopoverNights[i], 1), adults).catch((e) => {
-        warnings.push(`Could not load stopover hotel for ${s.city}: ${(e as Error).message}`);
+      fetchFirstHotel(
+        s.city,
+        checkInDates.stopoverNights[i],
+        checkInDates.stopoverNights[i + 1] || addDays(checkInDates.stopoverNights[i], 1),
+        adults,
+      ).catch((e) => {
+        warnings.push(humanizeHotelError(`stopover in ${s.city}`, e as Error));
         return null;
       }),
     );
     hotelPromises.push(
       fetchFirstHotel(
-        destinationQuery,
+        destShortName,
         checkInDates.destinationCheckIn,
         checkInDates.destinationCheckOut,
         adults,
       ).catch((e) => {
-        warnings.push(`Could not load destination hotel: ${(e as Error).message}`);
+        warnings.push(humanizeHotelError(`destination ${destShortName}`, e as Error));
         return null;
       }),
     );
@@ -264,7 +280,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       warnings.push(
-        'ANTHROPIC_API_KEY not configured on the server — AI itinerary not generated.',
+        'AI itinerary unavailable — Anthropic key not configured on this deploy. The route, distance and hotels still work; only the day-by-day suggestions are missing.',
       );
     }
 
@@ -394,6 +410,20 @@ function extractCountry(formatted: string): string {
 
 function addDays(date: string, n: number): string {
   return new Date(new Date(date).getTime() + n * 86400000).toISOString().split('T')[0];
+}
+
+function humanizeHotelError(context: string, err: Error): string {
+  const msg = err.message || '';
+  if (/timed out|timeout/i.test(msg)) {
+    return `Could not load ${context} hotel — Tripadvisor was slow to respond. Try again in a moment.`;
+  }
+  if (/429|rate limit|quota/i.test(msg)) {
+    return `Could not load ${context} hotel — Tripadvisor rate-limit reached for today.`;
+  }
+  if (/401|403|invalid/i.test(msg)) {
+    return `Could not load ${context} hotel — Tripadvisor authentication failed.`;
+  }
+  return `Could not load ${context} hotel: ${msg.slice(0, 120)}`;
 }
 
 function buildGoogleMapsLink(
