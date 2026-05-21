@@ -15,12 +15,62 @@ function addDays(yyyyMmDd: string, days: number): string {
   return d.toISOString().split('T')[0];
 }
 
-/** Keep only the outbound segment — for round-trip fallback when user wanted one-way. */
+/** Keep only the outbound segment — used when we issued a synthetic ROUND_TRIP
+ *  call to dodge Tripadvisor16's empty-on-one-way quirk but the user actually
+ *  wanted a one-way result. */
 function trimToOutbound(flights: TAFlight[]): TAFlight[] {
   return flights.map((f) => ({
     ...f,
     segments: f.segments.length > 0 ? [f.segments[0]] : [],
   }));
+}
+
+interface AttemptResult {
+  flights: NormalizedFlight[];
+  rawCount: number;
+  actualDate: string;
+  trimmed: boolean;
+}
+
+/** Issue a single Tripadvisor search + normalize round for the given outbound
+ *  date. Always ROUND_TRIP-shaped — we synthesize a +7d return when the user
+ *  didn't supply one because the round-trip pipeline returns reliable
+ *  purchaseLinks while the one-way pipeline often comes back empty for the
+ *  same OD pair. */
+async function attemptSearch(
+  origin: string,
+  destination: string,
+  outboundDate: string,
+  travelClass: string,
+  adults: string,
+  userReturnDate: string | undefined,
+): Promise<AttemptResult> {
+  const wantsRoundTripOutput = !!userReturnDate;
+  const effectiveReturn = userReturnDate ?? addDays(outboundDate, 7);
+
+  const rawRoundTrip = await searchFlights({
+    origin,
+    destination,
+    departureDate: outboundDate,
+    returnDate: effectiveReturn,
+    adults,
+    travelClass,
+  });
+
+  const rawFlights = wantsRoundTripOutput
+    ? rawRoundTrip
+    : trimToOutbound(rawRoundTrip);
+
+  const flights = rawFlights
+    .map((f) => normalizeFlight(f, origin, destination, travelClass))
+    .filter((f): f is NormalizedFlight => f !== null);
+
+  return {
+    flights,
+    rawCount: rawRoundTrip.length,
+    actualDate: outboundDate,
+    trimmed: !wantsRoundTripOutput,
+  };
 }
 
 export async function GET(request: Request) {
@@ -33,7 +83,8 @@ export async function GET(request: Request) {
     const returnDate = searchParams.get('returnDate') || undefined;
     const adults = searchParams.get('adults') || '1';
     const travelClass = searchParams.get('travelClass') || 'ECONOMY';
-    console.log(`[Flights] Search: ${origin} → ${destination} on ${departureDate}${returnDate ? ` (return ${returnDate})` : ''} class=${travelClass}`);
+    const bypassCache = searchParams.get('nocache') === '1';
+    console.log(`[Flights] Search: ${origin} → ${destination} on ${departureDate}${returnDate ? ` (return ${returnDate})` : ''} class=${travelClass}${bypassCache ? ' (cache bypassed)' : ''}`);
 
     if (!origin || !destination || !departureDate) {
       return NextResponse.json(
@@ -43,82 +94,65 @@ export async function GET(request: Request) {
     }
 
     const cacheKey = `flight:${origin}:${destination}:${departureDate}:${returnDate || ''}:${travelClass}`;
-    const cached = await getCached(cacheKey);
-    if (cached) {
-      const flights = (cached.data as NormalizedFlight[]).map((f) => ({
-        ...f,
-        source: 'cached' as const,
-      }));
-      console.log(`[Flights] Cache hit: ${flights.length} flights`);
-      return NextResponse.json({ flights, source: 'cached', count: flights.length });
+    if (!bypassCache) {
+      const cached = await getCached(cacheKey);
+      if (cached) {
+        const flights = (cached.data as NormalizedFlight[]).map((f) => ({
+          ...f,
+          source: 'cached' as const,
+        }));
+        console.log(`[Flights] Cache hit: ${flights.length} flights`);
+        return NextResponse.json({ flights, source: 'cached', count: flights.length });
+      }
     }
 
-    let flights: NormalizedFlight[] = [];
-    let rawCount = 0;
     let lastError: string | undefined;
-    let usedFallback = false;
+    let chosen: AttemptResult | null = null;
+    let usedDateExpansion = false;
+    let cumulativeRawCount = 0;
 
-    // Rate-limit + per-call timeout are enforced inside tripadvisorFetch now;
-    // no need to gate here — a quota-hit will surface as a thrown Error caught
-    // by the inner try/catch below.
-    try {
-      // ── First attempt: honor the user's itinerary type as-is.
-      let rawFlights = await searchFlights({
-        origin,
-        destination,
-        departureDate,
-        returnDate,
-        adults,
-        travelClass,
-      });
-      rawCount = rawFlights.length;
-      console.log(`[Flights] Tripadvisor returned ${rawCount} raw flights`);
-
-      // ── Tripadvisor16 quirk: many OD pairs return ZERO results for
-      //     ONE_WAY but plenty for ROUND_TRIP. When the user didn't pick a
-      //     return date and we got nothing, retry as round-trip with a
-      //     synthetic +7-day return and keep only the outbound segment.
-      if (rawCount === 0 && !returnDate) {
-        const syntheticReturn = addDays(departureDate, 7);
-        console.log(`[Flights] ONE_WAY empty — retrying as ROUND_TRIP with return=${syntheticReturn}`);
-        try {
-          const rt = await searchFlights({
-            origin,
-            destination,
-            departureDate,
-            returnDate: syntheticReturn,
-            adults,
-            travelClass,
-          });
-          if (rt.length > 0) {
-            rawFlights = trimToOutbound(rt);
-            rawCount = rawFlights.length;
-            usedFallback = true;
-            console.log(`[Flights] Round-trip fallback returned ${rawCount} flights — using outbound segment only`);
-          }
-        } catch (err: unknown) {
-          console.warn('[Flights] Round-trip fallback also failed:', (err as Error)?.message);
+    // Try the requested date first, then ±1, ±2 day expansions in case
+    // Tripadvisor genuinely has no inventory on the exact date. We stop the
+    // moment any attempt yields normalized flights. Max 5 serial attempts
+    // x ~3s typical = well under Vercel's 60s budget.
+    const dateOffsets = [0, 1, -1, 2, -2];
+    for (const offset of dateOffsets) {
+      const tryDate = offset === 0 ? departureDate : addDays(departureDate, offset);
+      try {
+        const result = await attemptSearch(
+          origin, destination, tryDate, travelClass, adults, returnDate,
+        );
+        cumulativeRawCount += result.rawCount;
+        console.log(
+          `[Flights] offset=${offset} date=${tryDate} raw=${result.rawCount} normalized=${result.flights.length}`,
+        );
+        if (result.flights.length > 0) {
+          chosen = result;
+          usedDateExpansion = offset !== 0;
+          break;
+        }
+      } catch (err: unknown) {
+        lastError = (err as Error)?.message ?? 'unknown error';
+        console.warn(`[Flights] offset=${offset} attempt failed: ${lastError}`);
+        // Quota-hit / network error — abort the expansion chain so we don't
+        // burn through quota when the upstream is unavailable.
+        if (lastError.includes('Rate limit') || lastError.includes('timed out')) {
+          break;
         }
       }
-
-      flights = rawFlights
-        .map((f) => normalizeFlight(f, origin, destination, travelClass))
-        .filter((f): f is NormalizedFlight => f !== null);
-      console.log(`[Flights] After normalize: ${flights.length} flights with usable price (fallback=${usedFallback})`);
-    } catch (err: unknown) {
-      lastError = (err as Error)?.message ?? 'unknown error';
-      console.error('[Flights] Tripadvisor search failed:', lastError);
     }
 
-    flights.sort((a, b) => a.price - b.price);
-
-    if (flights.length > 0) {
-      await setCache(cacheKey, flights, 30);
+    if (chosen && chosen.flights.length > 0) {
+      chosen.flights.sort((a, b) => a.price - b.price);
+      await setCache(cacheKey, chosen.flights, 30);
       return NextResponse.json({
-        flights,
+        flights: chosen.flights,
         source: 'live',
-        count: flights.length,
-        usedRoundTripFallback: usedFallback,
+        count: chosen.flights.length,
+        actualDate: chosen.actualDate,
+        requestedDate: departureDate,
+        usedDateExpansion,
+        usedRoundTripTrim: chosen.trimmed,
       });
     }
 
@@ -127,17 +161,17 @@ export async function GET(request: Request) {
       warning = `RAPIDAPI_KEY is not configured in this environment. Live flight search is unavailable.`;
     } else if (lastError) {
       warning = `Tripadvisor request failed: ${lastError}`;
-    } else if (rawCount === 0) {
-      warning = `Tripadvisor returned 0 flights for ${origin} → ${destination} on ${departureDate}. Try a different date or route — Tripadvisor sometimes has gaps on certain combos.`;
+    } else if (cumulativeRawCount === 0) {
+      warning = `Tripadvisor has no flights for ${origin} → ${destination} on ${departureDate} (or ±2 days). The route may be served only by airlines outside Tripadvisor's index. Try a different OD pair.`;
     } else {
-      warning = `${rawCount} flights came back but none had a usable price — Tripadvisor's purchase links are missing for this route. Try a different date.`;
+      warning = `${cumulativeRawCount} flights came back across attempts but none had a usable price. Tripadvisor's purchase links are missing for this route. Try a different date.`;
     }
 
     return NextResponse.json({
       flights: [],
       source: 'empty',
       count: 0,
-      rawCount,
+      rawCount: cumulativeRawCount,
       warning,
     });
   } catch (error) {

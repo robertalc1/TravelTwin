@@ -221,10 +221,12 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   const itineraryType = p.returnDate ? 'ROUND_TRIP' : 'ONE_WAY';
   const classOfService = (p.travelClass || 'ECONOMY').toUpperCase();
 
-  // Param set verified against the Tripadvisor16 PRO playground sample curl —
-  // numSeniors / nearby / nonstop / pageNumber are all required for the
-  // endpoint to consistently return results. Missing any of them sometimes
-  // gives an empty flights[] back instead of a 400.
+  // Param set verified against Tripadvisor16 PRO playground sample curls.
+  // INTENTIONALLY OMITTED: `nonstop` and `nearby` — both are ambiguous
+  // server-side filters that have been observed to over-filter (e.g.
+  // OTP→IST returning 0 with nonstop=no in spite of multiple daily direct
+  // Turkish Airlines flights). We filter direct vs. stops client-side
+  // instead, so the wrapper just asks for everything Tripadvisor has.
   const params: Record<string, string | number> = {
     sourceAirportCode: p.origin.toUpperCase(),
     destinationAirportCode: p.destination.toUpperCase(),
@@ -235,8 +237,6 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
     numSeniors: '0',
     classOfService,
     pageNumber: 1,
-    nearby: 'no',
-    nonstop: 'no',
     currencyCode: 'EUR',
   };
   if (p.returnDate) params.returnDate = p.returnDate;
@@ -245,6 +245,19 @@ export async function searchFlights(p: SearchFlightsParams): Promise<TAFlight[]>
   if (!isRecord(raw)) return [];
   const data = isRecord(raw.data) ? raw.data : raw;
   const flightsRaw = asArray((data as Record<string, unknown>).flights);
+
+  // Instrumentation: when Tripadvisor accepts the request but returns no
+  // flights, dump the raw response keys + a slice of the first level so we
+  // can spot shape drift in Vercel Function Logs without consuming any
+  // extra RapidAPI quota.
+  if (flightsRaw.length === 0) {
+    try {
+      const preview = JSON.stringify(raw).slice(0, 300);
+      console.warn(
+        `[searchFlights] Tripadvisor returned 0 flights for ${p.origin}->${p.destination} ${itineraryType} on ${p.departureDate}${p.returnDate ? `/${p.returnDate}` : ''}. Raw preview: ${preview}`,
+      );
+    } catch { /* ignore preview serialization errors */ }
+  }
 
   const result: TAFlight[] = [];
   for (const f of flightsRaw) {

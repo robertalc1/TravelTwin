@@ -528,6 +528,16 @@ function ResultsSection(props: {
                                     {isRo ? "Resetează filtrele" : "Reset filters"}
                                 </button>
                             )}
+                            {flights.length === 0 && origin && destination && departureDate && (
+                                <a
+                                    href={`/api/debug/flights?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${encodeURIComponent(departureDate)}&probeBoth=1`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-4 inline-block text-xs text-text-muted hover:text-primary-500 hover:underline"
+                                >
+                                    {isRo ? "Vezi ce zice Tripadvisor pentru ruta asta" : "See what Tripadvisor returned for this route"}
+                                </a>
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
