@@ -12,14 +12,18 @@ import type { NormalizedHotel } from "@/lib/supabase/types";
 import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
 
+// City codes here MUST be real airport IATAs that exist in iataMapping.ts —
+// the hotels API resolves the city name from the IATA before querying
+// Tripadvisor. Metro-area codes (PAR, LON, NYC, TYO) are NOT in the mapping
+// and silently return zero hotels, so we use the main airport IATA instead.
 const POPULAR_CITIES: Array<[string, string]> = [
-    ["PAR", "Paris"],
-    ["LON", "London"],
-    ["ROM", "Rome"],
+    ["CDG", "Paris"],
+    ["LHR", "London"],
+    ["FCO", "Rome"],
     ["BCN", "Barcelona"],
     ["IST", "Istanbul"],
-    ["NYC", "New York"],
-    ["TYO", "Tokyo"],
+    ["JFK", "New York"],
+    ["NRT", "Tokyo"],
     ["DXB", "Dubai"],
 ];
 
@@ -37,6 +41,7 @@ export default function HotelsPage() {
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [warning, setWarning] = useState("");
+    const [responseSource, setResponseSource] = useState<string>("");
     const { user } = useUser();
     const openAuthModal = useAuthModalStore((s) => s.open);
 
@@ -78,6 +83,7 @@ export default function HotelsPage() {
         setHasSearched(true);
         setHotels([]);
         setWarning("");
+        setResponseSource("");
 
         try {
             const params = new URLSearchParams({
@@ -88,6 +94,7 @@ export default function HotelsPage() {
             const res = await fetch(`/api/hotels/live?${params}`);
             const data = await res.json();
             setHotels(data.hotels || []);
+            setResponseSource(data.source || "");
             if (data.warning) setWarning(data.warning);
         } catch {
             setWarning(t("errorGeneric"));
@@ -182,6 +189,24 @@ export default function HotelsPage() {
 
             {/* Results */}
             <div className="mx-auto max-w-[1280px] px-4 py-10 lg:px-8">
+                {hasSearched && !loading && hotels.length > 0 && responseSource === "live" && (
+                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        {isRo
+                            ? "Prețuri live + disponibilitate reală preluate acum de la Tripadvisor. Datele se actualizează la fiecare căutare."
+                            : "Live prices + real availability fetched right now from Tripadvisor. Data refreshes on every search."}
+                    </div>
+                )}
+
+                {hasSearched && !loading && hotels.length > 0 && responseSource === "cached" && (
+                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+                        <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                        {isRo
+                            ? "Rezultate din cache (ultimele 60 min). Refresh pagina pentru date noi."
+                            : "Cached results (last 60 min). Refresh the page for fresh data."}
+                    </div>
+                )}
+
                 {warning && (
                     <div className="mb-4 flex items-start gap-3 rounded-xl bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/20 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -292,13 +317,13 @@ export default function HotelsPage() {
                         <p className="text-sm text-text-muted max-w-md mx-auto mb-5">
                             {warning ||
                                 (isRo
-                                    ? "Unele orașe au disponibilitate limitată în mediul nostru de test. Încearcă una dintre aceste destinații populare:"
-                                    : "Some cities have limited availability in our test environment. Try one of these popular destinations:")}
+                                    ? "Tripadvisor nu are disponibilitate pentru acest oraș și aceste date. Încearcă alte date sau una dintre destinațiile populare de mai jos:"
+                                    : "Tripadvisor has no availability for this city on these dates. Try different dates or one of the popular destinations below:")}
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
                             {[
-                                ["PAR", "Paris"],
-                                ["LON", "London"],
+                                ["CDG", "Paris"],
+                                ["LHR", "London"],
                                 ["BCN", "Barcelona"],
                                 ["MAD", "Madrid"],
                                 ["BER", "Berlin"],

@@ -210,20 +210,20 @@ export default function FlightsPage() {
             {/* Results */}
             <div className="mx-auto max-w-[1280px] px-4 py-10 lg:px-8">
                 {hasSearched && !loading && flights.length > 0 && responseSource === "live" && (
-                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
+                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                         {isRo
-                            ? "Prețurile afișate sunt preluate live de la Tripadvisor (RapidAPI) și se actualizează la fiecare căutare."
-                            : "Prices shown are pulled live from Tripadvisor (RapidAPI) and refresh on every search."}
+                            ? "Prețuri live preluate acum de la peste 500 de companii aeriene. Click pe orice ofertă pentru rezervare."
+                            : "Live prices fetched right now from 500+ airlines. Click any offer to book."}
                     </div>
                 )}
 
-                {hasSearched && !loading && flights.length > 0 && responseSource === "reference" && (
-                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20 px-4 py-3 text-sm text-purple-800 dark:text-purple-300">
+                {hasSearched && !loading && flights.length > 0 && responseSource === "cached" && (
+                    <div className="mb-4 flex items-start gap-3 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 px-4 py-3 text-sm text-blue-800 dark:text-blue-300">
                         <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
                         {isRo
-                            ? "Afișăm prețuri estimate pe baza costurilor tipice de rută. Prețurile live pot diferi."
-                            : "Showing estimated prices based on typical route costs. Live pricing may differ."}
+                            ? "Rezultate din cache (ultimele 30 min). Aceleași date pe care le-am cerut acum câteva minute."
+                            : "Cached results (last 30 min). Same data we queried a few minutes ago."}
                     </div>
                 )}
 

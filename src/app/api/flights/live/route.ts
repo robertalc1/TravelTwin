@@ -59,13 +59,15 @@ export async function GET(request: Request) {
 
     if (flights.length > 0) {
       await setCache(cacheKey, flights, 30);
-      return NextResponse.json({ flights, source: 'tripadvisor', count: flights.length });
+      // `source: 'live'` keeps the frontend banner check simple — anything
+      // tagged 'live' renders the "Live prices from Tripadvisor" banner.
+      return NextResponse.json({ flights, source: 'live', count: flights.length });
     }
 
     // Strict mode: no fallback. Empty result = empty result.
     return NextResponse.json({
       flights: [],
-      source: 'live',
+      source: 'empty',
       count: 0,
       warning: `No flights found for ${origin} → ${destination} on ${departureDate}. Try different dates or airports.`,
     });
