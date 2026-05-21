@@ -1,9 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles } from 'lucide-react'
 import { useLocale } from 'next-intl'
-import { useSearchMessages } from '@/hooks/useSearchMessages'
 
 type Props = {
   isLoading: boolean
@@ -16,7 +14,6 @@ type Props = {
 export function SearchProgressHeader({ isLoading, progress, city, resultsCount, totalCount }: Props) {
   const locale = useLocale()
   const isRo = locale === 'ro'
-  const message = useSearchMessages(isLoading)
 
   return (
     <div className="mb-6">
@@ -34,25 +31,19 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount, 
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            {/* Animated subtitle */}
-            <div className="flex items-center gap-1.5 mt-2 text-body-sm text-text-secondary">
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={message}
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -5 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  {message}...
-                </motion.span>
-              </AnimatePresence>
-              <Sparkles className="size-3.5 text-primary-500 animate-pulse flex-shrink-0" />
+            {/* Neutral subtitle + big percent (no API name surfaced) */}
+            <div className="mt-2 flex items-baseline justify-between text-body-sm">
+              <span className="text-text-secondary">
+                {isRo ? 'Se încarcă cele mai noi oferte pentru tine...' : 'Loading the latest deals for you...'}
+              </span>
+              <span className="text-base font-bold text-primary-500 tabular-nums">
+                {progress}%
+              </span>
             </div>
 
             {/* Progress bar */}
             <div
-              className="mt-4 w-full h-1.5 bg-primary-100 dark:bg-primary-900/20 rounded-full overflow-hidden"
+              className="mt-2 w-full h-1.5 bg-primary-100 dark:bg-primary-900/20 rounded-full overflow-hidden"
               role="progressbar"
               aria-valuenow={progress}
               aria-valuemin={0}
@@ -65,11 +56,6 @@ export function SearchProgressHeader({ isLoading, progress, city, resultsCount, 
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
               />
-            </div>
-
-            {/* Percent label */}
-            <div className="mt-1.5 text-right text-caption text-text-muted tabular-nums">
-              {isRo ? 'Se caută...' : 'Searching...'} {progress}%
             </div>
           </motion.div>
         ) : resultsCount !== undefined && resultsCount > 0 ? (
