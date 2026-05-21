@@ -9,6 +9,11 @@
 
 import { getCached, setCache } from './cache';
 import { getCityFromIata, getCountryFromIata } from './iataMapping';
+import { canMakeRapidApiCall, recordRapidApiCall } from './rateLimiter';
+
+/** Hard upper bound on any single upstream Tripadvisor call. Without this a
+ *  hung RapidAPI request can eat the entire 60s Vercel function budget. */
+const TRIPADVISOR_TIMEOUT_MS = 10_000;
 
 const HOST = 'tripadvisor16.p.rapidapi.com';
 const BASE = `https://${HOST}`;
@@ -166,26 +171,46 @@ export async function tripadvisorFetch<T>(
   const key = process.env.RAPIDAPI_KEY;
   if (!key) throw new Error('RAPIDAPI_KEY is not set');
 
+  // Centralized rate-limit gate — every Tripadvisor caller flows through here
+  // (flights, hotels, geoId, locations, cars, restaurants, debug probes), so
+  // checking + recording once protects ALL of them in one place.
+  if (!canMakeRapidApiCall()) {
+    throw new Error('Rate limit exceeded (in-memory safety cap hit)');
+  }
+  recordRapidApiCall();
+
   const url = new URL(BASE + path);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, String(v));
   }
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      'X-RapidAPI-Key': key,
-      'X-RapidAPI-Host': HOST,
-    },
-    cache: 'no-store',
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TRIPADVISOR_TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        'X-RapidAPI-Key': key,
+        'X-RapidAPI-Host': HOST,
+      },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Tripadvisor ${path} failed: ${res.status} ${body.slice(0, 200)}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Tripadvisor ${path} failed: ${res.status} ${body.slice(0, 200)}`);
+    }
+
+    const json = (await res.json()) as T;
+    return json;
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') {
+      throw new Error(`Tripadvisor ${path} timed out after ${TRIPADVISOR_TIMEOUT_MS}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const json = (await res.json()) as T;
-  return json;
 }
 
 /* ── Flights ─────────────────────────────────────────────────── */

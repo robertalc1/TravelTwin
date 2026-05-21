@@ -114,32 +114,37 @@ export async function GET(request: Request) {
   const destination = (searchParams.get('destination') || 'LHR').toUpperCase();
   const date = searchParams.get('date') || defaultDep.toISOString().split('T')[0];
 
+  // Opt-in dual probe: default to ONE_WAY only so each debug hit costs ONE
+  // RapidAPI call (not two). Pass ?probeBoth=1 when you specifically need to
+  // confirm the Tripadvisor16 ONE_WAY-empty-but-ROUND_TRIP-OK quirk.
+  const probeBoth = searchParams.get('probeBoth') === '1';
+
   const returnDate = new Date(date + 'T00:00:00Z');
   returnDate.setUTCDate(returnDate.getUTCDate() + 7);
   const returnDateStr = returnDate.toISOString().split('T')[0];
 
-  // Run both probes in parallel — same OD, same depart date, only difference
-  // is the itinerary type (and the returnDate param on round-trip).
-  const [oneWay, roundTrip] = await Promise.all([
-    probe(origin, destination, date, null, key),
-    probe(origin, destination, date, returnDateStr, key),
-  ]);
+  const oneWay = await probe(origin, destination, date, null, key);
+  const roundTrip = probeBoth
+    ? await probe(origin, destination, date, returnDateStr, key)
+    : null;
 
   let verdict: string;
-  if (oneWay.httpStatus === 401 || roundTrip.httpStatus === 401) {
+  if (oneWay.httpStatus === 401 || roundTrip?.httpStatus === 401) {
     verdict = 'Tripadvisor 401 — RAPIDAPI_KEY is INVALID. Copy a fresh key from rapidapi.com and update Vercel env vars.';
-  } else if (oneWay.httpStatus === 403 || roundTrip.httpStatus === 403) {
+  } else if (oneWay.httpStatus === 403 || roundTrip?.httpStatus === 403) {
     verdict = 'Tripadvisor 403 — RapidAPI Pro subscription not active or wrong account.';
-  } else if (oneWay.httpStatus === 429 || roundTrip.httpStatus === 429) {
+  } else if (oneWay.httpStatus === 429 || roundTrip?.httpStatus === 429) {
     verdict = 'Tripadvisor 429 — quota exceeded on RapidAPI Pro plan.';
-  } else if (oneWay.flightsCount === 0 && roundTrip.flightsCount > 0) {
+  } else if (roundTrip && oneWay.flightsCount === 0 && roundTrip.flightsCount > 0) {
     verdict = `CONFIRMED: Tripadvisor16 ONE_WAY quirk. ${origin} → ${destination} returns 0 for ONE_WAY but ${roundTrip.flightsCount} for ROUND_TRIP on the same date. The /api/flights/live fallback (auto-retry as round-trip when one-way is empty) should fix this end-to-end.`;
-  } else if (oneWay.flightsCount === 0 && roundTrip.flightsCount === 0) {
+  } else if (oneWay.flightsCount === 0 && roundTrip && roundTrip.flightsCount === 0) {
     verdict = `Both ONE_WAY and ROUND_TRIP returned 0 for ${origin} → ${destination} on ${date}. Either Tripadvisor truly has no inventory for this combo, or the request shape is wrong. Inspect bodyPreview below.`;
+  } else if (oneWay.flightsCount === 0) {
+    verdict = `ONE_WAY returned 0 for ${origin} → ${destination}. Add ?probeBoth=1 to also probe ROUND_TRIP and confirm whether it's the Tripadvisor16 one-way quirk.`;
   } else if (oneWay.flightsCount > 0 && !oneWay.firstFlightHasPurchaseLinks) {
     verdict = `Tripadvisor returned ${oneWay.flightsCount} flights but no purchaseLinks — response shape may have drifted. See firstFlightPurchaseSample.`;
   } else {
-    verdict = `✓ OK — ONE_WAY=${oneWay.flightsCount}, ROUND_TRIP=${roundTrip.flightsCount}. Live flight search should work.`;
+    verdict = `✓ OK — ONE_WAY=${oneWay.flightsCount}${roundTrip ? `, ROUND_TRIP=${roundTrip.flightsCount}` : ''}. Live flight search should work.`;
   }
 
   return NextResponse.json({
@@ -147,6 +152,7 @@ export async function GET(request: Request) {
     testRoute: `${origin} → ${destination}`,
     testDate: date,
     syntheticReturnDate: returnDateStr,
+    probeBoth,
     oneWay,
     roundTrip,
     verdict,

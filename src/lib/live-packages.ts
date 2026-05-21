@@ -14,6 +14,7 @@
 import { getCached, setCache } from './cache';
 import { searchFlights, searchHotelsByCity } from './tripadvisor-client';
 import { normalizeFlight, normalizeHotel } from './tripadvisor-normalize';
+import { canMakeRapidApiCall } from './rateLimiter';
 import type { NormalizedFlight, NormalizedHotel } from './supabase/types';
 
 export interface LivePackageResult {
@@ -42,6 +43,11 @@ async function fetchCheapestFlight(
     const cached = await getCached(cacheKey);
     if (cached?.data) return cached.data as NormalizedFlight;
   } catch { /* cache miss is fine */ }
+
+  // Bail-out before issuing an upstream call when the daily safety cap is hit.
+  // The wrapper would throw anyway, but checking here saves 12 concurrent
+  // fetches × 10s timeout from blocking a batch when quota is exhausted.
+  if (!canMakeRapidApiCall()) return null;
 
   try {
     const raw = await searchFlights({
@@ -77,6 +83,8 @@ async function fetchCheapestHotel(
     const cached = await getCached(cacheKey);
     if (cached?.data) return cached.data as NormalizedHotel;
   } catch { /* cache miss is fine */ }
+
+  if (!canMakeRapidApiCall()) return null;
 
   try {
     const raw = await searchHotelsByCity({

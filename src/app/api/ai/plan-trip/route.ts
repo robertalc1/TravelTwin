@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
       destinations: candidates.map((c) => c.iata),
       departureDate,
       returnDate,
-      concurrency: 6,
+      concurrency: 4,
     }).catch((e) => {
       console.warn('[plan-trip] live batch failed:', (e as Error).message);
       return [];

@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import { searchFlights, type TAFlight } from '@/lib/tripadvisor-client';
 import { normalizeFlight } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
-import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
 import type { NormalizedFlight } from '@/lib/supabase/types';
 
 // Never edge-cache — flight prices change minute-to-minute upstream.
@@ -59,60 +58,56 @@ export async function GET(request: Request) {
     let lastError: string | undefined;
     let usedFallback = false;
 
-    if (!canMakeRapidApiCall()) {
-      console.warn('[Flights] Rate limiter is blocking — RAPIDAPI_KEY missing or daily cap reached');
-      lastError = 'Rate limiter blocked the call (no key configured or daily cap hit).';
-    } else {
-      recordRapidApiCall();
-      try {
-        // ── First attempt: honor the user's itinerary type as-is.
-        let rawFlights = await searchFlights({
-          origin,
-          destination,
-          departureDate,
-          returnDate,
-          adults,
-          travelClass,
-        });
-        rawCount = rawFlights.length;
-        console.log(`[Flights] Tripadvisor returned ${rawCount} raw flights`);
+    // Rate-limit + per-call timeout are enforced inside tripadvisorFetch now;
+    // no need to gate here — a quota-hit will surface as a thrown Error caught
+    // by the inner try/catch below.
+    try {
+      // ── First attempt: honor the user's itinerary type as-is.
+      let rawFlights = await searchFlights({
+        origin,
+        destination,
+        departureDate,
+        returnDate,
+        adults,
+        travelClass,
+      });
+      rawCount = rawFlights.length;
+      console.log(`[Flights] Tripadvisor returned ${rawCount} raw flights`);
 
-        // ── Tripadvisor16 quirk: many OD pairs return ZERO results for
-        //     ONE_WAY but plenty for ROUND_TRIP. When the user didn't pick a
-        //     return date and we got nothing, retry as round-trip with a
-        //     synthetic +7-day return and keep only the outbound segment.
-        if (rawCount === 0 && !returnDate) {
-          const syntheticReturn = addDays(departureDate, 7);
-          console.log(`[Flights] ONE_WAY empty — retrying as ROUND_TRIP with return=${syntheticReturn}`);
-          recordRapidApiCall();
-          try {
-            const rt = await searchFlights({
-              origin,
-              destination,
-              departureDate,
-              returnDate: syntheticReturn,
-              adults,
-              travelClass,
-            });
-            if (rt.length > 0) {
-              rawFlights = trimToOutbound(rt);
-              rawCount = rawFlights.length;
-              usedFallback = true;
-              console.log(`[Flights] Round-trip fallback returned ${rawCount} flights — using outbound segment only`);
-            }
-          } catch (err: unknown) {
-            console.warn('[Flights] Round-trip fallback also failed:', (err as Error)?.message);
+      // ── Tripadvisor16 quirk: many OD pairs return ZERO results for
+      //     ONE_WAY but plenty for ROUND_TRIP. When the user didn't pick a
+      //     return date and we got nothing, retry as round-trip with a
+      //     synthetic +7-day return and keep only the outbound segment.
+      if (rawCount === 0 && !returnDate) {
+        const syntheticReturn = addDays(departureDate, 7);
+        console.log(`[Flights] ONE_WAY empty — retrying as ROUND_TRIP with return=${syntheticReturn}`);
+        try {
+          const rt = await searchFlights({
+            origin,
+            destination,
+            departureDate,
+            returnDate: syntheticReturn,
+            adults,
+            travelClass,
+          });
+          if (rt.length > 0) {
+            rawFlights = trimToOutbound(rt);
+            rawCount = rawFlights.length;
+            usedFallback = true;
+            console.log(`[Flights] Round-trip fallback returned ${rawCount} flights — using outbound segment only`);
           }
+        } catch (err: unknown) {
+          console.warn('[Flights] Round-trip fallback also failed:', (err as Error)?.message);
         }
-
-        flights = rawFlights
-          .map((f) => normalizeFlight(f, origin, destination, travelClass))
-          .filter((f): f is NormalizedFlight => f !== null);
-        console.log(`[Flights] After normalize: ${flights.length} flights with usable price (fallback=${usedFallback})`);
-      } catch (err: unknown) {
-        lastError = (err as Error)?.message ?? 'unknown error';
-        console.error('[Flights] Tripadvisor search failed:', lastError);
       }
+
+      flights = rawFlights
+        .map((f) => normalizeFlight(f, origin, destination, travelClass))
+        .filter((f): f is NormalizedFlight => f !== null);
+      console.log(`[Flights] After normalize: ${flights.length} flights with usable price (fallback=${usedFallback})`);
+    } catch (err: unknown) {
+      lastError = (err as Error)?.message ?? 'unknown error';
+      console.error('[Flights] Tripadvisor search failed:', lastError);
     }
 
     flights.sort((a, b) => a.price - b.price);

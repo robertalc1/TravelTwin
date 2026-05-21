@@ -237,8 +237,10 @@ export async function GET(
     }
     // Final supplement from DESTINATIONS so we hit 30+ candidates even for low-volume origins
     DESTINATIONS.forEach((d) => pushCand(d.iata));
-    // Cap the candidate pool — 30 destinations × (1 flight call + 1 hotel call) ≈ 60 RapidAPI calls per cache miss
-    const candidatePool = candidates.slice(0, 30);
+    // Cap the candidate pool — 18 destinations × (1 flight + 1 hotel) ≈ 36 RapidAPI
+    // calls per cache miss. At concurrency=4 with a 10s wrapper timeout, worst
+    // case is ~50s — leaving headroom under Vercel's 60s maxDuration.
+    const candidatePool = candidates.slice(0, 18);
 
     // 2. Fetch LIVE flight + hotel for each candidate in parallel batches.
     console.log(`[deals] Fetching live Tripadvisor data for ${candidatePool.length} candidates from ${origin}`);
@@ -249,7 +251,7 @@ export async function GET(
             destinations: candidatePool,
             departureDate,
             returnDate,
-            concurrency: 6,
+            concurrency: 4,
         });
         console.log(`[deals] Live results: ${liveResults.length}/${candidatePool.length} destinations returned valid data`);
     } catch (e) {
