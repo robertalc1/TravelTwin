@@ -39,6 +39,7 @@ import Link from 'next/link';
 import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/lib/roadTrip';
 import type { RoadTripData } from '@/lib/roadTrip';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
+import HeroVideo from '@/components/HeroVideo';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import { useCurrency } from '@/hooks/useCurrency';
 import { decodeWeatherCode } from '@/lib/weatherService';
@@ -244,8 +245,12 @@ export default function RoadTripDetailView({ trip }: Props) {
       {/* ── Hero ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
         <div className="relative h-56 sm:h-72 md:h-[420px] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-900 shadow-lg">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={heroUrl} alt={trip.destinationCity} className="h-full w-full object-cover" />
+          <HeroVideo
+            city={trip.destinationCity}
+            country={trip.destinationCountry}
+            fallbackImageUrl={heroUrl}
+            alt={trip.destinationCity}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent pointer-events-none" />
           <div className="absolute top-4 left-4 flex items-center gap-2 flex-wrap">
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
