@@ -528,7 +528,10 @@ export default function TripDetailView({
                   <AttractionPhotos
                     names={ai.topAttractions.map((a) => a.name)}
                     city={trip.destinationCity}
-                    onSelectPlace={setSelectedPlace}
+                    onSelectPlace={(name) => {
+                      setSelectedPlace(name);
+                      router.push(`/${locale}/plan/trip/${trip.id}/map?place=${encodeURIComponent(name)}`);
+                    }}
                     selectedPlace={selectedPlace}
                   />
                 </div>

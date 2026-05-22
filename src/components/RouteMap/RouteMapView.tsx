@@ -35,6 +35,10 @@ interface Props {
   /** From the `planResults` sessionStorage entry — populated by the planner. */
   originCity: string;
   originCode: string;
+  /** Optional initial focused place name — used when the user lands on
+   *  /plan/trip/<id>/map?place=<name> by clicking an attraction tile from
+   *  the trip detail page. Pre-focuses the iframe on that single stop. */
+  initialFocusedPlace?: string | null;
 }
 
 const MODE_META: Record<TravelMode, { label: string; icon: typeof Car }> = {
@@ -48,7 +52,7 @@ function googleMapsSearchUrl(name: string, city: string): string {
   return `https://www.google.com/maps/search/${encodeURIComponent(`${name}, ${city}`)}`;
 }
 
-export default function RouteMapView({ trip, originCity, originCode }: Props) {
+export default function RouteMapView({ trip, originCity, originCode, initialFocusedPlace = null }: Props) {
   const router = useRouter();
   const locale = useLocale();
   const tTransit = useTranslations('transit');
@@ -58,8 +62,10 @@ export default function RouteMapView({ trip, originCity, originCode }: Props) {
    * When non-null, the iframe shows just this place (Embed API "place" mode)
    * instead of the full route. Set by clicking any sidebar item; cleared by
    * the "Back to full route" pill or by changing the travel mode.
+   * Seeded from a `?place=<name>` query param so attraction tiles on the trip
+   * detail page can deep-link straight into the focused view.
    */
-  const [focusedPlace, setFocusedPlace] = useState<string | null>(null);
+  const [focusedPlace, setFocusedPlace] = useState<string | null>(initialFocusedPlace);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import type { TripPackage } from '@/app/api/ai/plan-trip/route';
 import { TripDetail } from '@/lib/tripDetail';
@@ -49,8 +49,10 @@ function packageToTripDetail(pkg: TripPackage): TripDetail {
 export default function TripMapPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useLocale();
   const id = params?.id as string;
+  const initialFocusedPlace = searchParams?.get('place') ?? null;
 
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [originCity, setOriginCity] = useState('');
@@ -59,12 +61,24 @@ export default function TripMapPage() {
   useEffect(() => {
     if (!id) return;
 
-    // 1. trip_${id} (set by the planner for each package + by deal pages)
+    // 1. trip_${id} — written in two shapes:
+    //    - planner / homepage deal pages stash a TripPackage (nested
+    //      destination.iata, flight.price, …)
+    //    - the /favorites page stashes the already-flat TripDetail when the
+    //      user reopens a saved trip.
+    //    Detect the shape by presence of the nested `destination` object so
+    //    we don't crash packageToTripDetail and bounce the user back.
     const stored = sessionStorage.getItem(`trip_${id}`);
     if (stored) {
       try {
-        const pkg = JSON.parse(stored) as TripPackage;
-        setTrip(packageToTripDetail(pkg));
+        const parsed = JSON.parse(stored) as Partial<TripPackage> & Partial<TripDetail>;
+        const looksLikePackage = parsed && typeof parsed === 'object'
+          && 'destination' in parsed
+          && parsed.destination
+          && typeof parsed.destination === 'object';
+        setTrip(looksLikePackage
+          ? packageToTripDetail(parsed as TripPackage)
+          : (parsed as TripDetail));
       } catch { /* ignore */ }
     } else {
       // 2. fallback to planResults
@@ -110,5 +124,5 @@ export default function TripMapPage() {
     );
   }
 
-  return <RouteMapView trip={trip} originCity={originCity} originCode={originCode} />;
+  return <RouteMapView trip={trip} originCity={originCity} originCode={originCode} initialFocusedPlace={initialFocusedPlace} />;
 }
