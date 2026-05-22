@@ -37,6 +37,7 @@ interface RequestBody {
 
 interface Stopover {
   city: string;
+  country?: string;
   lat: number;
   lng: number;
   order: number;
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest) {
     const destShortName = shortCityName(destination);
     const hotelPromises: Array<Promise<TAHotel | null>> = stopovers.map((s, i) =>
       fetchFirstHotel(
-        s.city,
+        s.country ? `${s.city}, ${s.country}` : s.city,
         checkInDates.stopoverNights[i],
         checkInDates.stopoverNights[i + 1] || addDays(checkInDates.stopoverNights[i], 1),
         adults,
@@ -382,11 +383,15 @@ async function computeStopovers(
     const lng = origin.lng + t * (destination.lng - origin.lng);
     // findNearbyCity prefers Google Places "locality" matches (real cities)
     // over administrative areas like "Gorj County". Falls back to reverse
-    // geocode if Places API is unavailable.
-    const city = await findNearbyCity(lat, lng).catch(() => null);
-    if (city) {
+    // geocode if Places API is unavailable. Returns {name, country} so
+    // downstream consumers can build "City, Country" queries that disambiguate
+    // names Tripadvisor's geo search can't resolve from the bare city alone
+    // (e.g. "Split" → "Split, Croatia").
+    const result = await findNearbyCity(lat, lng).catch(() => null);
+    if (result?.name) {
       stops.push({
-        city,
+        city: result.name,
+        country: result.country,
         lat,
         lng,
         order: i,

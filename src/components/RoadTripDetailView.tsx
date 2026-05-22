@@ -269,7 +269,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                   const browseAllHref = buildHotelSearchHref({
                     locale,
                     tripId: trip.id,
-                    cityQuery: s.city,
+                    cityQuery: s.country ? `${s.city}, ${s.country}` : s.city,
                     cityName: s.city,
                     checkIn: stopCheckIn,
                     checkOut: stopCheckOut,

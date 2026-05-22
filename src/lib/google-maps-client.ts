@@ -146,10 +146,20 @@ export async function getDriveQuote(
   return out;
 }
 
-export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  const cacheKey = `gmaps:reverse:v1:${lat.toFixed(3)}:${lng.toFixed(3)}`;
+export interface ReverseGeocodeResult {
+  name: string;
+  country?: string;
+}
+
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<ReverseGeocodeResult | null> {
+  const cacheKey = `gmaps:reverse:v2:${lat.toFixed(3)}:${lng.toFixed(3)}`;
   const cached = await getCached(cacheKey);
-  if (cached && typeof cached.data === 'string') return cached.data;
+  if (cached && typeof cached.data === 'object' && cached.data !== null) {
+    return cached.data as ReverseGeocodeResult;
+  }
 
   const key = getApiKey();
   const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
@@ -170,9 +180,12 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   const first = body.results?.[0];
   if (!first) return null;
   const locality = first.address_components?.find((c) => c.types.includes('locality'))?.long_name;
-  const name = locality || first.formatted_address.split(',')[0]?.trim() || null;
-  if (name) await setCache(cacheKey, name, GEOCODE_CACHE_TTL_MIN);
-  return name;
+  const country = first.address_components?.find((c) => c.types.includes('country'))?.long_name;
+  const name = locality || first.formatted_address.split(',')[0]?.trim();
+  if (!name) return null;
+  const result: ReverseGeocodeResult = country ? { name, country } : { name };
+  await setCache(cacheKey, result, GEOCODE_CACHE_TTL_MIN);
+  return result;
 }
 
 /**
@@ -193,10 +206,12 @@ export async function findNearbyCity(
   lat: number,
   lng: number,
   radiusMeters = 50_000,
-): Promise<string | null> {
-  const cacheKey = `gmaps:nearbyCity:v1:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+): Promise<ReverseGeocodeResult | null> {
+  const cacheKey = `gmaps:nearbyCity:v2:${lat.toFixed(2)}:${lng.toFixed(2)}`;
   const cached = await getCached(cacheKey);
-  if (cached && typeof cached.data === 'string') return cached.data;
+  if (cached && typeof cached.data === 'object' && cached.data !== null) {
+    return cached.data as ReverseGeocodeResult;
+  }
 
   let key: string;
   try {
@@ -226,9 +241,17 @@ export async function findNearbyCity(
         const sorted = (body.results || [])
           .filter((r) => r.name && (r.types || []).includes('locality'))
           .sort((a, b) => (b.user_ratings_total || 0) - (a.user_ratings_total || 0));
-        if (sorted[0]?.name) {
-          await setCache(cacheKey, sorted[0].name, GEOCODE_CACHE_TTL_MIN);
-          return sorted[0].name;
+        const picked = sorted[0]?.name;
+        if (picked) {
+          // Places nearbysearch doesn't carry country — enrich via a single
+          // reverseGeocode call so downstream consumers can build a fully
+          // qualified "City, Country" query for Tripadvisor and friends.
+          const enriched = await reverseGeocode(lat, lng).catch(() => null);
+          const result: ReverseGeocodeResult = enriched?.country
+            ? { name: picked, country: enriched.country }
+            : { name: picked };
+          await setCache(cacheKey, result, GEOCODE_CACHE_TTL_MIN);
+          return result;
         }
       }
     }

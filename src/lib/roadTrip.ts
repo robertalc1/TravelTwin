@@ -4,6 +4,7 @@ import { CITY_HERO_IMAGES } from '@/lib/tripDetail';
 
 export interface RoadTripStopover {
   city: string;
+  country?: string;
   lat: number;
   lng: number;
   order: number;
