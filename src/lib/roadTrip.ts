@@ -97,8 +97,15 @@ export function hotelPhotoUrl(
   width = 400,
   height = 240,
 ): string | null {
-  if (!hotel?.cardPhotos?.[0]?.sizes?.urlTemplate) return null;
-  return hotel.cardPhotos[0].sizes.urlTemplate
+  const template = hotel?.cardPhotos?.[0]?.sizes?.urlTemplate;
+  if (!template) return null;
+  const url = template
     .replace('{width}', String(width))
     .replace('{height}', String(height));
+  // If the template carries extra placeholders we don't know about
+  // ({photo_id}, {quality}, ...), the URL would still contain "{" after
+  // substitution and 404 on the CDN. Treat as "no photo" so the UI shows
+  // its gradient fallback instead of a broken-image icon.
+  if (url.includes('{')) return null;
+  return url;
 }

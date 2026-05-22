@@ -412,16 +412,11 @@ export default function RoadTripDetailView({ trip }: Props) {
                       }`}
                     >
                       <div className="relative">
-                        {photo ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={photo}
-                            alt={s.hotel?.title || s.city}
-                            className={`h-32 w-full object-cover ${isSkipped ? 'grayscale' : ''}`}
-                          />
-                        ) : (
-                          <div className="h-32 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20" />
-                        )}
+                        <StopoverPhoto
+                          photo={photo}
+                          alt={s.hotel?.title || s.city}
+                          isSkipped={isSkipped}
+                        />
                         <button
                           type="button"
                           onClick={() => toggleStop(s.order)}
@@ -984,6 +979,39 @@ function CostRow({
   );
 }
 
+function StopoverPhoto({
+  photo,
+  alt,
+  isSkipped,
+}: {
+  photo: string | null;
+  alt: string;
+  isSkipped: boolean;
+}) {
+  // Tripadvisor's CDN occasionally serves expired/404 photo URLs even when
+  // `urlTemplate` is well-formed. The onError handler swaps in the same
+  // gradient placeholder we use when there's no photo at all — never a
+  // broken-image icon.
+  const [failed, setFailed] = useState(false);
+  if (!photo || failed) {
+    return (
+      <div className="h-32 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 flex items-center justify-center">
+        <HotelIcon className="h-7 w-7 text-emerald-400 dark:text-emerald-500" />
+      </div>
+    );
+  }
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={photo}
+      alt={alt}
+      className={`h-32 w-full object-cover ${isSkipped ? 'grayscale' : ''}`}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function StopoverWeatherChip({
   weather,
   isRo,
@@ -1037,6 +1065,8 @@ function HotelMiniCard({
 }) {
   const photo = hotelPhotoUrl(hotel, 400, 240);
   const rating = hotel.bubbleRating?.rating;
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = photo && !imgFailed;
   return (
     <Link
       href={href}
@@ -1048,9 +1078,19 @@ function HotelMiniCard({
           {label}
         </h3>
       </div>
-      {photo && (
+      {showImage ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={photo} alt={hotel.title} className="h-40 w-full object-cover" loading="lazy" />
+        <img
+          src={photo}
+          alt={hotel.title}
+          className="h-40 w-full object-cover"
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
+      ) : photo === null ? null : (
+        <div className="h-40 w-full bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 flex items-center justify-center">
+          <HotelIcon className="h-8 w-8 text-emerald-400 dark:text-emerald-500" />
+        </div>
       )}
       <div className="px-5 pb-4 pt-3">
         <h4 className="text-body font-semibold text-text-primary line-clamp-1">{hotel.title}</h4>

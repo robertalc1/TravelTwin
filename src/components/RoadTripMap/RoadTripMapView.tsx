@@ -501,14 +501,26 @@ function SidebarHotelCard({
   subtitle?: string;
 }) {
   const photo = hotelPhotoUrl(hotel, 320, 160);
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = photo && !imgFailed;
   return (
     <Link
       href={href}
       className="block rounded-lg border border-border-default overflow-hidden hover:shadow-md transition-shadow bg-background"
     >
-      {photo && (
+      {showImage ? (
         /* eslint-disable-next-line @next/next/no-img-element */
-        <img src={photo} alt={hotel.title} className="h-24 w-full object-cover" loading="lazy" />
+        <img
+          src={photo}
+          alt={hotel.title}
+          className="h-24 w-full object-cover"
+          loading="lazy"
+          onError={() => setImgFailed(true)}
+        />
+      ) : (
+        <div className="h-24 w-full bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 flex items-center justify-center">
+          <HotelIcon className="h-6 w-6 text-emerald-400 dark:text-emerald-500" />
+        </div>
       )}
       <div className="p-3">
         {subtitle && <p className="text-xs uppercase tracking-wide text-text-muted">{subtitle}</p>}
