@@ -94,9 +94,9 @@ export default function FavoritesPage() {
             router.push(`/${locale}/hotels/${encodeURIComponent(fav.item_id)}?${qs.toString()}`);
             return;
         }
-        // city / attraction: fall back to the explore page so the user has
-        // somewhere to land even for legacy entries.
-        router.push(`/${locale}/explore`);
+        // city / attraction: legacy entries from a deprecated heart-on-card
+        // button. /explore doesn't exist; land on the homepage instead.
+        router.push(`/${locale}`);
     }
 
     if (userLoading || loading) {

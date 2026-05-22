@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Plane } from "lucide-react";
-import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { useCurrencyStore } from "@/stores/currencyStore";
 
 interface TripCardProps {
@@ -83,15 +82,6 @@ export function TripCard({
                     </span>
                 )}
 
-                {/* Favorite */}
-                <div className="absolute top-3 right-3">
-                    <FavoriteButton
-                        cityName={destinationCity}
-                        metadata={{ iata: destination, price: discountedPrice, currency, days }}
-                        size="sm"
-                        filled
-                    />
-                </div>
             </div>
 
             {/* Content */}
