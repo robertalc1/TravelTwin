@@ -39,6 +39,13 @@ interface HotelOfferData {
   }[];
 }
 
+interface PricingNote {
+  sampledCheckIn: string;
+  sampledCheckOut: string;
+  userCheckIn: string;
+  userCheckOut: string;
+}
+
 function expandPhotoUrl(template: string | undefined, w = 800, h = 500): string {
   if (!template) return '';
   return template.replace('{width}', String(w)).replace('{height}', String(h));
@@ -85,6 +92,87 @@ async function resolveIataViaSearch(cityName: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function addDaysIso(date: string, days: number): string {
+  return new Date(new Date(date).getTime() + days * 86_400_000)
+    .toISOString()
+    .split('T')[0];
+}
+
+function nightsBetween(checkIn: string, checkOut: string): number {
+  return Math.max(
+    1,
+    Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86_400_000),
+  );
+}
+
+function nextFriday(): string {
+  const today = new Date();
+  // Day-of-week index for Friday is 5. Add at least 1 day so "today is Friday"
+  // still produces *next* Friday, not today.
+  const delta = ((5 - today.getDay() + 7) % 7) || 7;
+  return addDaysIso(today.toISOString().split('T')[0], delta);
+}
+
+interface SampledWindow {
+  checkIn: string;
+  checkOut: string;
+}
+
+// Try the user's exact dates first, then a sequence of shorter sample windows
+// when Tripadvisor returns zero hotels. Tripadvisor16 silently drops listings
+// for stays longer than a handful of nights or for date ranges deep in the
+// future — without this, the listing page is empty even for huge cities like
+// Istanbul. Returns the first non-empty result and the window that produced it
+// (null when the user's exact dates worked).
+async function searchHotelsWithWindowFallback(opts: {
+  mode: 'cityCode' | 'geoId';
+  cityCode?: string;
+  geoId?: number;
+  checkIn: string;
+  checkOut: string;
+  adults: string;
+}): Promise<{ hotels: TAHotel[]; sampledWindow: SampledWindow | null }> {
+  const userNights = nightsBetween(opts.checkIn, opts.checkOut);
+  const attempts: SampledWindow[] = [{ checkIn: opts.checkIn, checkOut: opts.checkOut }];
+
+  if (userNights > 7) {
+    attempts.push({ checkIn: opts.checkIn, checkOut: addDaysIso(opts.checkIn, 4) });
+    attempts.push({ checkIn: opts.checkIn, checkOut: addDaysIso(opts.checkIn, 2) });
+  } else if (userNights > 4) {
+    attempts.push({ checkIn: opts.checkIn, checkOut: addDaysIso(opts.checkIn, 4) });
+  } else if (userNights > 2) {
+    attempts.push({ checkIn: opts.checkIn, checkOut: addDaysIso(opts.checkIn, 2) });
+  }
+
+  const nf = nextFriday();
+  attempts.push({ checkIn: nf, checkOut: addDaysIso(nf, 2) });
+
+  for (let i = 0; i < attempts.length; i++) {
+    const w = attempts[i];
+    const hotels = opts.mode === 'cityCode' && opts.cityCode
+      ? await searchHotelsByCity({
+          cityCode: opts.cityCode,
+          checkIn: w.checkIn,
+          checkOut: w.checkOut,
+          adults: opts.adults,
+          rooms: '1',
+        })
+      : opts.geoId
+        ? await searchHotelsByGeoId({
+            geoId: opts.geoId,
+            checkIn: w.checkIn,
+            checkOut: w.checkOut,
+            adults: opts.adults,
+            rooms: '1',
+          })
+        : [];
+    if (hotels.length > 0) {
+      return { hotels, sampledWindow: i === 0 ? null : w };
+    }
+  }
+  return { hotels: [], sampledWindow: null };
 }
 
 function toOfferData(
@@ -154,15 +242,23 @@ export async function GET(req: Request) {
   // the card; not consumed as IATA downstream for the road-trip flow.
   const effectiveCityCode = cityCode || (cityQuery || '').split(',')[0].trim();
   const cacheKey = cityCode
-    ? `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`
-    : `hotelsSearch:v3:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
+    ? `hotelsSearch:v4:${cityCode}:${checkIn}:${checkOut}:${adults}`
+    : `hotelsSearch:v4:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
 
   const cached = await getCached(cacheKey);
   if (cached) {
+    // v3 entries store the {hotels, pricingNote} tuple; older v2 entries are
+    // plain HotelOfferData[]. Both paths return the same response shape.
+    const payload = cached.data as
+      | HotelOfferData[]
+      | { hotels: HotelOfferData[]; pricingNote: PricingNote | null };
+    const hotels = Array.isArray(payload) ? payload : payload.hotels;
+    const pricingNote = Array.isArray(payload) ? null : payload.pricingNote;
     return NextResponse.json({
-      hotels: cached.data,
+      hotels,
       source: 'cached',
-      count: (cached.data as HotelOfferData[]).length,
+      count: hotels.length,
+      pricingNote,
     });
   }
 
@@ -180,51 +276,52 @@ export async function GET(req: Request) {
 
   try {
     recordRapidApiCall();
-    let rawHotels: TAHotel[];
+    let rawHotels: TAHotel[] = [];
+    let sampledWindow: SampledWindow | null = null;
+
     if (cityCode) {
-      rawHotels = await searchHotelsByCity({
+      const res = await searchHotelsWithWindowFallback({
+        mode: 'cityCode',
         cityCode,
         checkIn,
         checkOut,
         adults,
-        rooms: '1',
       });
+      rawHotels = res.hotels;
+      sampledWindow = res.sampledWindow;
     } else {
       // Free-text query path — used by /road-trip for cities without an IATA
-      // upstream. Strategy: mirror the flight side first by translating the
-      // city name to a known IATA code (static map, then Tripadvisor's
-      // /flights/searchAirport which powers our autocomplete). That lets us
-      // reuse searchHotelsByCity exactly as the flight tab does. Only when no
-      // IATA is reachable do we fall back to the cityQuery → geoId cascade.
+      // upstream. Mirror the flight side first by translating the city name
+      // to a known IATA code; only when no IATA is reachable do we fall back
+      // to the cityQuery → geoId cascade.
       const cityNameOnly = (cityQuery || '').split(',')[0].trim();
       const iata =
         resolveStaticIata(cityNameOnly) || (await resolveIataViaSearch(cityNameOnly));
 
       if (iata) {
-        rawHotels = await searchHotelsByCity({
+        const res = await searchHotelsWithWindowFallback({
+          mode: 'cityCode',
           cityCode: iata,
           checkIn,
           checkOut,
           adults,
-          rooms: '1',
         });
-      } else {
-        rawHotels = [];
+        rawHotels = res.hotels;
+        sampledWindow = res.sampledWindow;
       }
 
-      // Either the IATA path was unavailable, or it came back empty (small
-      // popas city with no Tripadvisor airport entry). Cascade fallback runs
-      // the multi-endpoint geoId resolver and queries searchHotelsByGeoId.
       if (rawHotels.length === 0) {
         const geoId = await getGeoIdByQuery(cityQuery as string);
         if (geoId) {
-          rawHotels = await searchHotelsByGeoId({
+          const res = await searchHotelsWithWindowFallback({
+            mode: 'geoId',
             geoId,
             checkIn,
             checkOut,
             adults,
-            rooms: '1',
           });
+          rawHotels = res.hotels;
+          sampledWindow = res.sampledWindow;
         }
       }
 
@@ -239,7 +336,7 @@ export async function GET(req: Request) {
     }
 
     const hotels = rawHotels.map((h) =>
-      toOfferData(h, effectiveCityCode, checkIn, checkOut),
+      toOfferData(h, effectiveCityCode, sampledWindow?.checkIn ?? checkIn, sampledWindow?.checkOut ?? checkOut),
     );
 
     if (hotels.length === 0) {
@@ -251,11 +348,21 @@ export async function GET(req: Request) {
       });
     }
 
-    await setCache(cacheKey, hotels, 60 * 24);
+    const pricingNote: PricingNote | null = sampledWindow
+      ? {
+          sampledCheckIn: sampledWindow.checkIn,
+          sampledCheckOut: sampledWindow.checkOut,
+          userCheckIn: checkIn,
+          userCheckOut: checkOut,
+        }
+      : null;
+
+    await setCache(cacheKey, { hotels, pricingNote }, 60 * 24);
     return NextResponse.json({
       hotels,
       source: 'live',
       count: hotels.length,
+      pricingNote,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

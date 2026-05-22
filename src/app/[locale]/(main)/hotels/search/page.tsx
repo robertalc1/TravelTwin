@@ -34,6 +34,12 @@ function HotelsSearchContent() {
           : "Missing search dates. Open this page from a trip.")
       : null,
   );
+  const [pricingNote, setPricingNote] = useState<{
+    sampledCheckIn: string;
+    sampledCheckOut: string;
+    userCheckIn: string;
+    userCheckOut: string;
+  } | null>(null);
 
   const [sortBy, setSortBy] = useState<"recommended" | "price" | "rating">("recommended");
   const [filterStars, setFilterStars] = useState<number>(0);
@@ -53,10 +59,17 @@ function HotelsSearchContent() {
         (data: {
           hotels?: HotelOfferData[];
           warning?: string;
+          pricingNote?: {
+            sampledCheckIn: string;
+            sampledCheckOut: string;
+            userCheckIn: string;
+            userCheckOut: string;
+          } | null;
         }) => {
           if (cancelled) return;
           setHotels(data.hotels || []);
           setWarning(data.warning || null);
+          setPricingNote(data.pricingNote ?? null);
         },
       )
       .catch(() => {
@@ -280,6 +293,14 @@ function HotelsSearchContent() {
           {warning && (
             <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
               {warning}
+            </div>
+          )}
+
+          {pricingNote && (
+            <div className="mb-4 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800/40 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
+              {isRo
+                ? `Prețuri live afișate pentru un sample de ${pricingNote.sampledCheckIn} → ${pricingNote.sampledCheckOut}. Pentru perioada ta (${pricingNote.userCheckIn} → ${pricingNote.userCheckOut}), deschide detaliul unui hotel.`
+                : `Live pricing shown for a sample stay ${pricingNote.sampledCheckIn} → ${pricingNote.sampledCheckOut}. For your full window (${pricingNote.userCheckIn} → ${pricingNote.userCheckOut}), open a hotel's details.`}
             </div>
           )}
 
