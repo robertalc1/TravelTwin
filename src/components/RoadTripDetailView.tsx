@@ -48,6 +48,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { decodeWeatherCode } from '@/lib/weatherService';
 import { useUser } from '@/hooks/useUser';
 import { useAuthModalStore } from '@/stores/authModalStore';
+import { useToastStore } from '@/stores/toastStore';
 
 const WEATHER_ICONS: Record<string, LucideIcon> = {
   Sun, Cloud, CloudSun, CloudFog, CloudDrizzle, CloudRain, CloudLightning, Snowflake,
@@ -161,6 +162,7 @@ export default function RoadTripDetailView({ trip }: Props) {
   const [favoritePending, setFavoritePending] = useState(false);
   const { user } = useUser();
   const openAuthModal = useAuthModalStore((s) => s.open);
+  const showFavToast = useToastStore((s) => s.show);
 
   useEffect(() => {
     if (!trip?.id) return;
@@ -186,7 +188,12 @@ export default function RoadTripDetailView({ trip }: Props) {
       if (isFavorited) {
         const qs = new URLSearchParams({ item_type: 'trip', item_id: trip.id });
         const res = await fetch(`/api/favorites?${qs.toString()}`, { method: 'DELETE' });
-        if (res.ok) setIsFavorited(false);
+        if (res.ok) {
+          setIsFavorited(false);
+          showFavToast(isRo ? 'Eliminat din favorite' : 'Removed from favorites', 'info');
+        } else {
+          showFavToast(isRo ? 'Nu am putut elimina' : 'Could not remove favorite', 'error');
+        }
       } else {
         const res = await fetch('/api/favorites', {
           method: 'POST',
@@ -209,9 +216,21 @@ export default function RoadTripDetailView({ trip }: Props) {
             },
           }),
         });
-        if (res.ok) setIsFavorited(true);
+        if (res.ok) {
+          setIsFavorited(true);
+          showFavToast(isRo ? 'Salvat în favorite' : 'Saved to favorites', 'success');
+        } else {
+          showFavToast(
+            res.status === 401
+              ? (isRo ? 'Autentifică-te ca să salvezi' : 'Sign in to save favorites')
+              : (isRo ? 'Nu am putut salva' : 'Could not save favorite'),
+            'error',
+          );
+        }
       }
-    } catch { /* silent */ }
+    } catch {
+      showFavToast(isRo ? 'Eroare de rețea' : 'Network error — try again', 'error');
+    }
     finally { setFavoritePending(false); }
   }
 

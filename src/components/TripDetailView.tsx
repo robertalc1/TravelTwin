@@ -16,6 +16,7 @@ import { buildLegsFromTrip, buildStopsFromTrip } from '@/lib/itineraryHelpers';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import HeroVideo from '@/components/HeroVideo';
 import ShareModal from '@/components/ShareModal';
+import { useToastStore } from '@/stores/toastStore';
 import LazyMount from '@/components/LazyMount';
 import ItinerarySection from '@/components/itinerary/ItinerarySection';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
@@ -123,6 +124,7 @@ export default function TripDetailView({
     return () => { cancelled = true; };
   }, [trip?.id]);
 
+  const showFavToast = useToastStore((s) => s.show);
   async function toggleFavorite() {
     if (favoritePending || !trip?.id) return;
     if (!user) { openAuthModal('login'); return; }
@@ -131,7 +133,12 @@ export default function TripDetailView({
       if (isFavorited) {
         const qs = new URLSearchParams({ item_type: 'trip', item_id: trip.id });
         const res = await fetch(`/api/favorites?${qs.toString()}`, { method: 'DELETE' });
-        if (res.ok) setIsFavorited(false);
+        if (res.ok) {
+          setIsFavorited(false);
+          showFavToast('Removed from favorites', 'info');
+        } else {
+          showFavToast('Could not remove favorite', 'error');
+        }
       } else {
         // Stash the full TripDetail in item_data so a click on the favorites
         // page can hydrate sessionStorage and bring the user back here
@@ -156,9 +163,19 @@ export default function TripDetailView({
             },
           }),
         });
-        if (res.ok) setIsFavorited(true);
+        if (res.ok) {
+          setIsFavorited(true);
+          showFavToast('Saved to favorites', 'success');
+        } else {
+          showFavToast(
+            res.status === 401 ? 'Sign in to save favorites' : 'Could not save favorite',
+            'error',
+          );
+        }
       }
-    } catch { /* silent — UI state simply won't flip */ }
+    } catch {
+      showFavToast('Network error — try again', 'error');
+    }
     finally { setFavoritePending(false); }
   }
 

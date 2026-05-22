@@ -16,7 +16,6 @@ import {
     Save,
     Pencil,
     BadgeCheck,
-    Bell,
     Moon,
     DollarSign,
     AlertTriangle,
@@ -489,27 +488,10 @@ function FavoritesTab() {
 function SettingsTab() {
     const { theme, setTheme, resolvedTheme } = useTheme();
     const showToast = useToastStore((s) => s.show);
-    const [emailNotif, setEmailNotif] = useState(true);
-    const [priceAlerts, setPriceAlerts] = useState(false);
-
     const isDark = (theme === "dark") || (theme === "system" && resolvedTheme === "dark");
 
     return (
         <div className="space-y-4">
-            <SettingRow
-                icon={Bell}
-                title="Email notifications"
-                description="Trip confirmations, deals, and product updates."
-                checked={emailNotif}
-                onToggle={() => { setEmailNotif((v) => !v); showToast("Preference saved locally", "info"); }}
-            />
-            <SettingRow
-                icon={DollarSign}
-                title="Price alerts"
-                description="We’ll ping you when a tracked flight or hotel drops in price."
-                checked={priceAlerts}
-                onToggle={() => { setPriceAlerts((v) => !v); showToast("Preference saved locally", "info"); }}
-            />
             <SettingRow
                 icon={Moon}
                 title="Dark mode"
