@@ -423,58 +423,87 @@ export async function getFlightFilters(p: {
  * geocoding) to a Tripadvisor geoId. Used by /road-trip where we don't
  * have an IATA code to start from.
  *
- * Strategy: try the full query first; if no items match the country
- * hint or no items at all, fall back to a bare city name lookup. We
- * also prefer entries whose title/name starts with the city part —
- * Tripadvisor sometimes returns provinces or hotels above the city
- * itself in the result list.
+ * Strategy: cascade through three searchLocation endpoints
+ * (hotels → attraction → restaurant). Tripadvisor's hotels searchLocation
+ * has the tightest index — many mid-tier cities (Thessaloniki, Split,
+ * Plovdiv) are missing there or return items with malformed geoIds. The
+ * attraction + restaurant endpoints index the same locations with broader
+ * coverage and Tripadvisor uses one global locationId per geographic
+ * place, so an ID from either of those works as the `geoId` argument for
+ * searchHotelsByGeoId. As a final fallback we re-run hotels + attraction
+ * with the bare city name (drops the country).
  */
 export async function getGeoIdByQuery(query: string): Promise<number | null> {
   const trimmed = query.trim();
   if (!trimmed) return null;
-  const cacheKey = `geoIdQuery:v2:${trimmed.toLowerCase()}`;
+  const cacheKey = `geoIdQuery:v3:${trimmed.toLowerCase()}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'number') return cached.data;
 
   const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
   const cityPart = parts[0] || trimmed;
   const countryPart = parts.length > 1 ? parts[parts.length - 1] : '';
-  const countryLower = countryPart.toLowerCase();
-  const cityLower = cityPart.toLowerCase();
 
-  const queriesToTry: string[] = [trimmed];
-  if (cityPart && cityPart !== trimmed) queriesToTry.push(cityPart);
-
-  let geoId: number | null = null;
-  for (const q of queriesToTry) {
-    const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query: q });
-    if (!isRecord(raw)) continue;
-    const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
-    if (items.length === 0) continue;
-
-    // Score each item: country match in secondaryText > city match in title.
-    const scored = items.map((it) => {
-      const title = asString(it.title).toLowerCase();
-      const secondary = asString(it.secondaryText).toLowerCase();
-      const cityMatch = title.startsWith(cityLower) || title.includes(cityLower) ? 1 : 0;
-      const countryMatch = countryLower && secondary.includes(countryLower) ? 2 : 0;
-      return { it, score: cityMatch + countryMatch };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    const best = scored[0]?.it;
-    if (!best) continue;
-
-    const gid = best.geoId;
-    const numeric =
-      typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
-    if (!Number.isFinite(numeric) || numeric <= 0) continue;
-    geoId = numeric;
-    break;
+  const attempts: Array<{ endpoint: string; q: string }> = [
+    { endpoint: '/api/v1/hotels/searchLocation', q: trimmed },
+    { endpoint: '/api/v1/attraction/searchLocation', q: trimmed },
+    { endpoint: '/api/v1/restaurant/searchLocation', q: trimmed },
+  ];
+  if (cityPart && cityPart !== trimmed) {
+    attempts.push({ endpoint: '/api/v1/hotels/searchLocation', q: cityPart });
+    attempts.push({ endpoint: '/api/v1/attraction/searchLocation', q: cityPart });
   }
 
-  if (geoId === null) return null;
-  await setCache(cacheKey, geoId, 60 * 24 * 30);
-  return geoId;
+  for (const { endpoint, q } of attempts) {
+    const id = await tryResolveLocationId(endpoint, q, cityPart, countryPart);
+    if (id !== null) {
+      await setCache(cacheKey, id, 60 * 24 * 30);
+      return id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Helper for {@link getGeoIdByQuery}: hit a single Tripadvisor searchLocation
+ * endpoint, score the items by city/country match, and extract the first
+ * usable numeric identifier. Tripadvisor uses different field names across
+ * verticals (`geoId` on hotel responses, `locationId` on attraction /
+ * restaurant responses) but the same numeric value — accept all aliases.
+ */
+async function tryResolveLocationId(
+  endpoint: string,
+  query: string,
+  cityHint: string,
+  countryHint: string,
+): Promise<number | null> {
+  const raw = await tripadvisorFetch<unknown>(endpoint, { query }).catch(() => null);
+  if (!isRecord(raw)) return null;
+  const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
+  if (items.length === 0) return null;
+
+  const cityLower = cityHint.toLowerCase();
+  const countryLower = countryHint.toLowerCase();
+  const scored = items.map((it) => {
+    const title = asString(it.title).toLowerCase() || asString(it.name).toLowerCase();
+    const secondary = asString(it.secondaryText).toLowerCase();
+    const cityMatch = title.includes(cityLower) ? 1 : 0;
+    const countryMatch = countryLower && secondary.includes(countryLower) ? 2 : 0;
+    return { it, score: cityMatch + countryMatch };
+  });
+  scored.sort((a, b) => b.score - a.score);
+
+  for (const { it } of scored) {
+    const candidate =
+      asString(it.geoId) ||
+      asString(it.locationId) ||
+      asString(it.documentId) ||
+      asString(it.id);
+    if (!candidate) continue;
+    const numeric = parseInt(candidate, 10);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return null;
 }
 
 export async function searchHotelsByGeoId(p: {
@@ -957,7 +986,7 @@ export interface TARestaurant {
 }
 
 export async function searchRestaurantLocationId(query: string): Promise<string | null> {
-  const cacheKey = `restaurantLocId:${query.toLowerCase()}`;
+  const cacheKey = `restaurantLocId:v2:${query.toLowerCase()}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'string') return cached.data;
 
@@ -1033,7 +1062,7 @@ export interface TAAttraction {
 }
 
 export async function searchAttractionLocationId(query: string): Promise<string | null> {
-  const cacheKey = `attractionLocId:${query.toLowerCase()}`;
+  const cacheKey = `attractionLocId:v2:${query.toLowerCase()}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'string') return cached.data;
 
