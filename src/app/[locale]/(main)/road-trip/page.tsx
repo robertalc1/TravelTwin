@@ -83,6 +83,10 @@ export default function RoadTripWizardPage() {
   const [pickMode, setPickMode] = useState<"origin" | "destination">("origin");
   const [showMap, setShowMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Mirror the /plan loading overlay (two visible steps + smooth progress bar)
+  // so the road-trip wait doesn't feel like a frozen button.
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [flightSuggestion, setFlightSuggestion] = useState<{
     url: string;
@@ -154,8 +158,25 @@ export default function RoadTripWizardPage() {
     const destinationQuery = form.destinationQuery.trim();
     if (!originQuery || !destinationQuery) return;
     setSubmitting(true);
+    setLoadingStep(0);
+    setLoadingProgress(0);
     setError(null);
     setFlightSuggestion(null);
+
+    const stepInterval = setInterval(() => {
+      setLoadingStep((s) => {
+        if (s < 1) return s + 1;
+        clearInterval(stepInterval);
+        return s;
+      });
+    }, 2000);
+    const progressInterval = setInterval(() => {
+      setLoadingProgress((p) => {
+        if (p >= 95) { clearInterval(progressInterval); return 95; }
+        return p + 1;
+      });
+    }, 70);
+
     try {
       const res = await fetch("/api/road-trip/plan", {
         method: "POST",
@@ -193,12 +214,62 @@ export default function RoadTripWizardPage() {
       } catch {
         /* ignore quota */
       }
+      setLoadingProgress(100);
       router.push(`/${locale}/road-trip/result/${data.id}`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      clearInterval(stepInterval);
+      clearInterval(progressInterval);
       setSubmitting(false);
     }
+  }
+
+  if (submitting) {
+    // Mirror the /plan loading screen so road-trip generation feels equally
+    // intentional. Vehicle emoji follows the user's selected transport mode.
+    const heroIcon = form.mode === "train" ? "🚆" : form.mode === "bus" ? "🚌" : "🚗";
+    const steps: Array<{ icon: string; label: string }> = [
+      {
+        icon: "🗺️",
+        label: isRo ? "Construiesc itinerariul tău personalizat..." : "Building your personalized itinerary...",
+      },
+      {
+        icon: "⭐",
+        label: isRo ? "Selectez cele mai bune popasuri pentru tine..." : "Picking the best stops for you...",
+      },
+    ];
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-secondary-900 via-secondary-800 to-primary-900 flex items-center justify-center px-4">
+        <div className="max-w-md w-full text-center">
+          <div className="text-6xl mb-8 animate-bounce">{heroIcon}</div>
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {isRo ? "Agentul tău AI lucrează..." : "Your AI travel agent is working..."}
+          </h2>
+          <p className="text-white/70 mb-10">
+            {isRo ? "Căutăm road trip-ul tău perfect" : "We're finding your perfect road trip"}
+          </p>
+          <div className="space-y-3 mb-10 text-left">
+            {steps.map((s, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 transition-all duration-500 ${i <= loadingStep ? "opacity-100" : "opacity-30"}`}
+              >
+                <span className="text-xl">{i < loadingStep ? "✅" : s.icon}</span>
+                <span className={`text-sm ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{s.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-white rounded-full transition-all duration-300"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          <p className="text-white/50 text-sm mt-2">{loadingProgress}%</p>
+        </div>
+      </div>
+    );
   }
 
   return (
