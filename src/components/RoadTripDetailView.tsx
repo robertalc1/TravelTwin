@@ -26,6 +26,7 @@ import {
   ChevronRight,
   EyeOff,
   RotateCcw,
+  Share2,
   Cloud,
   CloudSun,
   CloudFog,
@@ -40,6 +41,7 @@ import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/l
 import type { RoadTripData } from '@/lib/roadTrip';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import HeroVideo from '@/components/HeroVideo';
+import ShareModal from '@/components/ShareModal';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import { useCurrency } from '@/hooks/useCurrency';
 import { decodeWeatherCode } from '@/lib/weatherService';
@@ -145,6 +147,11 @@ export default function RoadTripDetailView({ trip }: Props) {
   // Skipping is client-only — the route stays the same length, only the
   // overnight stop is dropped (no hotel, no per-stop weather/restaurants
   // displayed). Saved in sessionStorage so a refresh keeps the user's edits.
+  // Share button — modal with social links + copy-to-clipboard. Same UX as
+  // the flight detail page (`TripDetailView`) so road-trip feels consistent.
+  const [showShare, setShowShare] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
   const excludedStorageKey = `roadTrip_${trip.id}_excludedStops`;
   const [excludedStops, setExcludedStops] = useState<Set<number>>(() => new Set());
   useEffect(() => {
@@ -246,8 +253,30 @@ export default function RoadTripDetailView({ trip }: Props) {
           <h1 className="flex-1 text-lg sm:text-xl font-bold text-text-primary truncate">
             {originCity} → {trip.destinationCity}
           </h1>
+          <button
+            type="button"
+            onClick={() => setShowShare(true)}
+            aria-label="Share trip"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
+          >
+            <Share2 className="h-4 w-4 text-text-primary" />
+          </button>
         </div>
       </div>
+
+      {showShare && (
+        <ShareModal
+          title={`${originCity} → ${trip.destinationCity}`}
+          onClose={() => { setShowShare(false); setShareCopied(false); }}
+          copied={shareCopied}
+          onCopy={() => {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+              setShareCopied(true);
+              setTimeout(() => setShareCopied(false), 2000);
+            }).catch(() => {});
+          }}
+        />
+      )}
 
       {/* ── Hero ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
@@ -554,6 +583,34 @@ export default function RoadTripDetailView({ trip }: Props) {
             </section>
           )}
 
+          {/* Top attractions — photo grid identical to flight detail page.
+              Surfaced BEFORE Day-by-Day so the visual section anchors the
+              reader before they dive into the textual plan. */}
+          {(liveAttractions.length > 0 ||
+            (trip.aiContent?.topAttractions && trip.aiContent.topAttractions.length > 0)) && (
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+                <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                  {isRo ? `Atracții în ${trip.destinationCity}` : `Top Attractions`}
+                </span>
+              </div>
+              <AttractionPhotos
+                names={
+                  liveAttractions.length > 0
+                    ? liveAttractions.slice(0, 6).map((a) => a.name)
+                    : trip.aiContent!.topAttractions.slice(0, 6).map((a) => a.name)
+                }
+                city={trip.destinationCity}
+                descriptions={Object.fromEntries(
+                  liveAttractions.length > 0
+                    ? liveAttractions.map((a) => [a.name, a.description || a.category || ''])
+                    : trip.aiContent!.topAttractions.map((a) => [a.name, a.description]),
+                )}
+              />
+            </section>
+          )}
+
           {/* Day-by-day — gradient bar header to match flight detail */}
           {trip.aiContent && (
             <section>
@@ -638,32 +695,6 @@ export default function RoadTripDetailView({ trip }: Props) {
                   </div>
                 ))}
               </div>
-            </section>
-          )}
-
-          {/* Top attractions — photo grid identical to flight detail page */}
-          {(liveAttractions.length > 0 ||
-            (trip.aiContent?.topAttractions && trip.aiContent.topAttractions.length > 0)) && (
-            <section>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
-                <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
-                  {isRo ? `Atracții în ${trip.destinationCity}` : `Top Attractions`}
-                </span>
-              </div>
-              <AttractionPhotos
-                names={
-                  liveAttractions.length > 0
-                    ? liveAttractions.slice(0, 6).map((a) => a.name)
-                    : trip.aiContent!.topAttractions.slice(0, 6).map((a) => a.name)
-                }
-                city={trip.destinationCity}
-                descriptions={Object.fromEntries(
-                  liveAttractions.length > 0
-                    ? liveAttractions.map((a) => [a.name, a.description || a.category || ''])
-                    : trip.aiContent!.topAttractions.map((a) => [a.name, a.description]),
-                )}
-              />
             </section>
           )}
 

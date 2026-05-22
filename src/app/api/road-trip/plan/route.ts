@@ -488,14 +488,10 @@ export async function POST(req: NextRequest) {
 
     const id = `rt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const googleMapsLink = buildGoogleMapsLink(origin, destination, stopovers, mode);
-    const flixbusLink =
-      mode === 'bus'
-        ? `https://www.flixbus.com/search?from=${encodeURIComponent(shortCityName(origin))}&to=${encodeURIComponent(destinationCity)}&departureDate=${departureDate}`
-        : undefined;
-    const trainlineLink =
-      mode === 'train'
-        ? buildTrainlineLink(shortCityName(origin), destinationCity, departureDate)
-        : undefined;
+    // Deep-linked search URLs were unreliable (Flixbus rejected unknown city
+    // pairs, Trainline 404'd on minor routes). Homepage redirects are safer.
+    const flixbusLink = mode === 'bus' ? 'https://www.flixbus.com/' : undefined;
+    const trainlineLink = mode === 'train' ? buildTrainlineLink() : undefined;
 
     // Pre-resolve destination IATA so RoadTripDetailView can navigate to
     // /hotels/search?cityCode=IATA (the proven flight-side URL) instead of
@@ -736,24 +732,11 @@ function buildGoogleMapsLink(
 }
 
 /**
- * Trainline accepts canonical city slugs in the URL path:
- *   /en/train-times/bucharest-to-paris
- * The slugs are predictable for major European cities. We slugify the city
- * name (lower-case, hyphens, strip diacritics) and trust Trainline's router
- * to handle the result — when it doesn't recognise the pair, the page still
- * lands on a homepage that pre-fills the search box from the URL fragment.
+ * Trainline homepage. Earlier versions deep-linked into
+ * `/en/train-times/{origin}-to-{destination}` but that path 404s for less
+ * popular city pairs — the homepage is a safer destination and lets users
+ * search from there.
  */
-function buildTrainlineLink(origin: string, destination: string, departureDate: string): string {
-  const slug = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  const o = slug(origin);
-  const d = slug(destination);
-  // Date is informational — Trainline reads `outbound_date` from the query
-  // string when it's present.
-  return `https://www.trainline.com/en/train-times/${o}-to-${d}?outbound_date=${departureDate}`;
+function buildTrainlineLink(): string {
+  return 'https://www.thetrainline.com/en-us';
 }
