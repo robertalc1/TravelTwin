@@ -21,6 +21,7 @@ import {
 import { generateFallbackContent } from '@/lib/fallbackContent';
 import { CITY_TO_IATA } from '@/lib/iataMapping';
 import { getCached, setCache } from '@/lib/cache';
+import { isEuropean } from '@/lib/europeValidation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -208,6 +209,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: `Could not locate destination: "${destinationQuery}".` },
         { status: 400 },
+      );
+    }
+
+    // Europe-only safety net: even though the wizard's map picker only shows
+    // European cities, someone could POST directly to this endpoint with a
+    // transatlantic destination ("New York"). Reject early with the same
+    // friendly flight-CTA path used for NO_LAND_ROUTE — the wizard already
+    // knows how to render it.
+    if (!isEuropean(origin.countryCode) || !isEuropean(destination.countryCode)) {
+      return NextResponse.json(
+        {
+          error:
+            'Road trips are only available within Europe. Try our flight planner for intercontinental travel.',
+          suggestion: 'flight',
+          flightSearchUrl: `/plan?from=${encodeURIComponent(originQuery)}&to=${encodeURIComponent(destinationQuery)}`,
+          origin: originQuery,
+          destination: destinationQuery,
+        },
+        { status: 422 },
       );
     }
 

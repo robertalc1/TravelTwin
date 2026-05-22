@@ -9,6 +9,7 @@ export interface GeocodeResult {
   lng: number;
   formatted: string;
   placeId: string;
+  countryCode?: string; // ISO 3166-1 alpha-2 (e.g. 'RO', 'FR') — used for Europe-only validation
 }
 
 export interface FerrySegment {
@@ -54,7 +55,8 @@ export async function geocodeCity(query: string): Promise<GeocodeResult | null> 
   const trimmed = query.trim();
   if (!trimmed) return null;
 
-  const cacheKey = `gmaps:geocode:v1:${trimmed.toLowerCase()}`;
+  // v2 cache key: response shape gained `countryCode` for Europe validation.
+  const cacheKey = `gmaps:geocode:v2:${trimmed.toLowerCase()}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'object' && cached.data !== null) {
     return cached.data as GeocodeResult;
@@ -76,6 +78,7 @@ export async function geocodeCity(query: string): Promise<GeocodeResult | null> 
       formatted_address: string;
       place_id: string;
       geometry?: { location?: { lat: number; lng: number } };
+      address_components?: Array<{ short_name: string; long_name: string; types: string[] }>;
     }>;
   };
 
@@ -87,11 +90,14 @@ export async function geocodeCity(query: string): Promise<GeocodeResult | null> 
   const loc = first?.geometry?.location;
   if (!first || !loc) return null;
 
+  const countryComponent = first.address_components?.find((c) => c.types.includes('country'));
+
   const out: GeocodeResult = {
     lat: loc.lat,
     lng: loc.lng,
     formatted: first.formatted_address,
     placeId: first.place_id,
+    countryCode: countryComponent?.short_name,
   };
   await setCache(cacheKey, out, GEOCODE_CACHE_TTL_MIN);
   return out;
