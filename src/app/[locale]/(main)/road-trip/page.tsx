@@ -15,7 +15,9 @@ import {
   MapPin,
   Sparkles,
   AlertCircle,
+  Plane,
 } from "lucide-react";
+import Link from "next/link";
 import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
 
@@ -54,6 +56,11 @@ export default function RoadTripWizardPage() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [flightSuggestion, setFlightSuggestion] = useState<{
+    url: string;
+    origin: string;
+    destination: string;
+  } | null>(null);
 
   const [form, setForm] = useState<FormState>(() => ({
     originQuery: "",
@@ -83,6 +90,7 @@ export default function RoadTripWizardPage() {
     }
     setSubmitting(true);
     setError(null);
+    setFlightSuggestion(null);
     try {
       const res = await fetch("/api/road-trip/plan", {
         method: "POST",
@@ -91,6 +99,20 @@ export default function RoadTripWizardPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        if (
+          res.status === 422 &&
+          data.suggestion === "flight" &&
+          typeof data.flightSearchUrl === "string"
+        ) {
+          // Destination is across water — surface a friendly flight CTA instead
+          // of a red error banner.
+          setFlightSuggestion({
+            url: `/${locale}${data.flightSearchUrl}`,
+            origin: data.origin || form.originQuery,
+            destination: data.destination || form.destinationQuery,
+          });
+          return;
+        }
         throw new Error(data.error || `Request failed (HTTP ${res.status})`);
       }
       try {
@@ -278,10 +300,50 @@ export default function RoadTripWizardPage() {
             </div>
           )}
 
-          {error && (
+          {error && !flightSuggestion && (
             <div className="mt-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-900/40 p-3">
               <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
               <p className="text-body-sm text-red-700 dark:text-red-300">{error}</p>
+            </div>
+          )}
+
+          {flightSuggestion && (
+            <div className="mt-6 rounded-2xl border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/20 p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-white shrink-0">
+                  <Plane className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-sky-900 dark:text-sky-100">
+                    {isRo
+                      ? 'Drumul nu poate fi parcurs cu mașina sau autobuzul'
+                      : 'No drivable route to this destination'}
+                  </h3>
+                  <p className="mt-1 text-sm text-sky-800 dark:text-sky-200">
+                    {isRo
+                      ? `Destinația e peste apă sau e o insulă fără pod. Caută un zbor de la ${flightSuggestion.origin} la ${flightSuggestion.destination}.`
+                      : `The destination is across water or on an isolated island. Search for a flight from ${flightSuggestion.origin} to ${flightSuggestion.destination}.`}
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={flightSuggestion.url}
+                      className="inline-flex items-center gap-2 rounded-full bg-sky-500 hover:bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md"
+                    >
+                      <Plane className="h-4 w-4" />
+                      {isRo
+                        ? `Caută zbor ${flightSuggestion.origin} → ${flightSuggestion.destination}`
+                        : `Search flight ${flightSuggestion.origin} → ${flightSuggestion.destination}`}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setFlightSuggestion(null)}
+                      className="text-xs font-semibold text-sky-700 dark:text-sky-300 hover:underline"
+                    >
+                      {isRo ? 'sau încearcă altă destinație' : 'or try a different destination'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

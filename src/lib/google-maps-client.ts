@@ -11,12 +11,25 @@ export interface GeocodeResult {
   placeId: string;
 }
 
+export interface FerrySegment {
+  distanceMeters: number;
+  durationSeconds: number;
+  fromName?: string;
+  toName?: string;
+  fromLat?: number;
+  fromLng?: number;
+  toLat?: number;
+  toLng?: number;
+}
+
 export interface DriveQuote {
   originFormatted: string;
   destinationFormatted: string;
   distanceMeters: number;
   durationSeconds: number;
   durationInTrafficSeconds?: number;
+  ferrySegments: FerrySegment[];
+  hasFerry: boolean;
 }
 
 function getApiKey(): string {
@@ -84,32 +97,123 @@ export async function geocodeCity(query: string): Promise<GeocodeResult | null> 
   return out;
 }
 
+// Driving mode goes through the Directions API so we can inspect step-level
+// travel_mode and detect ferry crossings (Dover-Calais, Italy-Greece, etc.).
+// Transit mode keeps Distance Matrix — Directions transit needs scheduled
+// timetables we don't ingest. When Directions returns ZERO_RESULTS for the
+// driving path, the function throws `Error('NO_LAND_ROUTE')` so the road-trip
+// route handler can fall back to suggesting a flight.
 export async function getDriveQuote(
   origin: GeocodeResult,
   destination: GeocodeResult,
   mode: 'driving' | 'transit' = 'driving',
 ): Promise<DriveQuote> {
-  const cacheKey = `gmaps:matrix:v1:${mode}:${origin.placeId}:${destination.placeId}`;
+  const cacheKey = `gmaps:drive:v2:${mode}:${origin.placeId}:${destination.placeId}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'object' && cached.data !== null) {
     return cached.data as DriveQuote;
   }
 
   const key = getApiKey();
-  const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
-  url.searchParams.set('origins', `place_id:${origin.placeId}`);
-  url.searchParams.set('destinations', `place_id:${destination.placeId}`);
-  url.searchParams.set('mode', mode);
+  const quote =
+    mode === 'driving'
+      ? await fetchDrivingQuoteViaDirections(origin, destination, key)
+      : await fetchTransitQuoteViaMatrix(origin, destination, key);
+
+  await setCache(cacheKey, quote, DRIVE_CACHE_TTL_MIN);
+  return quote;
+}
+
+async function fetchDrivingQuoteViaDirections(
+  origin: GeocodeResult,
+  destination: GeocodeResult,
+  key: string,
+): Promise<DriveQuote> {
+  const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
+  url.searchParams.set('origin', `place_id:${origin.placeId}`);
+  url.searchParams.set('destination', `place_id:${destination.placeId}`);
+  url.searchParams.set('mode', 'driving');
   url.searchParams.set('units', 'metric');
-  if (mode === 'driving') {
-    url.searchParams.set('departure_time', 'now');
-  }
+  url.searchParams.set('departure_time', 'now');
   url.searchParams.set('key', key);
 
   const res = await fetchWithTimeout(url.toString());
-  if (!res.ok) {
-    throw new Error(`Google Distance Matrix HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Google Directions HTTP ${res.status}`);
+  const body = (await res.json()) as {
+    status: string;
+    error_message?: string;
+    routes?: Array<{
+      legs?: Array<{
+        start_address?: string;
+        end_address?: string;
+        distance?: { value: number };
+        duration?: { value: number };
+        duration_in_traffic?: { value: number };
+        steps?: Array<{
+          travel_mode?: string;
+          distance?: { value: number };
+          duration?: { value: number };
+          html_instructions?: string;
+          start_location?: { lat: number; lng: number };
+          end_location?: { lat: number; lng: number };
+        }>;
+      }>;
+    }>;
+  };
+
+  if (body.status === 'ZERO_RESULTS' || body.status === 'NOT_FOUND') {
+    throw new Error('NO_LAND_ROUTE');
   }
+  if (body.status !== 'OK') {
+    throw new Error(`Google Directions error: ${body.status} ${body.error_message || ''}`.trim());
+  }
+
+  const leg = body.routes?.[0]?.legs?.[0];
+  if (!leg || !leg.distance || !leg.duration) {
+    throw new Error('NO_LAND_ROUTE');
+  }
+
+  const ferrySegments: FerrySegment[] = [];
+  for (const step of leg.steps || []) {
+    if (step.travel_mode === 'FERRY') {
+      ferrySegments.push({
+        distanceMeters: step.distance?.value || 0,
+        durationSeconds: step.duration?.value || 0,
+        fromName: stripHtml(step.html_instructions || ''),
+        toName: undefined,
+        fromLat: step.start_location?.lat,
+        fromLng: step.start_location?.lng,
+        toLat: step.end_location?.lat,
+        toLng: step.end_location?.lng,
+      });
+    }
+  }
+
+  return {
+    originFormatted: leg.start_address || origin.formatted,
+    destinationFormatted: leg.end_address || destination.formatted,
+    distanceMeters: leg.distance.value,
+    durationSeconds: leg.duration.value,
+    durationInTrafficSeconds: leg.duration_in_traffic?.value,
+    ferrySegments,
+    hasFerry: ferrySegments.length > 0,
+  };
+}
+
+async function fetchTransitQuoteViaMatrix(
+  origin: GeocodeResult,
+  destination: GeocodeResult,
+  key: string,
+): Promise<DriveQuote> {
+  const url = new URL('https://maps.googleapis.com/maps/api/distancematrix/json');
+  url.searchParams.set('origins', `place_id:${origin.placeId}`);
+  url.searchParams.set('destinations', `place_id:${destination.placeId}`);
+  url.searchParams.set('mode', 'transit');
+  url.searchParams.set('units', 'metric');
+  url.searchParams.set('key', key);
+
+  const res = await fetchWithTimeout(url.toString());
+  if (!res.ok) throw new Error(`Google Distance Matrix HTTP ${res.status}`);
   const body = (await res.json()) as {
     status: string;
     error_message?: string;
@@ -120,7 +224,6 @@ export async function getDriveQuote(
         status: string;
         distance?: { value: number };
         duration?: { value: number };
-        duration_in_traffic?: { value: number };
       }>;
     }>;
   };
@@ -130,20 +233,26 @@ export async function getDriveQuote(
   }
   const element = body.rows?.[0]?.elements?.[0];
   if (!element || element.status !== 'OK' || !element.distance || !element.duration) {
+    if (element?.status === 'ZERO_RESULTS' || element?.status === 'NOT_FOUND') {
+      throw new Error('NO_LAND_ROUTE');
+    }
     throw new Error(
-      `No ${mode} route between ${origin.formatted} and ${destination.formatted} (status: ${element?.status ?? 'missing'})`,
+      `No transit route between ${origin.formatted} and ${destination.formatted} (status: ${element?.status ?? 'missing'})`,
     );
   }
 
-  const out: DriveQuote = {
+  return {
     originFormatted: body.origin_addresses?.[0] || origin.formatted,
     destinationFormatted: body.destination_addresses?.[0] || destination.formatted,
     distanceMeters: element.distance.value,
     durationSeconds: element.duration.value,
-    durationInTrafficSeconds: element.duration_in_traffic?.value,
+    ferrySegments: [],
+    hasFerry: false,
   };
-  await setCache(cacheKey, out, DRIVE_CACHE_TTL_MIN);
-  return out;
+}
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]+>/g, '').trim();
 }
 
 export interface ReverseGeocodeResult {

@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Car,
   Bus,
+  Ship,
   MapPin,
   Clock,
   Route as RouteIcon,
@@ -166,9 +167,17 @@ export default function RoadTripDetailView({ trip }: Props) {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={heroUrl} alt={trip.destinationCity} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent pointer-events-none" />
-          <div className="absolute top-4 left-4 inline-flex items-center gap-2 rounded-full bg-emerald-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
-            <Icon className="h-3.5 w-3.5" />
-            {trip.mode === 'car' ? (isRo ? 'Cu mașina' : 'By car') : isRo ? 'Cu autobuzul' : 'By bus'}
+          <div className="absolute top-4 left-4 flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
+              <Icon className="h-3.5 w-3.5" />
+              {trip.mode === 'car' ? (isRo ? 'Cu mașina' : 'By car') : isRo ? 'Cu autobuzul' : 'By bus'}
+            </div>
+            {trip.ferry && (
+              <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
+                <Ship className="h-3.5 w-3.5" />
+                {isRo ? 'Include feribot' : 'Includes ferry'}
+              </div>
+            )}
           </div>
           <div className="absolute bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 text-white">
             <div className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 backdrop-blur-sm px-3 py-1.5 text-sm">
@@ -217,7 +226,7 @@ export default function RoadTripDetailView({ trip }: Props) {
 
       {/* ── Stats strip ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8 mt-6">
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className={`grid gap-3 sm:gap-4 ${trip.ferry ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-3'}`}>
           <StatCard
             icon={<RouteIcon className="h-4 w-4" />}
             label={isRo ? 'Distanță' : 'Distance'}
@@ -228,6 +237,13 @@ export default function RoadTripDetailView({ trip }: Props) {
             label={isRo ? 'Durată' : 'Duration'}
             value={formatHours(trip.drive.durationHours)}
           />
+          {trip.ferry && (
+            <StatCard
+              icon={<Ship className="h-4 w-4" />}
+              label={isRo ? 'Feribot' : 'Ferry'}
+              value={formatHours(trip.ferry.totalDurationHours)}
+            />
+          )}
           <StatCard
             icon={<CircleDollarSign className="h-4 w-4" />}
             label={isRo ? 'Cost estimat' : 'Estimated cost'}
@@ -355,6 +371,45 @@ export default function RoadTripDetailView({ trip }: Props) {
               <h2 className="text-xl font-bold text-secondary-500 dark:text-white mb-6">
                 {isRo ? 'Itinerariu zi cu zi' : 'Day-by-Day Plan'}
               </h2>
+
+              {trip.ferry && (
+                <div className="mb-4 rounded-2xl border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/20 overflow-hidden">
+                  <div className="bg-gradient-to-r from-sky-500 to-sky-600 px-5 py-3">
+                    <h3 className="font-bold text-white flex items-center gap-2">
+                      <Ship className="h-4 w-4" />
+                      {isRo ? 'Traversare cu feribotul' : 'Ferry crossing'}
+                    </h3>
+                  </div>
+                  <div className="divide-y divide-sky-100 dark:divide-sky-800/40">
+                    {trip.ferry.segments.map((seg, i) => (
+                      <div key={i} className="px-4 sm:px-5 py-3 sm:py-4">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <p className="font-semibold text-sky-900 dark:text-sky-100 text-sm">
+                            {seg.fromName || (isRo ? `Segment ${i + 1}` : `Segment ${i + 1}`)}
+                          </p>
+                          <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+                            {formatHours(seg.durationHours)} · {seg.distanceKm} km
+                          </p>
+                        </div>
+                        <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">
+                          {isRo
+                            ? 'Verifică orarul la operatori reali (Direct Ferries, AFerry, etc.)'
+                            : 'Check live sailings with operators (Direct Ferries, AFerry, etc.)'}
+                        </p>
+                      </div>
+                    ))}
+                    <div className="px-5 py-3 bg-sky-100/60 dark:bg-sky-900/30 flex items-center justify-between text-sm">
+                      <span className="font-semibold text-sky-900 dark:text-sky-100">
+                        {isRo ? 'Cost estimat feribot' : 'Estimated ferry cost'}
+                      </span>
+                      <span className="font-bold text-sky-700 dark:text-sky-300">
+                        €{trip.ferry.estimatedCost}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-4">
                 {trip.aiContent.dayByDay.map((d) => (
                   <div
@@ -540,6 +595,13 @@ export default function RoadTripDetailView({ trip }: Props) {
                       value={`€${trip.cost.busFarePerPerson * trip.adults}`}
                     />
                   </>
+                )}
+                {trip.ferry && trip.ferry.estimatedCost > 0 && (
+                  <CostRow
+                    icon={<Ship className="h-4 w-4" />}
+                    label={isRo ? 'Feribot (estimat)' : 'Ferry crossing (est.)'}
+                    value={`€${trip.ferry.estimatedCost}`}
+                  />
                 )}
                 {trip.hotelDestination?.priceForDisplay && (
                   <CostRow

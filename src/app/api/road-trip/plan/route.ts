@@ -114,8 +114,19 @@ interface RoadTripResponse {
     fuel: number;
     tolls: number;
     busFarePerPerson: number;
+    ferry: number;
     total: number;
     currency: 'EUR';
+  };
+  ferry?: {
+    segments: Array<{
+      distanceKm: number;
+      durationHours: number;
+      fromName?: string;
+      toName?: string;
+    }>;
+    totalDurationHours: number;
+    estimatedCost: number;
   };
   stopovers: Stopover[];
   hotelDestination: TAHotel | null;
@@ -205,6 +216,19 @@ export async function POST(req: NextRequest) {
       quote = await getDriveQuote(origin, destination, mode === 'bus' ? 'transit' : 'driving');
     } catch (e) {
       const msg = (e as Error).message;
+      if (msg === 'NO_LAND_ROUTE') {
+        return NextResponse.json(
+          {
+            error:
+              'No drivable route — the destination is across water or otherwise unreachable by car.',
+            suggestion: 'flight',
+            flightSearchUrl: `/plan?from=${encodeURIComponent(originQuery)}&to=${encodeURIComponent(destinationQuery)}`,
+            origin: originQuery,
+            destination: destinationQuery,
+          },
+          { status: 422 },
+        );
+      }
       if (mode === 'bus') {
         try {
           quote = await getDriveQuote(origin, destination, 'driving');
@@ -212,7 +236,21 @@ export async function POST(req: NextRequest) {
             'Transit routing unavailable for this pair — using road distance as a fallback for travel time and fare estimation.',
           );
         } catch (e2) {
-          return NextResponse.json({ error: (e2 as Error).message }, { status: 502 });
+          const m2 = (e2 as Error).message;
+          if (m2 === 'NO_LAND_ROUTE') {
+            return NextResponse.json(
+              {
+                error:
+                  'No drivable route — the destination is across water or otherwise unreachable by car or bus.',
+                suggestion: 'flight',
+                flightSearchUrl: `/plan?from=${encodeURIComponent(originQuery)}&to=${encodeURIComponent(destinationQuery)}`,
+                origin: originQuery,
+                destination: destinationQuery,
+              },
+              { status: 422 },
+            );
+          }
+          return NextResponse.json({ error: m2 }, { status: 502 });
         }
       } else {
         return NextResponse.json({ error: msg }, { status: 502 });
@@ -225,11 +263,26 @@ export async function POST(req: NextRequest) {
       ? quote.durationInTrafficSeconds / 3600
       : undefined;
 
+    // Ferry estimate: per-km fee scaled by ferry distance + per-passenger fee.
+    // Calibrated on real European crossings (Dover-Calais ~€80, Patras-Bari
+    // ~€200 with car). Conservative so we never under-quote the user.
+    const FERRY_BASE_PER_KM_EUR = 0.35;
+    const FERRY_PASSENGER_FEE_EUR = 25;
+    const ferryDistanceKm = quote.ferrySegments.reduce(
+      (sum, s) => sum + s.distanceMeters / 1000,
+      0,
+    );
+    const ferryCost = quote.hasFerry
+      ? mode === 'car'
+        ? Math.round(ferryDistanceKm * FERRY_BASE_PER_KM_EUR + adults * FERRY_PASSENGER_FEE_EUR)
+        : Math.round(adults * FERRY_PASSENGER_FEE_EUR)
+      : 0;
+
     const fuel =
       mode === 'car' ? Math.round((distanceKm * consumption * fuelPrice) / 100) : 0;
     const tolls = mode === 'car' ? Math.round(distanceKm * TOLL_PER_KM_EUR) : 0;
     const busFarePerPerson = mode === 'bus' ? Math.round(distanceKm * BUS_FARE_PER_KM_EUR) : 0;
-    const total = fuel + tolls + busFarePerPerson * adults;
+    const total = fuel + tolls + busFarePerPerson * adults + ferryCost;
 
     const stopovers = await computeStopovers(durationHours, origin, destination, mode, warnings);
 
@@ -402,7 +455,21 @@ export async function POST(req: NextRequest) {
           ? Number(durationInTrafficHours.toFixed(2))
           : undefined,
       },
-      cost: { fuel, tolls, busFarePerPerson, total, currency: 'EUR' },
+      cost: { fuel, tolls, busFarePerPerson, ferry: ferryCost, total, currency: 'EUR' },
+      ferry: quote.hasFerry
+        ? {
+            segments: quote.ferrySegments.map((s) => ({
+              distanceKm: Math.round(s.distanceMeters / 1000),
+              durationHours: Number((s.durationSeconds / 3600).toFixed(2)),
+              fromName: s.fromName,
+              toName: s.toName,
+            })),
+            totalDurationHours: Number(
+              (quote.ferrySegments.reduce((sum, s) => sum + s.durationSeconds, 0) / 3600).toFixed(2),
+            ),
+            estimatedCost: ferryCost,
+          }
+        : undefined,
       stopovers,
       hotelDestination: hotelDestination ?? null,
       externalLinks: { googleMaps: googleMapsLink, flixbus: flixbusLink },

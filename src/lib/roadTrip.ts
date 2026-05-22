@@ -33,8 +33,19 @@ export interface RoadTripData {
     fuel: number;
     tolls: number;
     busFarePerPerson: number;
+    ferry: number;
     total: number;
     currency: 'EUR';
+  };
+  ferry?: {
+    segments: Array<{
+      distanceKm: number;
+      durationHours: number;
+      fromName?: string;
+      toName?: string;
+    }>;
+    totalDurationHours: number;
+    estimatedCost: number;
   };
   stopovers: RoadTripStopover[];
   hotelDestination: TAHotel | null;
