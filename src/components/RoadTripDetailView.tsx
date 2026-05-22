@@ -29,6 +29,7 @@ import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/l
 import type { RoadTripData } from '@/lib/roadTrip';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import AttractionPhotos from '@/components/AttractionPhotos';
+import { useCurrency } from '@/hooks/useCurrency';
 
 interface LiveAttraction {
   id: string;
@@ -105,6 +106,12 @@ export default function RoadTripDetailView({ trip }: Props) {
   const router = useRouter();
   const locale = useLocale();
   const isRo = locale === 'ro';
+  // All cost numbers from the API are in EUR. The user's chosen display
+  // currency (header selector → persisted store) is applied at render via
+  // `money()`, which both converts and locale-formats. Hotel prices come
+  // pre-formatted from Tripadvisor and stay as-is.
+  const { format } = useCurrency();
+  const money = (eur: number) => format(eur, 'EUR');
 
   const heroUrl = resolveRoadTripHero(trip);
   const originCity = trip.origin.formatted.split(',')[0]?.trim() || trip.origin.formatted;
@@ -247,7 +254,7 @@ export default function RoadTripDetailView({ trip }: Props) {
           <StatCard
             icon={<CircleDollarSign className="h-4 w-4" />}
             label={isRo ? 'Cost estimat' : 'Estimated cost'}
-            value={`€${trip.cost.total}`}
+            value={money(trip.cost.total)}
           />
         </div>
       </div>
@@ -403,7 +410,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                         {isRo ? 'Cost estimat feribot' : 'Estimated ferry cost'}
                       </span>
                       <span className="font-bold text-sky-700 dark:text-sky-300">
-                        €{trip.ferry.estimatedCost}
+                        {money(trip.ferry.estimatedCost)}
                       </span>
                     </div>
                   </div>
@@ -574,12 +581,12 @@ export default function RoadTripDetailView({ trip }: Props) {
                     <CostRow
                       icon={<Car className="h-4 w-4" />}
                       label={isRo ? 'Combustibil' : 'Fuel'}
-                      value={`€${trip.cost.fuel}`}
+                      value={money(trip.cost.fuel)}
                     />
                     <CostRow
                       icon={<RouteIcon className="h-4 w-4" />}
                       label={isRo ? 'Taxe drum (est.)' : 'Tolls (est.)'}
-                      value={`€${trip.cost.tolls}`}
+                      value={money(trip.cost.tolls)}
                     />
                   </>
                 ) : (
@@ -587,12 +594,12 @@ export default function RoadTripDetailView({ trip }: Props) {
                     <CostRow
                       icon={<Bus className="h-4 w-4" />}
                       label={isRo ? 'Bilet / persoană' : 'Fare / person'}
-                      value={`€${trip.cost.busFarePerPerson}`}
+                      value={money(trip.cost.busFarePerPerson)}
                     />
                     <CostRow
                       icon={<Bus className="h-4 w-4" />}
                       label={isRo ? `× ${trip.adults} pasageri` : `× ${trip.adults} passengers`}
-                      value={`€${trip.cost.busFarePerPerson * trip.adults}`}
+                      value={money(trip.cost.busFarePerPerson * trip.adults)}
                     />
                   </>
                 )}
@@ -600,7 +607,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                   <CostRow
                     icon={<Ship className="h-4 w-4" />}
                     label={isRo ? 'Feribot (estimat)' : 'Ferry crossing (est.)'}
-                    value={`€${trip.ferry.estimatedCost}`}
+                    value={money(trip.ferry.estimatedCost)}
                   />
                 )}
                 {trip.hotelDestination?.priceForDisplay && (
@@ -630,7 +637,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                     {isRo ? 'Total estimat' : 'Quote total'}
                   </span>
                   <span className="font-extrabold text-lg text-emerald-600 dark:text-emerald-400">
-                    €{trip.cost.total}
+                    {money(trip.cost.total)}
                   </span>
                 </div>
               </div>
@@ -649,25 +656,25 @@ export default function RoadTripDetailView({ trip }: Props) {
             <dl className="space-y-2 text-body-sm">
               {trip.mode === 'car' ? (
                 <>
-                  <Row label={isRo ? 'Combustibil' : 'Fuel'} value={`€${trip.cost.fuel}`} />
-                  <Row label={isRo ? 'Taxe drum' : 'Tolls (est.)'} value={`€${trip.cost.tolls}`} />
+                  <Row label={isRo ? 'Combustibil' : 'Fuel'} value={money(trip.cost.fuel)} />
+                  <Row label={isRo ? 'Taxe drum' : 'Tolls (est.)'} value={money(trip.cost.tolls)} />
                 </>
               ) : (
                 <>
                   <Row
                     label={isRo ? 'Bilet / pers.' : 'Fare / person'}
-                    value={`€${trip.cost.busFarePerPerson}`}
+                    value={money(trip.cost.busFarePerPerson)}
                   />
                   <Row
                     label={isRo ? `× ${trip.adults} pers.` : `× ${trip.adults} pax`}
-                    value={`€${trip.cost.busFarePerPerson * trip.adults}`}
+                    value={money(trip.cost.busFarePerPerson * trip.adults)}
                   />
                 </>
               )}
               <div className="mt-2 flex justify-between border-t border-border-default pt-2">
                 <dt className="font-semibold text-text-primary">Total</dt>
                 <dd className="text-body font-bold text-emerald-600 dark:text-emerald-400">
-                  €{trip.cost.total}
+                  {money(trip.cost.total)}
                 </dd>
               </div>
             </dl>
