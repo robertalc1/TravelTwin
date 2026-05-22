@@ -48,8 +48,9 @@ const MODE_META: Record<TravelMode, { label: string; icon: typeof Car }> = {
   bicycling: { label: 'Cycling', icon: Bike },
 };
 
-function googleMapsSearchUrl(name: string, city: string): string {
-  return `https://www.google.com/maps/search/${encodeURIComponent(`${name}, ${city}`)}`;
+function googleMapsSearchUrl(name: string, city: string, country?: string): string {
+  const q = country ? `${name}, ${city}, ${country}` : `${name}, ${city}`;
+  return `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
 }
 
 export default function RouteMapView({ trip, originCity, originCode, initialFocusedPlace = null }: Props) {
@@ -62,10 +63,20 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
    * When non-null, the iframe shows just this place (Embed API "place" mode)
    * instead of the full route. Set by clicking any sidebar item; cleared by
    * the "Back to full route" pill or by changing the travel mode.
+   *
    * Seeded from a `?place=<name>` query param so attraction tiles on the trip
-   * detail page can deep-link straight into the focused view.
+   * detail page can deep-link straight into the focused view. Sidebar
+   * highlight comparisons (`focusedPlace?.startsWith(name + ',')`) require
+   * the city suffix — normalize bare names here so a deep-link from a tile
+   * also lights up its sidebar row, not just the iframe.
    */
-  const [focusedPlace, setFocusedPlace] = useState<string | null>(initialFocusedPlace);
+  const [focusedPlace, setFocusedPlace] = useState<string | null>(() => {
+    if (!initialFocusedPlace) return null;
+    if (initialFocusedPlace.includes(',')) return initialFocusedPlace;
+    // Append BOTH city and country so Google's embed never resolves a generic
+    // name like "Local Kitchen" to a same-named place in another country.
+    return `${initialFocusedPlace}, ${trip.destinationCity}, ${trip.destinationCountry}`;
+  });
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;
@@ -218,7 +229,8 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
   };
 
   function focusPlace(name: string) {
-    setFocusedPlace(`${name}, ${trip.destinationCity}`);
+    // Same anti-cross-country anchor as the deep-link path above.
+    setFocusedPlace(`${name}, ${trip.destinationCity}, ${trip.destinationCountry}`);
     // Scroll the map into view on mobile so the user sees the result
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -496,6 +508,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                       `${trip.destinationCity} · ${locale === 'ro' ? 'Hotelul tău' : 'Your hotel'}`
                     }
                     city={trip.destinationCity}
+                    country={trip.destinationCountry}
                     isFocused={
                       focusedPlace?.startsWith(selectedHotel.hotel.name + ',') ?? false
                     }
@@ -518,6 +531,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                       name={r.name}
                       sub={`${r.cuisine}${r.priceRange ? ' · ' + r.priceRange : ''}`}
                       city={trip.destinationCity}
+                      country={trip.destinationCountry}
                       isFocused={focusedPlace?.startsWith(r.name + ',') ?? false}
                       onFocus={() => focusPlace(r.name)}
                     />
@@ -539,6 +553,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                       name={c.name}
                       sub={c.specialty}
                       city={trip.destinationCity}
+                      country={trip.destinationCountry}
                       isFocused={focusedPlace?.startsWith(c.name + ',') ?? false}
                       onFocus={() => focusPlace(c.name)}
                     />
@@ -560,6 +575,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                       name={a.name}
                       sub={a.description}
                       city={trip.destinationCity}
+                      country={trip.destinationCountry}
                       isFocused={focusedPlace?.startsWith(a.name + ',') ?? false}
                       onFocus={() => focusPlace(a.name)}
                     />
@@ -586,6 +602,7 @@ interface PlaceItemProps {
   name: string;
   sub?: string;
   city: string;
+  country?: string;
   isFocused: boolean;
   onFocus: () => void;
 }
@@ -595,7 +612,7 @@ interface PlaceItemProps {
  * (no navigation, stays in our UI). The small external-link icon button is a
  * separate optional escape hatch to open Google Maps in a new tab.
  */
-function PlaceItem({ name, sub, city, isFocused, onFocus }: PlaceItemProps) {
+function PlaceItem({ name, sub, city, country, isFocused, onFocus }: PlaceItemProps) {
   return (
     <li>
       <div
@@ -628,7 +645,7 @@ function PlaceItem({ name, sub, city, isFocused, onFocus }: PlaceItemProps) {
           </div>
         </button>
         <a
-          href={googleMapsSearchUrl(name, city)}
+          href={googleMapsSearchUrl(name, city, country)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Open ${name} in Google Maps in a new tab`}
