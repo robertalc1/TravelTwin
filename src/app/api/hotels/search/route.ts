@@ -11,13 +11,14 @@ import { NextResponse } from 'next/server';
 import {
   searchHotelsByCity,
   searchHotelsByGeoId,
+  searchLocations,
   getGeoIdByQuery,
   type TAHotel,
 } from '@/lib/tripadvisor-client';
 import { normalizeHotel } from '@/lib/tripadvisor-normalize';
 import { getCached, setCache } from '@/lib/cache';
 import { canMakeRapidApiCall, recordRapidApiCall } from '@/lib/rateLimiter';
-import { getCityFromIata } from '@/lib/iataMapping';
+import { getCityFromIata, CITY_TO_IATA } from '@/lib/iataMapping';
 
 interface HotelOfferData {
   hotel: {
@@ -49,6 +50,41 @@ function expandPhotoUrl(template: string | undefined, w = 800, h = 500): string 
 // the source before the name flows into HotelOfferData.
 function cleanHotelName(title: string | undefined): string {
   return (title || 'Hotel').replace(/^\d+\.\s+/, '').trim();
+}
+
+// Case-insensitive lookup over the static CITY_TO_IATA table. Returns the
+// first IATA whose city key matches the query exactly. Used to short-circuit
+// free-text city queries (e.g. "Thessaloniki" → "SKG") into the flight side's
+// proven searchHotelsByCity path.
+function resolveStaticIata(cityName: string): string | null {
+  if (!cityName) return null;
+  const target = cityName.trim().toLowerCase();
+  for (const [key, iata] of Object.entries(CITY_TO_IATA)) {
+    if (key.toLowerCase() === target) return iata;
+  }
+  return null;
+}
+
+// Last-resort IATA resolution via Tripadvisor's flight autocomplete. This
+// endpoint indexes airports + cities globally, so it covers cities the static
+// map omits. We accept the first item whose cityName matches the query and
+// carries either an airportCode or a documentId that looks like an IATA.
+async function resolveIataViaSearch(cityName: string): Promise<string | null> {
+  if (!cityName) return null;
+  try {
+    const locations = await searchLocations(cityName);
+    const target = cityName.trim().toLowerCase();
+    const exact = locations.find(
+      (loc) => (loc.cityName || '').trim().toLowerCase() === target && loc.airportCode,
+    );
+    if (exact?.airportCode) return exact.airportCode.toUpperCase();
+    const partial = locations.find(
+      (loc) => (loc.cityName || '').toLowerCase().includes(target) && loc.airportCode,
+    );
+    return partial?.airportCode ? partial.airportCode.toUpperCase() : null;
+  } catch {
+    return null;
+  }
 }
 
 function toOfferData(
@@ -151,9 +187,45 @@ export async function GET(req: Request) {
         rooms: '1',
       });
     } else {
-      // Free-text query path — used by /road-trip for stops with no IATA.
-      const geoId = await getGeoIdByQuery(cityQuery as string);
-      if (!geoId) {
+      // Free-text query path — used by /road-trip for cities without an IATA
+      // upstream. Strategy: mirror the flight side first by translating the
+      // city name to a known IATA code (static map, then Tripadvisor's
+      // /flights/searchAirport which powers our autocomplete). That lets us
+      // reuse searchHotelsByCity exactly as the flight tab does. Only when no
+      // IATA is reachable do we fall back to the cityQuery → geoId cascade.
+      const cityNameOnly = (cityQuery || '').split(',')[0].trim();
+      const iata =
+        resolveStaticIata(cityNameOnly) || (await resolveIataViaSearch(cityNameOnly));
+
+      if (iata) {
+        rawHotels = await searchHotelsByCity({
+          cityCode: iata,
+          checkIn,
+          checkOut,
+          adults,
+          rooms: '1',
+        });
+      } else {
+        rawHotels = [];
+      }
+
+      // Either the IATA path was unavailable, or it came back empty (small
+      // popas city with no Tripadvisor airport entry). Cascade fallback runs
+      // the multi-endpoint geoId resolver and queries searchHotelsByGeoId.
+      if (rawHotels.length === 0) {
+        const geoId = await getGeoIdByQuery(cityQuery as string);
+        if (geoId) {
+          rawHotels = await searchHotelsByGeoId({
+            geoId,
+            checkIn,
+            checkOut,
+            adults,
+            rooms: '1',
+          });
+        }
+      }
+
+      if (rawHotels.length === 0) {
         return NextResponse.json({
           hotels: [],
           source: 'live',
@@ -161,13 +233,6 @@ export async function GET(req: Request) {
           warning: `Tripadvisor doesn't index "${cityQuery}". Try a nearby larger city.`,
         });
       }
-      rawHotels = await searchHotelsByGeoId({
-        geoId,
-        checkIn,
-        checkOut,
-        adults,
-        rooms: '1',
-      });
     }
 
     const hotels = rawHotels

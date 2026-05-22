@@ -557,14 +557,15 @@ export async function searchHotelsByGeoId(p: {
 }
 
 /**
- * Resolve an IATA city code (or arbitrary city name) to a Tripadvisor geoId.
- * Caches the result for 30 days in the api_cache table to save quota.
+ * Resolve an IATA city code to a Tripadvisor geoId. Delegates to the
+ * multi-endpoint cascade in {@link getGeoIdByQuery} so the flight path
+ * (BUD, IST, OTP, …) and the road-trip path (free-text city queries) share
+ * the same resolution logic — if one of them found a city the other one
+ * will too.
  */
 export async function getGeoIdForCity(cityCode: string): Promise<number | null> {
   const code = cityCode.toUpperCase();
-  // v2 key: scoped query disambiguates ambiguous names (Sofia BG vs Soria ES,
-  // Athens GR vs Athens GA, etc.). Old `geoId:${code}` entries are abandoned.
-  const cacheKey = `geoId:v2:${code}`;
+  const cacheKey = `geoId:v3:${code}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'number') return cached.data;
 
@@ -572,24 +573,10 @@ export async function getGeoIdForCity(cityCode: string): Promise<number | null> 
   const country = getCountryFromIata(code);
   const query = country ? `${cityName}, ${country}` : cityName;
 
-  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query });
-  if (!isRecord(raw)) return null;
-  const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
-
-  const countryLower = country.toLowerCase();
-  const preferred =
-    (countryLower
-      ? items.find((it) => asString(it.secondaryText).toLowerCase().includes(countryLower))
-      : undefined) || items[0];
-  if (!preferred) return null;
-
-  const gid = preferred.geoId;
-  const numeric =
-    typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-
-  await setCache(cacheKey, numeric, 60 * 24 * 30); // 30 days
-  return numeric;
+  const resolved = await getGeoIdByQuery(query);
+  if (!resolved) return null;
+  await setCache(cacheKey, resolved, 60 * 24 * 30);
+  return resolved;
 }
 
 export async function searchHotelsByCity(p: SearchHotelsParams): Promise<TAHotel[]> {
