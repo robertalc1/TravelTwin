@@ -140,9 +140,14 @@ export default function TripDetailView({
           showFavToast('Could not remove favorite', 'error');
         }
       } else {
-        // Stash the full TripDetail in item_data so a click on the favorites
+        // Stash a slim TripDetail in item_data so a click on the favorites
         // page can hydrate sessionStorage and bring the user back here
-        // without re-fetching the package from scratch.
+        // without re-fetching the package. aiContent is regenerable and
+        // bloats JSONB, so we drop it; JSON.parse(stringify) strips any
+        // non-serializable bits (undefined, accidental store bindings).
+        const tripForStorage = JSON.parse(
+          JSON.stringify({ ...trip, aiContent: null }),
+        ) as TripDetail;
         const res = await fetch('/api/favorites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -159,7 +164,7 @@ export default function TripDetailView({
               nights: trip.nights,
               totalPrice: trip.totalPrice,
               currency: trip.currency,
-              fullData: trip,
+              fullData: tripForStorage,
             },
           }),
         });
@@ -167,6 +172,8 @@ export default function TripDetailView({
           setIsFavorited(true);
           showFavToast('Saved to favorites', 'success');
         } else {
+          const errBody = await res.json().catch(() => null);
+          console.error('favorite save failed', res.status, errBody);
           showFavToast(
             res.status === 401 ? 'Sign in to save favorites' : 'Could not save favorite',
             'error',

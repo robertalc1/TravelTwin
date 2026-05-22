@@ -195,6 +195,12 @@ export default function RoadTripDetailView({ trip }: Props) {
           showFavToast(isRo ? 'Nu am putut elimina' : 'Could not remove favorite', 'error');
         }
       } else {
+        // Slim copy: drop aiContent (regenerable, fat) and strip any
+        // non-serializable fields so Supabase JSONB insert never silently
+        // fails on undefined / store-bound values.
+        const tripForStorage = JSON.parse(
+          JSON.stringify({ ...trip, aiContent: null }),
+        ) as RoadTripData;
         const res = await fetch('/api/favorites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -212,7 +218,7 @@ export default function RoadTripDetailView({ trip }: Props) {
               mode: trip.mode,
               totalCost: trip.cost.total,
               currency: trip.cost.currency,
-              fullData: trip,
+              fullData: tripForStorage,
             },
           }),
         });
@@ -220,6 +226,8 @@ export default function RoadTripDetailView({ trip }: Props) {
           setIsFavorited(true);
           showFavToast(isRo ? 'Salvat în favorite' : 'Saved to favorites', 'success');
         } else {
+          const errBody = await res.json().catch(() => null);
+          console.error('favorite save failed', res.status, errBody);
           showFavToast(
             res.status === 401
               ? (isRo ? 'Autentifică-te ca să salvezi' : 'Sign in to save favorites')
