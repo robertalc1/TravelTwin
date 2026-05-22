@@ -985,6 +985,85 @@ export async function searchRestaurants(locationId: string): Promise<TARestauran
   return result;
 }
 
+/* ── Attractions ──────────────────────────────────────────── */
+
+export interface TAAttraction {
+  id: string;
+  name: string;
+  category?: string;
+  rating?: number;
+  reviewCount?: number;
+  thumbnail?: string;
+  description?: string;
+  rankingString?: string;
+}
+
+export async function searchAttractionLocationId(query: string): Promise<string | null> {
+  const cacheKey = `attractionLocId:${query.toLowerCase()}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'string') return cached.data;
+
+  const raw = await tripadvisorFetch<unknown>('/api/v1/attraction/searchLocation', { query });
+  if (!isRecord(raw)) return null;
+  const data = asArray((raw as Record<string, unknown>).data);
+
+  for (const item of data) {
+    if (!isRecord(item)) continue;
+    const id =
+      asString(item.locationId) ||
+      asString(item.documentId) ||
+      asString(item.geoId) ||
+      asString(item.id);
+    if (id) {
+      await setCache(cacheKey, id, 60 * 24 * 30);
+      return id;
+    }
+  }
+  return null;
+}
+
+export async function searchAttractions(locationId: string): Promise<TAAttraction[]> {
+  const raw = await tripadvisorFetch<unknown>('/api/v1/attraction/searchAttractions', {
+    locationId,
+  });
+  if (!isRecord(raw)) return [];
+  const data = isRecord(raw.data) ? raw.data : raw;
+  const list = asArray(
+    (data as Record<string, unknown>).data ||
+      (data as Record<string, unknown>).attractions ||
+      data,
+  );
+
+  const result: TAAttraction[] = [];
+  for (const a of list) {
+    if (!isRecord(a)) continue;
+    const subcatRaw = asArray(a.subcategory).filter(
+      (t): t is string => typeof t === 'string',
+    );
+    const photo = isRecord(a.thumbnail) ? (a.thumbnail as Record<string, unknown>) : {};
+    const photoSizes = isRecord(photo.photoSizeDynamic) ? photo.photoSizeDynamic : {};
+    const thumbnail =
+      expandPhotoUrl(asString(photoSizes.urlTemplate), 600, 400) ||
+      asString(photo.url) ||
+      asString(a.thumbnailUrl);
+    result.push({
+      id:
+        asString(a.locationId) ||
+        asString(a.id) ||
+        asString(a.attractionId) ||
+        crypto.randomUUID(),
+      name: asString(a.name) || asString(a.title) || 'Attraction',
+      category: subcatRaw.join(', ') || asString(a.category),
+      rating: asNumber(a.averageRating) || asNumber(a.rating),
+      reviewCount: asNumber(a.userReviewCount) || asNumber(a.numReviews),
+      thumbnail: thumbnail || undefined,
+      description: asString(a.primaryInfo) || asString(a.description),
+      rankingString: asString(a.rankingString),
+    });
+  }
+  return result;
+}
+
 /* ── Flight inspiration (no live call — uses COMMON_ROUTES) ─── */
 
 /**

@@ -359,6 +359,176 @@ const CITY_DATA: Record<string, CityData> = {
       { name: 'Sweet Petar', specialty: 'Pastries and coffee', description: 'Charming local bakery cafe in the city center' },
     ],
   },
+  Warsaw: {
+    attractions: [
+      { name: 'Old Town Market Square', description: 'UNESCO-listed reconstructed medieval square in the historic core', category: 'landmark' },
+      { name: 'POLIN Museum of Polish Jews', description: 'Award-winning museum documenting 1000 years of Polish-Jewish history', category: 'museum' },
+      { name: 'Lazienki Park', description: 'Sprawling royal park with a palace on the water and free Chopin concerts', category: 'park' },
+    ],
+    restaurants: [
+      { name: 'Zapiecek', cuisine: 'Polish pierogi', priceRange: '€', description: 'Beloved chain serving handmade pierogi to locals and visitors' },
+      { name: 'Atelier Amaro', cuisine: 'Modern Polish', priceRange: '€€€', description: 'First Michelin-starred restaurant in Poland with a tasting menu' },
+      { name: 'Hala Koszyki', cuisine: 'Food hall', priceRange: '€€', description: 'Restored 1908 market hall full of restaurants and bars' },
+    ],
+    cafes: [
+      { name: 'Coffeedesk Mokotowska', specialty: 'Specialty coffee', description: 'Modern roastery cafe loved by Warsaw coffee snobs' },
+      { name: 'Cafe Bristol', specialty: 'Historic cafe', description: 'Belle Epoque cafe inside the legendary Hotel Bristol' },
+      { name: 'Stor Cafe', specialty: 'Filter coffee', description: 'Minimalist third-wave spot in the Powisle district' },
+    ],
+  },
+  Krakow: {
+    attractions: [
+      { name: 'Main Market Square', description: "Europe's largest medieval square with the Cloth Hall at its center", category: 'landmark' },
+      { name: 'Wawel Royal Castle', description: 'Hilltop castle complex of Polish kings overlooking the Vistula', category: 'landmark' },
+      { name: 'Auschwitz-Birkenau Memorial', description: 'Sobering UNESCO-listed memorial 70 km from Krakow', category: 'museum' },
+    ],
+    restaurants: [
+      { name: 'Pod Aniolami', cuisine: 'Traditional Polish', priceRange: '€€€', description: 'Atmospheric cellar restaurant in a 13th-century townhouse' },
+      { name: 'Hamsa', cuisine: 'Israeli/Mediterranean', priceRange: '€€', description: 'Lively hummus and meze restaurant in the Jewish Quarter' },
+      { name: 'Milkbar Tomasza', cuisine: 'Polish bar mleczny', priceRange: '€', description: 'Classic communist-era milk bar with cheap home cooking' },
+    ],
+    cafes: [
+      { name: 'Cafe Camelot', specialty: 'Historic cafe', description: 'Beloved bohemian cafe with charm and history off the main square' },
+      { name: 'Karma Roasters', specialty: 'Specialty coffee', description: "Krakow's best single-origin coffee in a tiny industrial space" },
+      { name: 'Wesola Cafe Vintage', specialty: 'Cake and coffee', description: 'Vintage-themed cafe famous for layered Polish cakes' },
+    ],
+  },
+  Belgrade: {
+    attractions: [
+      { name: 'Belgrade Fortress', description: 'Massive Roman-era fortress at the confluence of the Sava and Danube', category: 'landmark' },
+      { name: 'Skadarlija', description: 'Bohemian cobbled quarter with traditional kafanas and live music', category: 'landmark' },
+      { name: 'Church of Saint Sava', description: "One of the world's largest Orthodox churches, atop Vracar plateau", category: 'landmark' },
+    ],
+    restaurants: [
+      { name: 'Manufaktura', cuisine: 'Modern Serbian', priceRange: '€€', description: 'Trendy restaurant turning Serbian classics into Instagram plates' },
+      { name: 'Tri Sesira', cuisine: 'Traditional Serbian', priceRange: '€€', description: 'Iconic Skadarlija kafana since 1864 with live bohemian music' },
+      { name: 'Lorenzo & Kakalamba', cuisine: 'Italian-Serbian fusion', priceRange: '€€€', description: 'Outrageously decorated restaurant in Vracar' },
+    ],
+    cafes: [
+      { name: 'Kafeterija', specialty: 'Specialty coffee', description: "Belgrade's first true specialty coffee shop chain" },
+      { name: 'Aviator Coffee Roasters', specialty: 'Single-origin', description: 'Aviation-themed roastery cafe in Dorcol' },
+      { name: 'Koffein', specialty: 'Pastry and brunch', description: 'Cozy brunch spot popular with the Vracar crowd' },
+    ],
+  },
+  Munich: {
+    attractions: [
+      { name: 'Marienplatz', description: 'Central square with the New Town Hall and famous Glockenspiel show', category: 'landmark' },
+      { name: 'English Garden', description: 'Vast central park with beer gardens and surfers on the Eisbach', category: 'park' },
+      { name: 'BMW Museum', description: 'Striking architectural museum showcasing a century of BMW design', category: 'museum' },
+    ],
+    restaurants: [
+      { name: 'Hofbrauhaus Munchen', cuisine: 'Bavarian', priceRange: '€€', description: 'World-famous 1589 royal beer hall, the soul of Munich tourism' },
+      { name: 'Tantris', cuisine: 'Fine dining', priceRange: '€€€', description: 'Legendary two-Michelin-star restaurant since 1971' },
+      { name: 'Viktualienmarkt', cuisine: 'Bavarian market food', priceRange: '€', description: "Munich's oldest food market with sausage stands and beer garden" },
+    ],
+    cafes: [
+      { name: 'Man versus Machine', specialty: 'Specialty coffee', description: 'Award-winning roastery, multiple times German Barista Champion' },
+      { name: 'Cafe Frischhut', specialty: 'Schmalznudeln pastry', description: 'Tiny historic cafe famous for fried Bavarian doughnuts' },
+      { name: 'Aroma Kaffeebar', specialty: 'Brunch and coffee', description: 'Hip Glockenbachviertel cafe loved by creatives' },
+    ],
+  },
+  Frankfurt: {
+    attractions: [
+      { name: 'Romerberg', description: "Reconstructed medieval town square at Frankfurt's symbolic heart", category: 'landmark' },
+      { name: 'Stadel Museum', description: 'World-class art museum with 700 years of European painting', category: 'museum' },
+      { name: 'Main Tower observation deck', description: 'Free observation deck with 360-degree views of the skyline', category: 'landmark' },
+    ],
+    restaurants: [
+      { name: 'Apfelwein Wagner', cuisine: 'Frankfurt tavern', priceRange: '€€', description: 'Classic apple-wine tavern in Sachsenhausen since 1931' },
+      { name: 'Lafleur', cuisine: 'Fine dining', priceRange: '€€€', description: 'Two-Michelin-star restaurant inside the Palmengarten botanical garden' },
+      { name: 'Kleinmarkthalle', cuisine: 'Market food', priceRange: '€', description: 'Indoor market with green-sauce sandwiches and wine bars upstairs' },
+    ],
+    cafes: [
+      { name: 'Hoppenworth & Ploch', specialty: 'Specialty coffee', description: 'In-house roastery, one of the best in the Rhine-Main region' },
+      { name: 'Wacker\'s Kaffee', specialty: 'Traditional roastery', description: 'Beloved Frankfurt institution roasting since 1914' },
+      { name: 'Cafe Walden', specialty: 'Brunch', description: 'Industrial-chic cafe in the Nordend district' },
+    ],
+  },
+  Zurich: {
+    attractions: [
+      { name: 'Lake Zurich promenade', description: 'Long lakeside walk with Alpine views on a clear day', category: 'park' },
+      { name: 'Kunsthaus Zurich', description: 'Major art museum with Giacometti, Chagall and Swiss masters', category: 'museum' },
+      { name: 'Bahnhofstrasse', description: "One of the world's most expensive shopping streets in the old town", category: 'landmark' },
+    ],
+    restaurants: [
+      { name: 'Zeughauskeller', cuisine: 'Swiss', priceRange: '€€', description: 'Old armory turned beer hall with hearty Swiss classics' },
+      { name: 'Kronenhalle', cuisine: 'Swiss-French', priceRange: '€€€', description: 'Historic restaurant with original Picasso, Miro and Chagall on the walls' },
+      { name: 'Cafe Sprungli am Paradeplatz', cuisine: 'Cafe and confectionery', priceRange: '€€', description: 'Iconic Swiss chocolate house and lunch spot since 1836' },
+    ],
+    cafes: [
+      { name: 'Henrici', specialty: 'Specialty coffee', description: 'Minimalist riverside cafe with own-roasted coffee' },
+      { name: 'Miyuko', specialty: 'Coffee and Japanese pastry', description: 'Quiet Niederdorf cafe with matcha and yuzu cakes' },
+      { name: 'Caffeine Pissoir', specialty: 'Pour-over', description: 'Hidden specialty coffee bar in District 4' },
+    ],
+  },
+  Milan: {
+    attractions: [
+      { name: 'Milan Cathedral (Duomo)', description: "The world's largest Gothic cathedral, with rooftop walk above the city", category: 'landmark' },
+      { name: 'Galleria Vittorio Emanuele II', description: "Stunning 19th-century arcade and Italy's oldest shopping mall", category: 'landmark' },
+      { name: 'The Last Supper', description: "Leonardo da Vinci's masterpiece in Santa Maria delle Grazie (reservations a must)", category: 'museum' },
+    ],
+    restaurants: [
+      { name: 'Trattoria Masuelli San Marco', cuisine: 'Lombard', priceRange: '€€€', description: 'Century-old family trattoria serving traditional ossobuco' },
+      { name: 'Luini Panzerotti', cuisine: 'Street food', priceRange: '€', description: 'Legendary stand-up bakery for fried stuffed panzerotti since 1949' },
+      { name: 'Cracco', cuisine: 'Modern Italian', priceRange: '€€€', description: "Michelin-starred restaurant inside the Galleria by chef Carlo Cracco" },
+    ],
+    cafes: [
+      { name: 'Pasticceria Marchesi', specialty: 'Historic pastry', description: 'Belle Epoque pastry shop owned by Prada in via Monte Napoleone' },
+      { name: 'Orsonero Coffee', specialty: 'Specialty coffee', description: "Pioneer of Milan's third-wave coffee scene" },
+      { name: 'Cova Montenapoleone', specialty: 'Pastries and aperitivo', description: 'Aristocratic Milanese cafe in the fashion quadrilateral' },
+    ],
+  },
+  Copenhagen: {
+    attractions: [
+      { name: 'Nyhavn', description: 'Iconic 17th-century waterfront with colorful townhouses and herring boats', category: 'landmark' },
+      { name: 'Tivoli Gardens', description: 'Magical 1843 amusement park that inspired Walt Disney', category: 'park' },
+      { name: 'Designmuseum Danmark', description: 'Showcase of Danish design from chairs to industrial classics', category: 'museum' },
+    ],
+    restaurants: [
+      { name: 'Noma', cuisine: 'New Nordic', priceRange: '€€€', description: 'Multiple times ranked #1 restaurant in the world by Rene Redzepi' },
+      { name: 'Schonnemann', cuisine: 'Smorrebrod', priceRange: '€€', description: 'Beloved 1877 smorrebrod cellar with 80 open-face sandwich options' },
+      { name: 'Reffen Street Food', cuisine: 'Street food market', priceRange: '€', description: 'Industrial harbor market with diverse street food stalls' },
+    ],
+    cafes: [
+      { name: 'Coffee Collective', specialty: 'Specialty coffee', description: 'Acclaimed local roaster with multiple cafes across the city' },
+      { name: 'La Glace', specialty: 'Cakes and pastry', description: "Denmark's oldest confectionery, famous for sportskage" },
+      { name: 'Atelier September', specialty: 'Avocado toast and coffee', description: 'Minimalist hipster cafe in Statens Museum area' },
+    ],
+  },
+  Stockholm: {
+    attractions: [
+      { name: 'Gamla Stan', description: 'Beautifully preserved medieval old town on an island in central Stockholm', category: 'landmark' },
+      { name: 'Vasa Museum', description: 'Almost intact 17th-century warship raised from the harbor in 1961', category: 'museum' },
+      { name: 'Skansen', description: 'World oldest open-air museum with Nordic buildings and a small zoo', category: 'park' },
+    ],
+    restaurants: [
+      { name: 'Frantzen', cuisine: 'Modern Nordic', priceRange: '€€€', description: "Three-Michelin-star restaurant pushing Swedish cuisine forward" },
+      { name: 'Pelikan', cuisine: 'Traditional Swedish', priceRange: '€€', description: 'Atmospheric early-1900s beer hall famous for meatballs' },
+      { name: 'Hermans Tradgardscafe', cuisine: 'Vegetarian buffet', priceRange: '€€', description: 'Cliffside vegetarian buffet with epic harbor views' },
+    ],
+    cafes: [
+      { name: 'Drop Coffee Roasters', specialty: 'Specialty coffee', description: 'Sodermalm roastery and cafe with award-winning beans' },
+      { name: 'Vete-Katten', specialty: 'Fika', description: 'Classic 1928 Stockholm fika cafe with princess cake' },
+      { name: 'Stora Bageriet', specialty: 'Sourdough and pastry', description: 'Trendy bakery cafe in Vasastan' },
+    ],
+  },
+  Lyon: {
+    attractions: [
+      { name: 'Vieux Lyon', description: 'Renaissance old town with traboules (covered passages) and bouchons', category: 'landmark' },
+      { name: 'Basilica of Notre-Dame de Fourviere', description: 'Hilltop basilica with panoramic city views, sometimes called "the upside-down elephant"', category: 'landmark' },
+      { name: 'Musee des Confluences', description: 'Striking deconstructivist museum of natural history and societies', category: 'museum' },
+    ],
+    restaurants: [
+      { name: 'Daniel et Denise', cuisine: 'Lyonnaise bouchon', priceRange: '€€', description: 'Authentic bouchon by a Meilleur Ouvrier de France chef' },
+      { name: 'La Mere Brazier', cuisine: 'Classical French', priceRange: '€€€', description: "Two-Michelin-star restaurant in the legacy of mother Brazier" },
+      { name: 'Halles Paul Bocuse', cuisine: 'Market food', priceRange: '€€', description: 'Indoor gourmet market named after the famous Lyon chef' },
+    ],
+    cafes: [
+      { name: 'Cafe Mokxa', specialty: 'Specialty coffee', description: "Lyon's leading specialty coffee roastery on Quai Romain Rolland" },
+      { name: 'La Boite a Cafe', specialty: 'Pour-over and espresso', description: 'Quiet third-wave spot in the Croix-Rousse district' },
+      { name: 'Bernachon', specialty: 'Chocolate and cake', description: 'Legendary Lyon chocolatier and tea salon since 1953' },
+    ],
+  },
 };
 
 function getFallbackCityData(city: string, country: string, locale: 'ro' | 'en'): CityData {

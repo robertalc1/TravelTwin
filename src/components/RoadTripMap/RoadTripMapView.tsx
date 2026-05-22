@@ -32,6 +32,15 @@ interface LiveRestaurant {
   priceRange?: string;
 }
 
+interface LiveAttraction {
+  id: string;
+  name: string;
+  category?: string;
+  rating?: number;
+  description?: string;
+  thumbnail?: string;
+}
+
 interface Props {
   trip: RoadTripData;
 }
@@ -45,24 +54,34 @@ export default function RoadTripMapView({ trip }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;
-  const attractions = (ai?.topAttractions ?? []).slice(0, 4);
   const cafes = ai?.topCafes ?? [];
   const originCity = shortCityFromFormatted(trip.origin.formatted);
 
-  // Live restaurants — same pattern as flight RouteMapView
+  // Live restaurants + attractions — same pattern as flight RouteMapView
   const [liveRestaurants, setLiveRestaurants] = useState<LiveRestaurant[]>([]);
+  const [liveAttractions, setLiveAttractions] = useState<LiveAttraction[]>([]);
   useEffect(() => {
     if (!trip.destinationCity) return;
     let cancelled = false;
     const qs = new URLSearchParams({ city: trip.destinationCity });
     if (trip.destinationCountry) qs.set('country', trip.destinationCountry);
-    fetch(`/api/restaurants/search?${qs.toString()}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { restaurants?: LiveRestaurant[] } | null) => {
-        if (cancelled || !data?.restaurants?.length) return;
-        setLiveRestaurants(data.restaurants);
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/restaurants/search?${qs.toString()}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`/api/attractions/search?${qs.toString()}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(
+      ([rest, attr]: [
+        { restaurants?: LiveRestaurant[] } | null,
+        { attractions?: LiveAttraction[] } | null,
+      ]) => {
+        if (cancelled) return;
+        if (rest?.restaurants?.length) setLiveRestaurants(rest.restaurants);
+        if (attr?.attractions?.length) setLiveAttractions(attr.attractions);
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -77,6 +96,16 @@ export default function RoadTripMapView({ trip }: Props) {
           cuisine: r.cuisine,
           priceRange: r.priceRange,
         }));
+
+  // Attractions list — live Tripadvisor wins, AI/CITY_DATA fallback follows.
+  // Normalize both shapes to { name, description } since RouteStop + sidebar
+  // only need a name + description-style hover.
+  const attractions: Array<{ name: string; description?: string }> =
+    liveAttractions.length > 0
+      ? liveAttractions.slice(0, 4).map((a) => ({ name: a.name, description: a.description || a.category }))
+      : (ai?.topAttractions ?? [])
+          .slice(0, 4)
+          .map((a) => ({ name: a.name, description: a.description }));
 
   // Build full route: origin → [stopovers] → destination
   const originLabel = `${originCity}${extractCountrySuffix(trip.origin.formatted)}`;

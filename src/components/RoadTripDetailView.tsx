@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -10,7 +11,6 @@ import {
   MapPin,
   Clock,
   Route as RouteIcon,
-  Fuel,
   CircleDollarSign,
   ExternalLink,
   Hotel as HotelIcon,
@@ -23,11 +23,54 @@ import {
   Lightbulb,
   Sun,
   Moon,
-  Plane as PlaneIcon,
+  ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/lib/roadTrip';
 import type { RoadTripData } from '@/lib/roadTrip';
+
+interface LiveAttraction {
+  id: string;
+  name: string;
+  category?: string;
+  rating?: number;
+  reviewCount?: number;
+  thumbnail?: string;
+  description?: string;
+}
+
+interface LiveRestaurant {
+  id: string;
+  name: string;
+  cuisine?: string;
+  priceRange?: string;
+  thumbnail?: string;
+  description?: string;
+}
+
+function buildHotelSearchHref(opts: {
+  locale: string;
+  tripId: string;
+  cityQuery: string;
+  cityName?: string;
+  checkIn: string;
+  checkOut: string;
+  adults: number;
+}): string {
+  const qs = new URLSearchParams({
+    cityQuery: opts.cityQuery,
+    cityName: opts.cityName || opts.cityQuery.split(',')[0].trim(),
+    checkIn: opts.checkIn,
+    checkOut: opts.checkOut,
+    adults: String(opts.adults),
+    tripId: opts.tripId,
+  });
+  return `/${opts.locale}/hotels/search?${qs.toString()}`;
+}
+
+function addDays(date: string, n: number): string {
+  return new Date(new Date(date).getTime() + n * 86_400_000).toISOString().split('T')[0];
+}
 
 const RoadTripRouteTeaser = dynamic(
   () => import('@/components/RoadTripMap/RoadTripRouteTeaser'),
@@ -51,6 +94,38 @@ export default function RoadTripDetailView({ trip }: Props) {
   const heroUrl = resolveRoadTripHero(trip);
   const originCity = trip.origin.formatted.split(',')[0]?.trim() || trip.origin.formatted;
   const Icon = trip.mode === 'car' ? Car : Bus;
+
+  // ── Live data from Tripadvisor: attractions + restaurants per destination
+  // (cafes stay AI/CITY_DATA — Tripadvisor has no dedicated cafe endpoint).
+  // Falls back to aiContent (CITY_DATA fallback) when live calls return empty.
+  const [liveAttractions, setLiveAttractions] = useState<LiveAttraction[]>([]);
+  const [liveRestaurants, setLiveRestaurants] = useState<LiveRestaurant[]>([]);
+  useEffect(() => {
+    if (!trip.destinationCity) return;
+    let cancelled = false;
+    const qs = new URLSearchParams({ city: trip.destinationCity });
+    if (trip.destinationCountry) qs.set('country', trip.destinationCountry);
+    Promise.all([
+      fetch(`/api/attractions/search?${qs.toString()}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`/api/restaurants/search?${qs.toString()}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([attrData, restData]) => {
+      if (cancelled) return;
+      if (attrData?.attractions?.length) setLiveAttractions(attrData.attractions);
+      if (restData?.restaurants?.length) setLiveRestaurants(restData.restaurants);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [trip.destinationCity, trip.destinationCountry]);
+
+  // Dates for hotel search deep-links
+  const destinationCheckIn = addDays(trip.departureDate, trip.stopovers.length);
+  const destinationCheckOut =
+    trip.returnDate || addDays(destinationCheckIn, 2);
 
   return (
     <div className="min-h-screen bg-background">
@@ -170,10 +245,21 @@ export default function RoadTripDetailView({ trip }: Props) {
                   const hotelHref = s.hotel
                     ? `/${locale}/road-trip/result/${trip.id}/hotel/${encodeURIComponent(s.hotel.id)}?stopover=${s.order}`
                     : null;
+                  const stopCheckIn = addDays(trip.departureDate, s.order - 1);
+                  const stopCheckOut = addDays(stopCheckIn, 1);
+                  const browseAllHref = buildHotelSearchHref({
+                    locale,
+                    tripId: trip.id,
+                    cityQuery: s.city,
+                    cityName: s.city,
+                    checkIn: stopCheckIn,
+                    checkOut: stopCheckOut,
+                    adults: trip.adults,
+                  });
                   return (
                     <div
                       key={s.order}
-                      className="rounded-lg border border-border-default overflow-hidden bg-background"
+                      className="rounded-lg border border-border-default overflow-hidden bg-background flex flex-col"
                     >
                       {photo ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
@@ -181,7 +267,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                       ) : (
                         <div className="h-32 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20" />
                       )}
-                      <div className="p-3">
+                      <div className="p-3 flex flex-col flex-1">
                         <p className="text-xs uppercase tracking-wide text-text-muted">
                           {isRo ? `Noaptea ${s.order}` : `Night ${s.order}`} ·{' '}
                           {Math.round(s.arrivalHourFromStart)}h
@@ -192,20 +278,38 @@ export default function RoadTripDetailView({ trip }: Props) {
                             <p className="text-body-sm text-text-secondary line-clamp-1">
                               {s.hotel.title}
                             </p>
-                            {hotelHref && (
+                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs font-semibold">
+                              {hotelHref && (
+                                <Link
+                                  href={hotelHref}
+                                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:underline"
+                                >
+                                  {isRo ? 'Vezi hotelul' : 'View hotel'}
+                                  <ChevronRight className="h-3 w-3" />
+                                </Link>
+                              )}
                               <Link
-                                href={hotelHref}
-                                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                href={browseAllHref}
+                                className="inline-flex items-center gap-1 text-text-secondary hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline"
                               >
-                                {isRo ? 'Vezi hotelul' : 'View hotel'}
-                                <ExternalLink className="h-3 w-3" />
+                                {isRo ? `Toate hotelurile în ${s.city}` : `All hotels in ${s.city}`}
+                                <ChevronRight className="h-3 w-3" />
                               </Link>
-                            )}
+                            </div>
                           </>
                         ) : (
-                          <p className="text-body-sm text-text-muted">
-                            {isRo ? 'Niciun hotel găsit pentru acest popas' : 'No hotel found for this stopover'}
-                          </p>
+                          <>
+                            <p className="text-body-sm text-text-muted">
+                              {isRo ? 'Niciun hotel preselectat — caută în Tripadvisor:' : 'No pre-selected hotel — browse Tripadvisor:'}
+                            </p>
+                            <Link
+                              href={browseAllHref}
+                              className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                            >
+                              {isRo ? `Hoteluri în ${s.city}` : `Hotels in ${s.city}`}
+                              <ChevronRight className="h-3 w-3" />
+                            </Link>
+                          </>
                         )}
                       </div>
                     </div>
@@ -241,45 +345,98 @@ export default function RoadTripDetailView({ trip }: Props) {
             </section>
           )}
 
-          {/* Top attractions */}
-          {trip.aiContent?.topAttractions && trip.aiContent.topAttractions.length > 0 && (
+          {/* Top attractions — live Tripadvisor first, AI/CITY_DATA fallback */}
+          {(liveAttractions.length > 0 ||
+            (trip.aiContent?.topAttractions && trip.aiContent.topAttractions.length > 0)) && (
             <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary flex items-center gap-2">
+              <h2 className="mb-1 text-h3 text-text-primary flex items-center gap-2">
                 <Camera className="h-5 w-5 text-emerald-500" />
-                {isRo ? 'Atracții principale' : 'Top attractions'}
+                {isRo ? `Atracții în ${trip.destinationCity}` : `Top attractions in ${trip.destinationCity}`}
               </h2>
+              <p className="mb-4 text-xs text-text-muted">
+                {liveAttractions.length > 0
+                  ? (isRo ? 'Live Tripadvisor' : 'Live Tripadvisor')
+                  : (isRo ? 'Selecție locală' : 'Local picks')}
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {trip.aiContent.topAttractions.map((a, i) => (
-                  <div key={i} className="rounded-lg border border-border-default p-3">
-                    <p className="text-body font-semibold text-text-primary">{a.name}</p>
-                    <p className="text-xs uppercase tracking-wide text-text-muted mt-0.5">
-                      {a.category}
-                    </p>
-                    <p className="mt-1 text-body-sm text-text-secondary">{a.description}</p>
-                  </div>
-                ))}
+                {liveAttractions.length > 0
+                  ? liveAttractions.slice(0, 8).map((a) => (
+                      <div key={a.id} className="rounded-lg border border-border-default overflow-hidden bg-background">
+                        {a.thumbnail && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={a.thumbnail} alt={a.name} className="h-32 w-full object-cover" loading="lazy" />
+                        )}
+                        <div className="p-3">
+                          <p className="text-body font-semibold text-text-primary">{a.name}</p>
+                          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
+                            {typeof a.rating === 'number' && (
+                              <span className="inline-flex items-center gap-0.5">
+                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                                {a.rating.toFixed(1)}
+                              </span>
+                            )}
+                            {a.category && <span>{a.category}</span>}
+                          </div>
+                          {a.description && (
+                            <p className="mt-1 text-body-sm text-text-secondary line-clamp-2">{a.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  : trip.aiContent!.topAttractions.map((a, i) => (
+                      <div key={i} className="rounded-lg border border-border-default p-3">
+                        <p className="text-body font-semibold text-text-primary">{a.name}</p>
+                        <p className="text-xs uppercase tracking-wide text-text-muted mt-0.5">{a.category}</p>
+                        <p className="mt-1 text-body-sm text-text-secondary">{a.description}</p>
+                      </div>
+                    ))}
               </div>
             </section>
           )}
 
-          {/* Restaurants */}
-          {trip.aiContent?.topRestaurants && trip.aiContent.topRestaurants.length > 0 && (
+          {/* Restaurants — live first, AI/CITY_DATA fallback */}
+          {(liveRestaurants.length > 0 ||
+            (trip.aiContent?.topRestaurants && trip.aiContent.topRestaurants.length > 0)) && (
             <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary flex items-center gap-2">
+              <h2 className="mb-1 text-h3 text-text-primary flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-emerald-500" />
-                {isRo ? 'Restaurante' : 'Restaurants'}
+                {isRo ? `Restaurante în ${trip.destinationCity}` : `Restaurants in ${trip.destinationCity}`}
               </h2>
+              <p className="mb-4 text-xs text-text-muted">
+                {liveRestaurants.length > 0
+                  ? (isRo ? 'Live Tripadvisor' : 'Live Tripadvisor')
+                  : (isRo ? 'Selecție locală' : 'Local picks')}
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {trip.aiContent.topRestaurants.map((r, i) => (
-                  <div key={i} className="rounded-lg border border-border-default p-3">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <p className="text-body font-semibold text-text-primary">{r.name}</p>
-                      <span className="text-xs text-text-muted">{r.priceRange}</span>
-                    </div>
-                    <p className="text-xs text-text-muted">{r.cuisine}</p>
-                    <p className="mt-1 text-body-sm text-text-secondary">{r.description}</p>
-                  </div>
-                ))}
+                {liveRestaurants.length > 0
+                  ? liveRestaurants.slice(0, 8).map((r) => (
+                      <div key={r.id} className="rounded-lg border border-border-default overflow-hidden bg-background">
+                        {r.thumbnail && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={r.thumbnail} alt={r.name} className="h-32 w-full object-cover" loading="lazy" />
+                        )}
+                        <div className="p-3">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <p className="text-body font-semibold text-text-primary line-clamp-1">{r.name}</p>
+                            {r.priceRange && <span className="text-xs text-text-muted">{r.priceRange}</span>}
+                          </div>
+                          {r.cuisine && <p className="text-xs text-text-muted line-clamp-1">{r.cuisine}</p>}
+                          {r.description && (
+                            <p className="mt-1 text-body-sm text-text-secondary line-clamp-2">{r.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  : trip.aiContent!.topRestaurants.map((r, i) => (
+                      <div key={i} className="rounded-lg border border-border-default p-3">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-body font-semibold text-text-primary">{r.name}</p>
+                          <span className="text-xs text-text-muted">{r.priceRange}</span>
+                        </div>
+                        <p className="text-xs text-text-muted">{r.cuisine}</p>
+                        <p className="mt-1 text-body-sm text-text-secondary">{r.description}</p>
+                      </div>
+                    ))}
               </div>
             </section>
           )}
@@ -377,7 +534,7 @@ export default function RoadTripDetailView({ trip }: Props) {
             )}
           </section>
 
-          {/* Destination hotel */}
+          {/* Destination hotel + browse-all button */}
           {trip.hotelDestination && (
             <HotelMiniCard
               hotel={trip.hotelDestination}
@@ -386,6 +543,23 @@ export default function RoadTripDetailView({ trip }: Props) {
               isRo={isRo}
             />
           )}
+          <Link
+            href={buildHotelSearchHref({
+              locale,
+              tripId: trip.id,
+              cityQuery: trip.destinationCountry
+                ? `${trip.destinationCity}, ${trip.destinationCountry}`
+                : trip.destinationCity,
+              cityName: trip.destinationCity,
+              checkIn: destinationCheckIn,
+              checkOut: destinationCheckOut,
+              adults: trip.adults,
+            })}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md"
+          >
+            <HotelIcon className="h-4 w-4" />
+            {isRo ? `Vezi toate hotelurile în ${trip.destinationCity}` : `View all hotels in ${trip.destinationCity}`}
+          </Link>
         </aside>
       </div>
     </div>

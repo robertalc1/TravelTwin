@@ -12,13 +12,17 @@ function HotelsSearchContent() {
   const isRo = locale === "ro";
   const search = useSearchParams();
   const cityCode = (search.get("cityCode") || "").toUpperCase();
-  const cityName = search.get("cityName") || cityCode;
+  const cityQuery = (search.get("cityQuery") || "").trim();
+  const cityName =
+    search.get("cityName") ||
+    cityCode ||
+    (cityQuery ? cityQuery.split(",")[0].trim() : "");
   const checkIn = search.get("checkIn") || "";
   const checkOut = search.get("checkOut") || "";
   const adults = search.get("adults") || "2";
   const tripId = search.get("tripId") || "";
 
-  const datesMissing = !cityCode || !checkIn || !checkOut;
+  const datesMissing = (!cityCode && !cityQuery) || !checkIn || !checkOut;
   const [hotels, setHotels] = useState<HotelOfferData[]>([]);
   const [loading, setLoading] = useState(!datesMissing);
   const [warning, setWarning] = useState<string | null>(
@@ -38,7 +42,9 @@ function HotelsSearchContent() {
   useEffect(() => {
     if (datesMissing) return;
     let cancelled = false;
-    const qs = new URLSearchParams({ cityCode, checkIn, checkOut, adults });
+    const qs = new URLSearchParams({ checkIn, checkOut, adults });
+    if (cityCode) qs.set("cityCode", cityCode);
+    else if (cityQuery) qs.set("cityQuery", cityQuery);
     fetch(`/api/hotels/search?${qs.toString()}`)
       .then((r) => r.json())
       .then(
@@ -61,7 +67,7 @@ function HotelsSearchContent() {
     return () => {
       cancelled = true;
     };
-  }, [cityCode, checkIn, checkOut, adults, datesMissing]);
+  }, [cityCode, cityQuery, checkIn, checkOut, adults, datesMissing, isRo]);
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 1;

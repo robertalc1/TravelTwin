@@ -10,6 +10,8 @@
 import { NextResponse } from 'next/server';
 import {
   searchHotelsByCity,
+  searchHotelsByGeoId,
+  getGeoIdByQuery,
   type TAHotel,
 } from '@/lib/tripadvisor-client';
 import { normalizeHotel } from '@/lib/tripadvisor-normalize';
@@ -96,18 +98,27 @@ function toOfferData(
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const cityCode = searchParams.get('cityCode')?.toUpperCase();
+  const cityQuery = searchParams.get('cityQuery')?.trim();
   const checkIn = searchParams.get('checkIn');
   const checkOut = searchParams.get('checkOut');
   const adults = searchParams.get('adults') || '2';
 
-  if (!cityCode || !checkIn || !checkOut) {
+  if ((!cityCode && !cityQuery) || !checkIn || !checkOut) {
     return NextResponse.json(
-      { error: 'cityCode, checkIn, checkOut are required' },
+      { error: 'Either cityCode or cityQuery, plus checkIn + checkOut, are required' },
       { status: 400 },
     );
   }
 
-  const cacheKey = `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`;
+  // Synthetic code used purely for the HotelOfferData.hotel.cityCode field —
+  // when we look up by free-text query (e.g. "Lyon, France") there's no
+  // IATA. Derive a stable token from the query so cache keys + hotel cards
+  // still carry an identifier.
+  const effectiveCityCode = cityCode || `Q:${(cityQuery || '').toLowerCase()}`;
+  const cacheKey = cityCode
+    ? `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`
+    : `hotelsSearch:v2:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
+
   const cached = await getCached(cacheKey);
   if (cached) {
     return NextResponse.json({
@@ -131,16 +142,37 @@ export async function GET(req: Request) {
 
   try {
     recordRapidApiCall();
-    const rawHotels = await searchHotelsByCity({
-      cityCode,
-      checkIn,
-      checkOut,
-      adults,
-      rooms: '1',
-    });
+    let rawHotels: TAHotel[];
+    if (cityCode) {
+      rawHotels = await searchHotelsByCity({
+        cityCode,
+        checkIn,
+        checkOut,
+        adults,
+        rooms: '1',
+      });
+    } else {
+      // Free-text query path — used by /road-trip for stops with no IATA.
+      const geoId = await getGeoIdByQuery(cityQuery as string);
+      if (!geoId) {
+        return NextResponse.json({
+          hotels: [],
+          source: 'live',
+          count: 0,
+          warning: `Tripadvisor doesn't index "${cityQuery}". Try a nearby larger city.`,
+        });
+      }
+      rawHotels = await searchHotelsByGeoId({
+        geoId,
+        checkIn,
+        checkOut,
+        adults,
+        rooms: '1',
+      });
+    }
 
     const hotels = rawHotels
-      .map((h) => toOfferData(h, cityCode, checkIn, checkOut))
+      .map((h) => toOfferData(h, effectiveCityCode, checkIn, checkOut))
       .filter((o): o is HotelOfferData => o !== null);
 
     if (hotels.length === 0) {
@@ -148,7 +180,7 @@ export async function GET(req: Request) {
         hotels: [],
         source: 'live',
         count: 0,
-        warning: `No hotels available in ${cityCode} for the selected dates.`,
+        warning: `No hotels available in ${cityQuery || cityCode} for the selected dates.`,
       });
     }
 
