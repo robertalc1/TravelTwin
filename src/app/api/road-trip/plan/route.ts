@@ -305,15 +305,9 @@ export async function POST(req: NextRequest) {
         stopoverCity: stopovers[0]?.city,
         originCity: shortCityName(origin),
       }) as RoadTripAiContent;
-      // Soften the warning when the key is simply missing — no longer
-      // alarmist, just informative. The page works fine without Claude.
-      if (!process.env.ANTHROPIC_API_KEY) {
-        warnings.push(
-          locale === 'ro'
-            ? 'Itinerariu generat din cunoștințe locale (cheia Anthropic lipsește pe acest deploy).'
-            : 'Itinerary generated from local knowledge (Anthropic key missing on this deploy).',
-        );
-      }
+      // No user-facing warning when the AI key is missing — the local
+      // fallback content is good enough, and the deploy-config detail
+      // is internal noise from the user's perspective.
     }
 
     const id = `rt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;

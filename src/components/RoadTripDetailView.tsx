@@ -15,8 +15,6 @@ import {
   ExternalLink,
   Hotel as HotelIcon,
   Star,
-  AlertCircle,
-  Sparkles,
   Camera,
   Utensils,
   Coffee,
@@ -28,6 +26,8 @@ import {
 import Link from 'next/link';
 import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/lib/roadTrip';
 import type { RoadTripData } from '@/lib/roadTrip';
+import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
+import AttractionPhotos from '@/components/AttractionPhotos';
 
 interface LiveAttraction {
   id: string;
@@ -153,7 +153,7 @@ export default function RoadTripDetailView({ trip }: Props) {
 
       {/* ── Hero ── */}
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8">
-        <div className="relative h-56 sm:h-72 md:h-[420px] rounded-2xl sm:rounded-3xl overflow-hidden">
+        <div className="relative h-56 sm:h-72 md:h-[420px] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-900 shadow-lg">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={heroUrl} alt={trip.destinationCity} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent pointer-events-none" />
@@ -175,7 +175,35 @@ export default function RoadTripDetailView({ trip }: Props) {
               {trip.adults} {isRo ? 'călători' : 'travelers'}
             </p>
           </div>
+
+          {/* Weather strip overlay (desktop only) — matches the flight detail page. */}
+          {trip.departureDate && trip.destination.lat && trip.destination.lng && (
+            <div className="hidden sm:block absolute bottom-4 right-4 max-w-[min(60%,560px)]">
+              <HeroWeatherStrip
+                lat={trip.destination.lat}
+                lon={trip.destination.lng}
+                startDate={trip.departureDate}
+                endDate={trip.returnDate || trip.departureDate}
+                cityName={trip.destinationCity}
+                variant="overlay"
+              />
+            </div>
+          )}
         </div>
+
+        {/* Mobile inline weather strip — sits under the hero so the photo stays clean. */}
+        {trip.departureDate && trip.destination.lat && trip.destination.lng && (
+          <div className="sm:hidden mt-3">
+            <HeroWeatherStrip
+              lat={trip.destination.lat}
+              lon={trip.destination.lng}
+              startDate={trip.departureDate}
+              endDate={trip.returnDate || trip.departureDate}
+              cityName={trip.destinationCity}
+              variant="inline"
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Stats strip ── */}
@@ -202,20 +230,6 @@ export default function RoadTripDetailView({ trip }: Props) {
       <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── Main column ── */}
         <div className="lg:col-span-2 space-y-6">
-          {trip.warnings.length > 0 && (
-            <div className="rounded-radius-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-900/40 p-4">
-              <p className="mb-2 text-body-sm font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                {isRo ? 'Note despre rezultate' : 'Notes about the results'}
-              </p>
-              <ul className="space-y-1 text-body-sm text-amber-700 dark:text-amber-200">
-                {trip.warnings.map((w, i) => (
-                  <li key={i}>• {w}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* Route teaser → links to /map */}
           <RoadTripRouteTeaser
             originCity={originCity}
@@ -325,78 +339,77 @@ export default function RoadTripDetailView({ trip }: Props) {
             </section>
           )}
 
-          {/* Day-by-day */}
+          {/* Day-by-day — gradient bar header to match flight detail */}
           {trip.aiContent && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary">
-                {isRo ? 'Itinerariu zi cu zi' : 'Day-by-day plan'}
+            <section>
+              <h2 className="text-xl font-bold text-secondary-500 dark:text-white mb-6">
+                {isRo ? 'Itinerariu zi cu zi' : 'Day-by-Day Plan'}
               </h2>
               <div className="space-y-4">
                 {trip.aiContent.dayByDay.map((d) => (
-                  <article key={d.day} className="rounded-lg border border-border-default p-4">
-                    <header className="mb-3 flex items-center gap-2">
-                      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
-                        {d.day}
-                      </span>
-                      <h3 className="text-body font-semibold text-text-primary">{d.title}</h3>
-                    </header>
-                    <div className="space-y-2 text-body-sm">
-                      <DaySlot icon={<Sun className="h-4 w-4 text-amber-500" />} label={isRo ? 'Dimineață' : 'Morning'} slot={d.morning} />
-                      <DaySlot icon={<Sun className="h-4 w-4 text-orange-500" />} label={isRo ? 'După-amiază' : 'Afternoon'} slot={d.afternoon} />
-                      <DaySlot icon={<Moon className="h-4 w-4 text-indigo-500" />} label={isRo ? 'Seara' : 'Evening'} slot={d.evening} />
+                  <div
+                    key={d.day}
+                    className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden"
+                  >
+                    <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-3">
+                      <h3 className="font-bold text-white">
+                        {isRo ? `Ziua ${d.day}` : `Day ${d.day}`}: {d.title}
+                      </h3>
                     </div>
-                  </article>
+                    <div className="divide-y divide-neutral-100 dark:divide-border-default">
+                      {[
+                        { label: isRo ? 'Dimineață' : 'Morning', Icon: Coffee, slot: d.morning },
+                        { label: isRo ? 'După-amiază' : 'Afternoon', Icon: Sun, slot: d.afternoon },
+                        { label: isRo ? 'Seara' : 'Evening', Icon: Moon, slot: d.evening },
+                      ].map(({ label, Icon: TimeIcon, slot }) => (
+                        <div
+                          key={label}
+                          className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4"
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
+                            <TimeIcon className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">
+                              {label}
+                            </p>
+                            <p className="font-semibold text-secondary-500 dark:text-white text-sm">
+                              {slot.activity}
+                            </p>
+                            <p className="text-xs text-text-secondary mt-0.5">{slot.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </section>
           )}
 
-          {/* Top attractions — live Tripadvisor first, AI/CITY_DATA fallback */}
+          {/* Top attractions — photo grid identical to flight detail page */}
           {(liveAttractions.length > 0 ||
             (trip.aiContent?.topAttractions && trip.aiContent.topAttractions.length > 0)) && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-1 text-h3 text-text-primary flex items-center gap-2">
-                <Camera className="h-5 w-5 text-emerald-500" />
-                {isRo ? `Atracții în ${trip.destinationCity}` : `Top attractions in ${trip.destinationCity}`}
-              </h2>
-              <p className="mb-4 text-xs text-text-muted">
-                {liveAttractions.length > 0
-                  ? (isRo ? 'Live Tripadvisor' : 'Live Tripadvisor')
-                  : (isRo ? 'Selecție locală' : 'Local picks')}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {liveAttractions.length > 0
-                  ? liveAttractions.slice(0, 8).map((a) => (
-                      <div key={a.id} className="rounded-lg border border-border-default overflow-hidden bg-background">
-                        {a.thumbnail && (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={a.thumbnail} alt={a.name} className="h-32 w-full object-cover" loading="lazy" />
-                        )}
-                        <div className="p-3">
-                          <p className="text-body font-semibold text-text-primary">{a.name}</p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-text-muted">
-                            {typeof a.rating === 'number' && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                                {a.rating.toFixed(1)}
-                              </span>
-                            )}
-                            {a.category && <span>{a.category}</span>}
-                          </div>
-                          {a.description && (
-                            <p className="mt-1 text-body-sm text-text-secondary line-clamp-2">{a.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  : trip.aiContent!.topAttractions.map((a, i) => (
-                      <div key={i} className="rounded-lg border border-border-default p-3">
-                        <p className="text-body font-semibold text-text-primary">{a.name}</p>
-                        <p className="text-xs uppercase tracking-wide text-text-muted mt-0.5">{a.category}</p>
-                        <p className="mt-1 text-body-sm text-text-secondary">{a.description}</p>
-                      </div>
-                    ))}
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="h-2.5 w-2.5 rounded-full bg-orange-500 shrink-0" />
+                <span className="text-sm font-bold text-text-secondary uppercase tracking-wider">
+                  {isRo ? `Atracții în ${trip.destinationCity}` : `Top Attractions`}
+                </span>
               </div>
+              <AttractionPhotos
+                names={
+                  liveAttractions.length > 0
+                    ? liveAttractions.slice(0, 6).map((a) => a.name)
+                    : trip.aiContent!.topAttractions.slice(0, 6).map((a) => a.name)
+                }
+                city={trip.destinationCity}
+                descriptions={Object.fromEntries(
+                  liveAttractions.length > 0
+                    ? liveAttractions.map((a) => [a.name, a.description || a.category || ''])
+                    : trip.aiContent!.topAttractions.map((a) => [a.name, a.description]),
+                )}
+              />
             </section>
           )}
 
@@ -483,6 +496,74 @@ export default function RoadTripDetailView({ trip }: Props) {
               </ul>
             </section>
           )}
+
+          {/* Cost Breakdown — main-column section identical in shape to flight detail */}
+          <section>
+            <h2 className="text-xl font-bold text-secondary-500 dark:text-white mb-4">
+              {isRo ? 'Detalii cost' : 'Cost Breakdown'}
+            </h2>
+            <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+              <div className="divide-y divide-neutral-100 dark:divide-border-default">
+                {trip.mode === 'car' ? (
+                  <>
+                    <CostRow
+                      icon={<Car className="h-4 w-4" />}
+                      label={isRo ? 'Combustibil' : 'Fuel'}
+                      value={`€${trip.cost.fuel}`}
+                    />
+                    <CostRow
+                      icon={<RouteIcon className="h-4 w-4" />}
+                      label={isRo ? 'Taxe drum (est.)' : 'Tolls (est.)'}
+                      value={`€${trip.cost.tolls}`}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <CostRow
+                      icon={<Bus className="h-4 w-4" />}
+                      label={isRo ? 'Bilet / persoană' : 'Fare / person'}
+                      value={`€${trip.cost.busFarePerPerson}`}
+                    />
+                    <CostRow
+                      icon={<Bus className="h-4 w-4" />}
+                      label={isRo ? `× ${trip.adults} pasageri` : `× ${trip.adults} passengers`}
+                      value={`€${trip.cost.busFarePerPerson * trip.adults}`}
+                    />
+                  </>
+                )}
+                {trip.hotelDestination?.priceForDisplay && (
+                  <CostRow
+                    icon={<HotelIcon className="h-4 w-4" />}
+                    label={
+                      isRo
+                        ? `Cazare în ${trip.destinationCity}`
+                        : `Stay in ${trip.destinationCity}`
+                    }
+                    value={trip.hotelDestination.priceForDisplay}
+                  />
+                )}
+                {trip.stopovers.length > 0 && (
+                  <CostRow
+                    icon={<HotelIcon className="h-4 w-4" />}
+                    label={
+                      isRo
+                        ? `${trip.stopovers.length} popas${trip.stopovers.length === 1 ? '' : 'uri'} peste noapte`
+                        : `${trip.stopovers.length} overnight stop${trip.stopovers.length === 1 ? '' : 's'}`
+                    }
+                    value={isRo ? 'Vezi card-uri' : 'See cards'}
+                  />
+                )}
+                <div className="flex items-center justify-between px-5 py-4 bg-neutral-50 dark:bg-surface-elevated">
+                  <span className="font-bold text-text-primary">
+                    {isRo ? 'Total estimat' : 'Quote total'}
+                  </span>
+                  <span className="font-extrabold text-lg text-emerald-600 dark:text-emerald-400">
+                    €{trip.cost.total}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* ── Sidebar ── */}
@@ -593,24 +674,22 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DaySlot({
+function CostRow({
   icon,
   label,
-  slot,
+  value,
 }: {
   icon: React.ReactNode;
   label: string;
-  slot: { activity: string; description: string; type: string };
+  value: string;
 }) {
   return (
-    <div className="flex gap-2">
-      <span className="mt-0.5 shrink-0">{icon}</span>
-      <div className="min-w-0">
-        <p className="text-text-primary">
-          <span className="font-semibold">{label}:</span> {slot.activity}
-        </p>
-        <p className="text-text-secondary text-xs">{slot.description}</p>
-      </div>
+    <div className="flex items-center justify-between px-5 py-3.5 text-sm">
+      <span className="flex items-center gap-2 text-text-secondary">
+        {icon}
+        {label}
+      </span>
+      <span className="font-semibold text-text-primary">{value}</span>
     </div>
   );
 }

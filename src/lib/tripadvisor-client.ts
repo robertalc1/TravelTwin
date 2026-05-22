@@ -422,25 +422,59 @@ export async function getFlightFilters(p: {
  * Resolve a free-form city query (e.g. "Sofia, Bulgaria" from Google
  * geocoding) to a Tripadvisor geoId. Used by /road-trip where we don't
  * have an IATA code to start from.
+ *
+ * Strategy: try the full query first; if no items match the country
+ * hint or no items at all, fall back to a bare city name lookup. We
+ * also prefer entries whose title/name starts with the city part —
+ * Tripadvisor sometimes returns provinces or hotels above the city
+ * itself in the result list.
  */
 export async function getGeoIdByQuery(query: string): Promise<number | null> {
   const trimmed = query.trim();
   if (!trimmed) return null;
-  const cacheKey = `geoIdQuery:v1:${trimmed.toLowerCase()}`;
+  const cacheKey = `geoIdQuery:v2:${trimmed.toLowerCase()}`;
   const cached = await getCached(cacheKey);
   if (cached && typeof cached.data === 'number') return cached.data;
 
-  const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query: trimmed });
-  if (!isRecord(raw)) return null;
-  const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
-  const first = items[0];
-  if (!first) return null;
-  const gid = first.geoId;
-  const numeric =
-    typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  await setCache(cacheKey, numeric, 60 * 24 * 30);
-  return numeric;
+  const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean);
+  const cityPart = parts[0] || trimmed;
+  const countryPart = parts.length > 1 ? parts[parts.length - 1] : '';
+  const countryLower = countryPart.toLowerCase();
+  const cityLower = cityPart.toLowerCase();
+
+  const queriesToTry: string[] = [trimmed];
+  if (cityPart && cityPart !== trimmed) queriesToTry.push(cityPart);
+
+  let geoId: number | null = null;
+  for (const q of queriesToTry) {
+    const raw = await tripadvisorFetch<unknown>('/api/v1/hotels/searchLocation', { query: q });
+    if (!isRecord(raw)) continue;
+    const items = asArray((raw as Record<string, unknown>).data).filter(isRecord);
+    if (items.length === 0) continue;
+
+    // Score each item: country match in secondaryText > city match in title.
+    const scored = items.map((it) => {
+      const title = asString(it.title).toLowerCase();
+      const secondary = asString(it.secondaryText).toLowerCase();
+      const cityMatch = title.startsWith(cityLower) || title.includes(cityLower) ? 1 : 0;
+      const countryMatch = countryLower && secondary.includes(countryLower) ? 2 : 0;
+      return { it, score: cityMatch + countryMatch };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0]?.it;
+    if (!best) continue;
+
+    const gid = best.geoId;
+    const numeric =
+      typeof gid === 'number' ? gid : typeof gid === 'string' ? parseInt(gid, 10) : NaN;
+    if (!Number.isFinite(numeric) || numeric <= 0) continue;
+    geoId = numeric;
+    break;
+  }
+
+  if (geoId === null) return null;
+  await setCache(cacheKey, geoId, 60 * 24 * 30);
+  return geoId;
 }
 
 export async function searchHotelsByGeoId(p: {
