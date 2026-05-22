@@ -80,7 +80,13 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;
-  const attractions = (ai?.topAttractions ?? []).slice(0, 4);
+  // Route iframe + numbered timeline are capped at 4 — Google Maps Embed
+  // multi-waypoint directions don't render a sane polyline beyond that.
+  const routeAttractions = (ai?.topAttractions ?? []).slice(0, 4);
+  // "Things to do" sidebar list mirrors the trip detail page's TOP ATTRACTIONS
+  // grid — same full list so the two stay in sync (no more "trip page shows
+  // 5, map sidebar shows 4" mismatch).
+  const allAttractions = ai?.topAttractions ?? [];
   const cafes = ai?.topCafes ?? [];
 
   // Live restaurants from Tripadvisor — fetched lazily on mount, falls back
@@ -137,7 +143,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
     originCity: trip.destinationCity,
     originCode: trip.destinationCode,
     destinationCity: trip.destinationCity,
-    attractions,
+    attractions: routeAttractions,
     max: 4,
     hotel: hotelForRoute,
   });
@@ -198,7 +204,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
     : destAirportLabel;
   const transitDestinationQuery = focusedPlace
     || (selectedHotel ? `${selectedHotel.hotel.name}, ${trip.destinationCity}` : null)
-    || (attractions[0] ? `${attractions[0].name}, ${trip.destinationCity}` : null)
+    || (routeAttractions[0] ? `${routeAttractions[0].name}, ${trip.destinationCity}` : null)
     || (trip.destinationLat && trip.destinationLon
         ? `${trip.destinationLat},${trip.destinationLon}`
         : `${trip.destinationCity}, ${trip.destinationCountry}`);
@@ -208,7 +214,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
   // available, so the label can stay descriptive.
   const transitLabelName = focusedPlace?.split(',')[0]
     || selectedHotel?.hotel.name
-    || attractions[0]?.name
+    || routeAttractions[0]?.name
     || trip.destinationCity;
 
   // Lock body scroll on desktop where the layout is full-height.
@@ -446,9 +452,9 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                   </li>
                 )}
 
-                {attractions.map((a, i) => {
+                {routeAttractions.map((a, i) => {
                   const isFocused = focusedPlace?.startsWith(a.name + ',');
-                  const isLast = i === attractions.length - 1;
+                  const isLast = i === routeAttractions.length - 1;
                   // The last stop is the route endpoint — render it as a
                   // filled orange marker so the user can spot the
                   // destination at a glance among the otherwise outlined
@@ -486,7 +492,7 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
                   );
                 })}
               </ol>
-              {attractions.length === 0 && (
+              {routeAttractions.length === 0 && (
                 <p className="text-xs text-text-muted">
                   {tMap('noAttractions')}
                 </p>
@@ -562,14 +568,15 @@ export default function RouteMapView({ trip, originCity, originCode, initialFocu
               </section>
             )}
 
-            {/* All attractions deeper view */}
-            {attractions.length > 0 && (
+            {/* All attractions deeper view — full list, matches the TOP
+                ATTRACTIONS grid on the trip detail page. */}
+            {allAttractions.length > 0 && (
               <section>
                 <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3 flex items-center gap-2">
                   <Compass className="h-3.5 w-3.5" /> {tMap('thingsToDo')}
                 </h2>
                 <ul className="space-y-1.5">
-                  {attractions.map((a) => (
+                  {allAttractions.map((a) => (
                     <PlaceItem
                       key={a.name}
                       name={a.name}
