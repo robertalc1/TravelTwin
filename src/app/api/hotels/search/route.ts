@@ -92,9 +92,12 @@ function toOfferData(
   cityCode: string,
   checkIn: string,
   checkOut: string,
-): HotelOfferData | null {
+): HotelOfferData {
   const norm = normalizeHotel(h, cityCode, checkIn, checkOut);
-  if (norm.totalPrice <= 0) return null;
+  // Tripadvisor periodically drops live pricing for valid hotels (longer stays,
+  // far-future dates). We still render those cards so the user can browse
+  // properties and click through to detail; HotelCard shows "—" when
+  // pricePerNight is 0 instead of a misleading €0.
 
   const photos = (h.cardPhotos || [])
     .map((p) => ({ uri: expandPhotoUrl(p.sizes?.urlTemplate) }))
@@ -235,9 +238,9 @@ export async function GET(req: Request) {
       }
     }
 
-    const hotels = rawHotels
-      .map((h) => toOfferData(h, effectiveCityCode, checkIn, checkOut))
-      .filter((o): o is HotelOfferData => o !== null);
+    const hotels = rawHotels.map((h) =>
+      toOfferData(h, effectiveCityCode, checkIn, checkOut),
+    );
 
     if (hotels.length === 0) {
       return NextResponse.json({
