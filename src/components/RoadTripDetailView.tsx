@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -24,6 +24,8 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  EyeOff,
+  RotateCcw,
   Cloud,
   CloudSun,
   CloudFog,
@@ -130,6 +132,57 @@ export default function RoadTripDetailView({ trip }: Props) {
   const heroUrl = resolveRoadTripHero(trip);
   const originCity = trip.origin.formatted.split(',')[0]?.trim() || trip.origin.formatted;
   const Icon = trip.mode === 'car' ? Car : trip.mode === 'train' ? TrainFront : Bus;
+
+  // Per-trip persisted set of stopover orders the user has opted out of.
+  // Skipping is client-only — the route stays the same length, only the
+  // overnight stop is dropped (no hotel, no per-stop weather/restaurants
+  // displayed). Saved in sessionStorage so a refresh keeps the user's edits.
+  const excludedStorageKey = `roadTrip_${trip.id}_excludedStops`;
+  const [excludedStops, setExcludedStops] = useState<Set<number>>(() => new Set());
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = sessionStorage.getItem(excludedStorageKey);
+      if (raw) {
+        const arr = JSON.parse(raw) as number[];
+        if (Array.isArray(arr)) setExcludedStops(new Set(arr));
+      }
+    } catch { /* ignore corrupt storage */ }
+  }, [excludedStorageKey]);
+  const persistExcluded = useCallback(
+    (next: Set<number>) => {
+      setExcludedStops(next);
+      try {
+        sessionStorage.setItem(excludedStorageKey, JSON.stringify([...next]));
+      } catch { /* quota — non-fatal */ }
+    },
+    [excludedStorageKey],
+  );
+  const toggleStop = useCallback(
+    (order: number) => {
+      const next = new Set(excludedStops);
+      if (next.has(order)) next.delete(order);
+      else next.add(order);
+      persistExcluded(next);
+    },
+    [excludedStops, persistExcluded],
+  );
+  const resetStops = useCallback(() => persistExcluded(new Set()), [persistExcluded]);
+
+  // Pull a numeric value out of Tripadvisor's `priceForDisplay` ("$120" /
+  // "€95"). Used to compute "you save" when the user skips a stopover —
+  // not for charging; if the string can't be parsed we fall back to €60
+  // (mid-range European nightly rate) so we still show *something* useful.
+  const estimateHotelEUR = (priceForDisplay?: string): number => {
+    if (!priceForDisplay) return 60;
+    const m = priceForDisplay.replace(/,/g, '').match(/(\d+(?:\.\d+)?)/);
+    return m ? Math.round(Number(m[1])) : 60;
+  };
+  const savings = useMemo(() => {
+    return trip.stopovers
+      .filter((s) => excludedStops.has(s.order))
+      .reduce((sum, s) => sum + estimateHotelEUR(s.hotel?.priceForDisplay), 0);
+  }, [trip.stopovers, excludedStops]);
   const modeLabel =
     trip.mode === 'car'
       ? (isRo ? 'Cu mașina' : 'By car')
@@ -299,17 +352,36 @@ export default function RoadTripDetailView({ trip }: Props) {
           {/* Stopovers section */}
           {trip.stopovers.length > 0 && (
             <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary flex items-center gap-2">
-                <HotelIcon className="h-5 w-5 text-emerald-500" />
-                {isRo
-                  ? `Popasuri peste noapte (${trip.stopovers.length})`
-                  : `Overnight stopovers (${trip.stopovers.length})`}
-              </h2>
-              <p className="mb-4 text-body-sm text-text-secondary">
-                {isRo
-                  ? `Drumul de ${formatHours(trip.drive.durationHours)} e împărțit în ${trip.stopovers.length + 1} etape. Fiecare popas are un hotel preselectat.`
-                  : `The ${formatHours(trip.drive.durationHours)} journey is split into ${trip.stopovers.length + 1} legs. Each overnight stop has a pre-selected hotel.`}
-              </p>
+              <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <h2 className="text-h3 text-text-primary flex items-center gap-2">
+                    <HotelIcon className="h-5 w-5 text-emerald-500" />
+                    {isRo
+                      ? `Popasuri peste noapte (${trip.stopovers.length})`
+                      : `Overnight stopovers (${trip.stopovers.length})`}
+                  </h2>
+                  <p className="mt-1 text-body-sm text-text-secondary">
+                    {isRo
+                      ? `Drumul de ${formatHours(trip.drive.durationHours)} e împărțit în ${trip.stopovers.length + 1} etape. Sari peste oricare nu îți place — costul scade.`
+                      : `The ${formatHours(trip.drive.durationHours)} journey is split into ${trip.stopovers.length + 1} legs. Skip any stop you don't like — the cost drops.`}
+                  </p>
+                </div>
+                {excludedStops.size > 0 && (
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1 text-xs font-bold">
+                      {isRo ? `Economii estimate: ${money(savings)}` : `Estimated savings: ${money(savings)}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={resetStops}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-text-secondary hover:text-text-primary"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      {isRo ? 'Resetează' : 'Reset stops'}
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {trip.stopovers.map((s) => {
                   const photo = hotelPhotoUrl(s.hotel, 320, 180);
@@ -329,23 +401,69 @@ export default function RoadTripDetailView({ trip }: Props) {
                     adults: trip.adults,
                     stopoverOrder: s.order,
                   });
+                  const isSkipped = excludedStops.has(s.order);
                   return (
                     <div
                       key={s.order}
-                      className="rounded-lg border border-border-default overflow-hidden bg-background flex flex-col"
+                      className={`rounded-lg border overflow-hidden bg-background flex flex-col transition-opacity ${
+                        isSkipped
+                          ? 'border-dashed border-border-default opacity-50'
+                          : 'border-border-default'
+                      }`}
                     >
-                      {photo ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={photo} alt={s.hotel?.title || s.city} className="h-32 w-full object-cover" />
-                      ) : (
-                        <div className="h-32 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20" />
-                      )}
+                      <div className="relative">
+                        {photo ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={photo}
+                            alt={s.hotel?.title || s.city}
+                            className={`h-32 w-full object-cover ${isSkipped ? 'grayscale' : ''}`}
+                          />
+                        ) : (
+                          <div className="h-32 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleStop(s.order)}
+                          className={`absolute top-2 right-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow-md backdrop-blur-sm ${
+                            isSkipped
+                              ? 'bg-emerald-500/95 text-white hover:bg-emerald-600/95'
+                              : 'bg-white/95 dark:bg-surface/95 text-text-primary hover:bg-white dark:hover:bg-surface'
+                          }`}
+                          aria-label={isSkipped ? 'Restore stop' : 'Skip stop'}
+                        >
+                          {isSkipped ? (
+                            <>
+                              <RotateCcw className="h-3 w-3" />
+                              {isRo ? 'Adaugă înapoi' : 'Restore'}
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="h-3 w-3" />
+                              {isRo ? 'Sari peste' : 'Skip stop'}
+                            </>
+                          )}
+                        </button>
+                        {isSkipped && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="rounded-full bg-emerald-500 text-white text-[11px] font-bold uppercase tracking-wide px-3 py-1 shadow-md">
+                              {isRo ? 'Sărit' : 'Skipped'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                       <div className="p-3 flex flex-col flex-1">
                         <p className="text-xs uppercase tracking-wide text-text-muted">
                           {isRo ? `Noaptea ${s.order}` : `Night ${s.order}`} ·{' '}
                           {Math.round(s.arrivalHourFromStart)}h
                         </p>
-                        <p className="text-body font-semibold text-text-primary line-clamp-1">{s.city}</p>
+                        <p
+                          className={`text-body font-semibold line-clamp-1 ${
+                            isSkipped ? 'text-text-muted line-through' : 'text-text-primary'
+                          }`}
+                        >
+                          {s.city}
+                        </p>
                         {s.hotel ? (
                           <>
                             <p className="text-body-sm text-text-secondary line-clamp-1">
@@ -385,11 +503,19 @@ export default function RoadTripDetailView({ trip }: Props) {
                           </>
                         )}
 
-                        {s.weather && (
+                        {isSkipped && (
+                          <p className="mt-2 text-xs text-text-muted italic">
+                            {isRo
+                              ? 'Continui drumul fără cazare în această noapte.'
+                              : 'Drive through — no overnight stay here.'}
+                          </p>
+                        )}
+
+                        {!isSkipped && s.weather && (
                           <StopoverWeatherChip weather={s.weather} isRo={isRo} />
                         )}
 
-                        {s.restaurants && s.restaurants.length > 0 && (
+                        {!isSkipped && s.restaurants && s.restaurants.length > 0 && (
                           <div className="mt-3 border-t border-border-default pt-2">
                             <p className="text-[11px] uppercase tracking-wide font-semibold text-text-muted flex items-center gap-1">
                               <Utensils className="h-3 w-3" />
