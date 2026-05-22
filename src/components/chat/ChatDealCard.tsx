@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
-import { Heart, Plane } from "lucide-react";
+import { Plane } from "lucide-react";
 import { getCityImageByIata } from "@/lib/cityImages";
 import { resolveCoordsForCity } from "@/lib/tripDetail";
 import type { ChatDeal } from "@/app/api/chat/route";
@@ -36,7 +36,6 @@ function formatPrice(amount: number, currency: string) {
 export function ChatDealCard({ deal }: ChatDealCardProps) {
   const router = useRouter();
   const locale = useLocale();
-  const [isFavorite, setIsFavorite] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   const imageUrl = getCityImageByIata(deal.destination, deal.id);
@@ -113,20 +112,6 @@ export function ChatDealCard({ deal }: ChatDealCardProps) {
           </span>
         )}
 
-        {/* Favorite */}
-        <button
-          onClick={e => {
-            e.stopPropagation();
-            setIsFavorite(f => !f);
-          }}
-          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 backdrop-blur-sm transition-all hover:scale-110"
-        >
-          <Heart
-            className={`h-4 w-4 transition-colors ${
-              isFavorite ? "fill-red-500 text-red-500" : "text-neutral-600"
-            }`}
-          />
-        </button>
       </div>
 
       {/* Content */}

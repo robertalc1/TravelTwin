@@ -39,16 +39,17 @@ const WELCOME_RO: Message = {
   data: null,
 };
 
+// Two chips with realistic budget anchors — €200 chip is gone because the
+// live homepage deal feed clusters at €400-€700 and the AI used to return
+// "no results" on it.
 const QUICK_PROMPTS_EN = [
-  "Cheap flights from my city",
-  "Beach destinations in Europe",
-  "City breaks under €200",
+  "City breaks under €400",
+  "Beach destinations under €600",
 ];
 
 const QUICK_PROMPTS_RO = [
-  "Zboruri ieftine din orașul meu",
-  "Destinații de plajă în Europa",
-  "City break sub €200",
+  "City break sub €400",
+  "Destinații de plajă sub €600",
 ];
 
 export function ChatPanel() {

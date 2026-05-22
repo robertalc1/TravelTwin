@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
     LogOut, Heart, Loader2, Menu, Sparkles, Headphones, User,
-    ChevronLeft, ChevronRight, CalendarDays, Hotel, Car,
+    ChevronLeft, ChevronRight, CalendarDays, Hotel, Car, CarFront,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -252,6 +252,12 @@ export function Header() {
                         href={lp("/hotels")}
                         icon={<Hotel className="h-5 w-5" />}
                         label={locale === "ro" ? "Caută hoteluri" : "Search Hotels"}
+                        onClick={() => setMenuOpen(false)}
+                    />
+                    <MenuLink
+                        href={lp("/transfers")}
+                        icon={<CarFront className="h-5 w-5" />}
+                        label={t("carRentals")}
                         onClick={() => setMenuOpen(false)}
                     />
                 </nav>
