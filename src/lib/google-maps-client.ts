@@ -175,6 +175,72 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   return name;
 }
 
+/**
+ * Find the most "city-like" populated place near a coordinate pair. Used by
+ * the road-trip planner to pick a real overnight-stop city instead of an
+ * administrative area returned by raw reverse-geocoding ("Gorj County").
+ *
+ * Strategy:
+ *  1. Places Nearby Search filtered by type=locality
+ *  2. Among the results, pick the one with the most user ratings (proxy for
+ *     "biggest city in the area")
+ *  3. Fall back to reverseGeocode (administrative_area_level_1) if Places
+ *     returns nothing or fails
+ *
+ * Requires "Places API" enabled on GOOGLE_MAPS_SERVER_API_KEY.
+ */
+export async function findNearbyCity(
+  lat: number,
+  lng: number,
+  radiusMeters = 50_000,
+): Promise<string | null> {
+  const cacheKey = `gmaps:nearbyCity:v1:${lat.toFixed(2)}:${lng.toFixed(2)}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'string') return cached.data;
+
+  let key: string;
+  try {
+    key = getApiKey();
+  } catch {
+    return reverseGeocode(lat, lng);
+  }
+
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/place/nearbysearch/json');
+    url.searchParams.set('location', `${lat},${lng}`);
+    url.searchParams.set('radius', String(radiusMeters));
+    url.searchParams.set('type', 'locality');
+    url.searchParams.set('key', key);
+
+    const res = await fetchWithTimeout(url.toString());
+    if (res.ok) {
+      const body = (await res.json()) as {
+        status: string;
+        results?: Array<{
+          name?: string;
+          user_ratings_total?: number;
+          types?: string[];
+        }>;
+      };
+      if (body.status === 'OK' || body.status === 'ZERO_RESULTS') {
+        const sorted = (body.results || [])
+          .filter((r) => r.name && (r.types || []).includes('locality'))
+          .sort((a, b) => (b.user_ratings_total || 0) - (a.user_ratings_total || 0));
+        if (sorted[0]?.name) {
+          await setCache(cacheKey, sorted[0].name, GEOCODE_CACHE_TTL_MIN);
+          return sorted[0].name;
+        }
+      }
+    }
+  } catch {
+    /* Places API may not be enabled — fall through to reverseGeocode */
+  }
+
+  const fallback = await reverseGeocode(lat, lng);
+  if (fallback) await setCache(cacheKey, fallback, GEOCODE_CACHE_TTL_MIN);
+  return fallback;
+}
+
 export function midpoint(a: GeocodeResult, b: GeocodeResult): { lat: number; lng: number } {
   return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
 }

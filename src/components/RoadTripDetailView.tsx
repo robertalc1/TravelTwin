@@ -139,9 +139,12 @@ export default function RoadTripDetailView({ trip }: Props) {
           {/* Route teaser → links to /map */}
           <RoadTripRouteTeaser
             originCity={originCity}
+            originLat={trip.origin.lat}
+            originLon={trip.origin.lng}
             destinationCity={trip.destinationCity}
             destinationLat={trip.destination.lat}
             destinationLon={trip.destination.lng}
+            stopovers={trip.stopovers.map((s) => ({ lat: s.lat, lng: s.lng }))}
             mode={trip.mode}
             href={`/${locale}/road-trip/result/${trip.id}/map`}
             locale={isRo ? 'ro' : 'en'}

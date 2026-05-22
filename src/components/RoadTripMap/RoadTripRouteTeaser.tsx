@@ -3,13 +3,21 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { MapPin, Car, Bus, Navigation, Sparkles } from 'lucide-react';
-import { buildStaticPreviewUrl } from '@/components/RouteMap/buildEmbedUrl';
+import { buildStaticRouteUrl } from '@/components/RouteMap/buildEmbedUrl';
+
+interface RoutePoint {
+  lat: number;
+  lng: number;
+}
 
 interface Props {
   originCity: string;
+  originLat: number;
+  originLon: number;
   destinationCity: string;
   destinationLat: number;
   destinationLon: number;
+  stopovers?: RoutePoint[];
   mode: 'car' | 'bus';
   href: string;
   locale: 'ro' | 'en';
@@ -17,15 +25,24 @@ interface Props {
 
 export default function RoadTripRouteTeaser({
   originCity,
+  originLat,
+  originLon,
   destinationCity,
   destinationLat,
   destinationLon,
+  stopovers,
   mode,
   href,
   locale,
 }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const staticUrl = buildStaticPreviewUrl(apiKey, destinationLat, destinationLon, '1280x600');
+  const staticUrl = buildStaticRouteUrl({
+    apiKey,
+    origin: { lat: originLat, lng: originLon },
+    destination: { lat: destinationLat, lng: destinationLon },
+    waypoints: stopovers,
+    size: '1280x600',
+  });
   const Icon = mode === 'car' ? Car : Bus;
   const isRo = locale === 'ro';
 

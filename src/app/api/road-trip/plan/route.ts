@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   geocodeCity,
   getDriveQuote,
-  reverseGeocode,
+  findNearbyCity,
   type GeocodeResult,
   type DriveQuote,
 } from '@/lib/google-maps-client';
@@ -17,6 +17,7 @@ import {
   parseRoadTripAiJson,
   type RoadTripAiContent,
 } from '@/lib/road-trip-prompt';
+import { generateFallbackContent } from '@/lib/fallbackContent';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -85,13 +86,13 @@ export async function POST(req: NextRequest) {
   const anthropicPreview = anthropicKey
     ? `${anthropicKey.slice(0, 7)}...${anthropicKey.slice(-4)}`
     : '(empty)';
-  console.log(
-    `[road-trip] ANTHROPIC_API_KEY configured: ${!!anthropicKey} preview=${anthropicPreview}`,
-  );
-  console.log(
-    '[road-trip] GOOGLE_MAPS_SERVER_API_KEY configured:',
-    !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
-  );
+  console.log('[road-trip] env diagnostic:', {
+    hasAnthropic: !!anthropicKey,
+    anthropicPreview,
+    hasGoogleMaps: !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
+    nodeEnv: process.env.NODE_ENV,
+    vercelEnv: process.env.VERCEL_ENV,
+  });
   try {
     const supabase = await createClient();
     const {
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
     const busFarePerPerson = mode === 'bus' ? Math.round(distanceKm * BUS_FARE_PER_KM_EUR) : 0;
     const total = fuel + tolls + busFarePerPerson * adults;
 
-    const stopovers = await computeStopovers(durationHours, origin, destination, warnings);
+    const stopovers = await computeStopovers(durationHours, origin, destination, mode, warnings);
 
     const checkInDates = computeCheckInDates(departureDate, stopovers.length, returnDate);
 
@@ -278,10 +279,41 @@ export async function POST(req: NextRequest) {
           warnings.push(`AI itinerary generation failed: ${err.message}`);
         }
       }
-    } else {
-      warnings.push(
-        'AI itinerary unavailable — Anthropic key not configured on this deploy. The route, distance and hotels still work; only the day-by-day suggestions are missing.',
-      );
+    }
+
+    // ── Fallback path ────────────────────────────────────────────────
+    // Whenever Claude is unavailable, returns nonsense, or the key is
+    // missing entirely, we fall back to the SAME locale-aware knowledge
+    // base used by the flight planner. Attractions, restaurants and cafes
+    // are always present — the page never shows an empty body.
+    if (!aiContent) {
+      const fallbackNights = returnDate
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(returnDate).getTime() - new Date(departureDate).getTime()) /
+                86_400_000,
+            ),
+          )
+        : 3;
+      aiContent = generateFallbackContent({
+        destination: { city: destinationCity, country: destinationCountry },
+        nights: fallbackNights,
+        locale,
+        mode,
+        durationHours,
+        stopoverCity: stopovers[0]?.city,
+        originCity: shortCityName(origin),
+      }) as RoadTripAiContent;
+      // Soften the warning when the key is simply missing — no longer
+      // alarmist, just informative. The page works fine without Claude.
+      if (!process.env.ANTHROPIC_API_KEY) {
+        warnings.push(
+          locale === 'ro'
+            ? 'Itinerariu generat din cunoștințe locale (cheia Anthropic lipsește pe acest deploy).'
+            : 'Itinerary generated from local knowledge (Anthropic key missing on this deploy).',
+        );
+      }
     }
 
     const id = `rt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -340,8 +372,13 @@ async function computeStopovers(
   durationHours: number,
   origin: GeocodeResult,
   destination: GeocodeResult,
+  mode: 'car' | 'bus',
   warnings: string[],
 ): Promise<Stopover[]> {
+  // Bus passengers don't drive — long-distance buses run continuously through
+  // the night. No overnight stopovers needed even for 16h+ routes.
+  if (mode === 'bus') return [];
+  // Self-drive: a single driver can't safely cover >14h in one day.
   if (durationHours < STOPOVER_THRESHOLD_HOURS) return [];
   const count = Math.min(3, Math.floor(durationHours / HOURS_PER_STOPOVER));
   const stops: Stopover[] = [];
@@ -349,7 +386,10 @@ async function computeStopovers(
     const t = i / (count + 1);
     const lat = origin.lat + t * (destination.lat - origin.lat);
     const lng = origin.lng + t * (destination.lng - origin.lng);
-    const city = await reverseGeocode(lat, lng).catch(() => null);
+    // findNearbyCity prefers Google Places "locality" matches (real cities)
+    // over administrative areas like "Gorj County". Falls back to reverse
+    // geocode if Places API is unavailable.
+    const city = await findNearbyCity(lat, lng).catch(() => null);
     if (city) {
       stops.push({
         city,
@@ -361,7 +401,7 @@ async function computeStopovers(
       });
     } else {
       warnings.push(
-        `Could not reverse-geocode midpoint ${i} — skipping that stopover.`,
+        `Could not resolve a stopover city near midpoint ${i} — plan an overnight stop manually.`,
       );
     }
   }

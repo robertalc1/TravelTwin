@@ -45,6 +45,47 @@ export function buildPlaceEmbedUrl(apiKey: string | undefined, query: string): s
   return `https://www.google.com/maps/embed/v1/place?${params.toString()}`;
 }
 
+/** Static-map URL drawing a line between origin → waypoints → destination.
+ *  Used by the road-trip teaser so the user sees the route shape (not just
+ *  a pin on the destination).
+ *
+ *  NOTE: this draws a STRAIGHT line between each point, not the real road
+ *  polyline. For the actual on-road shape, pass a pre-encoded polyline from
+ *  the Directions API as `encodedPolyline`. */
+export function buildStaticRouteUrl(opts: {
+  apiKey: string | undefined;
+  origin: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+  waypoints?: Array<{ lat: number; lng: number }>;
+  size?: string;
+  encodedPolyline?: string;
+}): string | null {
+  if (!opts.apiKey) return null;
+  const params = new URLSearchParams({
+    size: opts.size || '1280x600',
+    scale: '2',
+    maptype: 'roadmap',
+    key: opts.apiKey,
+  });
+  if (opts.encodedPolyline) {
+    params.set('path', `color:0x10b981ff|weight:5|enc:${opts.encodedPolyline}`);
+  } else {
+    const points = [opts.origin, ...(opts.waypoints || []), opts.destination];
+    const pathStr = points.map((p) => `${p.lat},${p.lng}`).join('|');
+    params.set('path', `color:0x10b981ff|weight:5|geodesic:true|${pathStr}`);
+  }
+  const baseUrl = `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
+  const markers = [
+    `color:green|label:A|${opts.origin.lat},${opts.origin.lng}`,
+    ...(opts.waypoints || []).map(
+      (w, i) => `color:orange|label:${i + 1}|${w.lat},${w.lng}`,
+    ),
+    `color:red|label:B|${opts.destination.lat},${opts.destination.lng}`,
+  ];
+  const markerStr = markers.map((m) => `&markers=${encodeURIComponent(m)}`).join('');
+  return `${baseUrl}${markerStr}`;
+}
+
 /** Static-map preview URL (used for the TripDetailView teaser thumbnail). */
 export function buildStaticPreviewUrl(
   apiKey: string | undefined,
