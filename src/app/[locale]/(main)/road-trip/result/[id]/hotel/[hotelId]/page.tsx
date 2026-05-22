@@ -42,6 +42,13 @@ export default function RoadTripHotelPage() {
   const tripId = (params?.id as string) || '';
   const hotelId = decodeURIComponent((params?.hotelId as string) || '');
   const stopoverIndex = search.get('stopover');
+  // Fallback context when the hotel was picked from /hotels/search grid (not
+  // already pre-stored in the trip). /hotels/search forwards these params.
+  const urlName = search.get('name') || '';
+  const urlCheckIn = search.get('checkIn') || '';
+  const urlCheckOut = search.get('checkOut') || '';
+  const urlTotal = search.get('total') || '';
+  const urlCityQuery = search.get('cityQuery') || search.get('cityCode') || '';
 
   const [trip, setTrip] = useState<RoadTripData | null>(null);
   const [tripError, setTripError] = useState<string | null>(null);
@@ -88,7 +95,12 @@ export default function RoadTripHotelPage() {
     setDetailWarning(null);
 
     const qs = new URLSearchParams();
-    if (stopoverIndex) {
+    // Prefer URL params (forwarded by /hotels/search when picked from grid),
+    // fall back to deriving dates from the trip context.
+    if (urlCheckIn && urlCheckOut) {
+      qs.set('checkIn', urlCheckIn);
+      qs.set('checkOut', urlCheckOut);
+    } else if (stopoverIndex) {
       const order = parseInt(stopoverIndex, 10);
       const stop = trip.stopovers.find((s) => s.order === order);
       if (stop) {
@@ -153,11 +165,14 @@ export default function RoadTripHotelPage() {
     );
   }
 
-  if (!minimalHotel) {
+  // No error when minimalHotel is null — that just means the user picked a
+  // hotel from /hotels/search grid that isn't pre-stored in the trip yet.
+  // We fall back to URL params + the live detail fetch.
+  if (!minimalHotel && !urlName && !detail && !detailLoading) {
     return (
       <ErrorState
         message={
-          isRo ? 'Hotelul nu a fost găsit în datele călătoriei.' : 'Hotel not found in trip data.'
+          isRo ? 'Hotelul nu a fost găsit.' : 'Hotel not found.'
         }
         ctaLabel={isRo ? 'Înapoi la traseu' : 'Back to trip'}
         onCta={() => router.push(`/${locale}/road-trip/result/${tripId}`)}
@@ -165,23 +180,30 @@ export default function RoadTripHotelPage() {
     );
   }
 
-  // Merge: live detail overrides minimal card; minimal still provides
-  // priceForDisplay (which detail endpoint doesn't always include).
-  const name = (detail?.name || minimalHotel.title || 'Hotel').replace(/^\d+\.\s+/, '').trim();
+  // Merge: live detail overrides minimal card / URL params; minimal still
+  // provides priceForDisplay when present.
+  const name = (detail?.name || minimalHotel?.title || urlName || 'Hotel')
+    .replace(/^\d+\.\s+/, '')
+    .trim();
   const aboutText = detail?.about;
   const photos =
     detail && detail.photos.length > 0
       ? detail.photos
-      : photosFromMinimalCard(minimalHotel);
+      : minimalHotel
+        ? photosFromMinimalCard(minimalHotel)
+        : [];
   const amenities = detail?.amenities?.length
     ? detail.amenities
-    : minimalHotel.amenities ?? [];
-  const rating = detail?.rating ?? minimalHotel.bubbleRating?.rating;
+    : minimalHotel?.amenities ?? [];
+  const rating = detail?.rating ?? minimalHotel?.bubbleRating?.rating;
   const numReviews =
-    detail?.numReviews ?? (Number(minimalHotel.bubbleRating?.count || '0') || undefined);
-  const stars = detail?.stars ?? minimalHotel.bubbleRating?.rating;
-  const address = detail?.address ?? minimalHotel.secondaryInfo;
-  const priceForDisplay = minimalHotel.priceForDisplay;
+    detail?.numReviews ??
+    (Number(minimalHotel?.bubbleRating?.count || '0') || undefined);
+  const stars = detail?.stars ?? minimalHotel?.bubbleRating?.rating;
+  const address = detail?.address ?? minimalHotel?.secondaryInfo;
+  const priceForDisplay =
+    minimalHotel?.priceForDisplay ||
+    (urlTotal ? `€${Math.round(parseFloat(urlTotal))}` : undefined);
   const tripadvisorUrl = `https://www.tripadvisor.com/Search?q=${encodeURIComponent(name)}`;
 
   return (
@@ -343,15 +365,15 @@ export default function RoadTripHotelPage() {
                 {priceForDisplay}
               </p>
             )}
-            {minimalHotel.priceDetails && (
-              <p className="text-xs text-text-muted mb-3">{minimalHotel.priceDetails}</p>
+            {minimalHotel?.priceDetails && (
+              <p className="text-xs text-text-muted mb-3">{minimalHotel?.priceDetails}</p>
             )}
             {detail?.priceRange && !priceForDisplay && (
               <p className="text-body text-text-primary mb-3">{detail.priceRange}</p>
             )}
-            {minimalHotel.strikethroughPrice && (
+            {minimalHotel?.strikethroughPrice && (
               <p className="text-xs text-text-muted line-through mb-3">
-                {minimalHotel.strikethroughPrice}
+                {minimalHotel?.strikethroughPrice}
               </p>
             )}
             <a

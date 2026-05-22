@@ -69,10 +69,10 @@ function toOfferData(
       hotelId: h.id,
       name: cleanHotelName(h.title),
       rating: String(Math.max(1, Math.min(5, Math.round(h.bubbleRating?.rating || 3)))),
-      cityCode: cityCode.toUpperCase(),
+      cityCode: cityCode,
       address: {
         lines: h.secondaryInfo ? [h.secondaryInfo] : h.primaryInfo ? [h.primaryInfo] : undefined,
-        cityName: getCityFromIata(cityCode),
+        cityName: getCityFromIata(cityCode) || cityCode,
       },
       amenities: h.amenities || [],
       media: photos.length > 0 ? photos : undefined,
@@ -110,14 +110,13 @@ export async function GET(req: Request) {
     );
   }
 
-  // Synthetic code used purely for the HotelOfferData.hotel.cityCode field —
-  // when we look up by free-text query (e.g. "Lyon, France") there's no
-  // IATA. Derive a stable token from the query so cache keys + hotel cards
-  // still carry an identifier.
-  const effectiveCityCode = cityCode || `Q:${(cityQuery || '').toLowerCase()}`;
+  // Flight path uses real IATA; road-trip uses the city name itself (no IATA
+  // pretense). HotelOfferData.hotel.cityCode is purely an identifier shown on
+  // the card; not consumed as IATA downstream for the road-trip flow.
+  const effectiveCityCode = cityCode || (cityQuery || '').split(',')[0].trim();
   const cacheKey = cityCode
     ? `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`
-    : `hotelsSearch:v2:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
+    : `hotelsSearch:v3:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
 
   const cached = await getCached(cacheKey);
   if (cached) {

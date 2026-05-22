@@ -21,6 +21,8 @@ function HotelsSearchContent() {
   const checkOut = search.get("checkOut") || "";
   const adults = search.get("adults") || "2";
   const tripId = search.get("tripId") || "";
+  const tripType = search.get("tripType") || "";
+  const stopover = search.get("stopover") || "";
 
   const datesMissing = (!cityCode && !cityQuery) || !checkIn || !checkOut;
   const [hotels, setHotels] = useState<HotelOfferData[]>([]);
@@ -125,12 +127,17 @@ function HotelsSearchContent() {
     if (checkIn) qs.set("checkIn", checkIn);
     if (checkOut) qs.set("checkOut", checkOut);
     if (cityCode) qs.set("cityCode", cityCode);
+    if (cityQuery) qs.set("cityQuery", cityQuery);
     if (h.offers[0]?.price.total) qs.set("total", h.offers[0].price.total);
     if (h.hotel.name) qs.set("name", h.hotel.name);
-    // Inside the plan flow ("Change hotel") we keep the trip-scoped detail
-    // page so the chosen hotel is saved back to the trip context. From a
-    // standalone search (no tripId) we land on the new unified detail page.
-    if (tripId) {
+    if (stopover) qs.set("stopover", stopover);
+    if (tripId && tripType === "road-trip") {
+      router.push(
+        `/${locale}/road-trip/result/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
+          h.hotel.hotelId,
+        )}?${qs.toString()}`,
+      );
+    } else if (tripId) {
       router.push(
         `/${locale}/plan/trip/${encodeURIComponent(tripId)}/hotel/${encodeURIComponent(
           h.hotel.hotelId,

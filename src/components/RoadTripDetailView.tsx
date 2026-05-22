@@ -56,6 +56,7 @@ function buildHotelSearchHref(opts: {
   checkIn: string;
   checkOut: string;
   adults: number;
+  stopoverOrder?: number;
 }): string {
   const qs = new URLSearchParams({
     cityQuery: opts.cityQuery,
@@ -64,7 +65,11 @@ function buildHotelSearchHref(opts: {
     checkOut: opts.checkOut,
     adults: String(opts.adults),
     tripId: opts.tripId,
+    tripType: 'road-trip',
   });
+  if (opts.stopoverOrder !== undefined) {
+    qs.set('stopover', String(opts.stopoverOrder));
+  }
   return `/${opts.locale}/hotels/search?${qs.toString()}`;
 }
 
@@ -255,6 +260,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                     checkIn: stopCheckIn,
                     checkOut: stopCheckOut,
                     adults: trip.adults,
+                    stopoverOrder: s.order,
                   });
                   return (
                     <div
