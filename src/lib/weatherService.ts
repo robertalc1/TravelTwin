@@ -36,7 +36,13 @@ interface OpenMeteoRaw {
 
 /**
  * Fetch a daily forecast between [start, end] inclusive.
- * Open-Meteo accepts up to 16 days into the future from `today`.
+ * Open-Meteo's free tier only forecasts up to 16 days from today.
+ * - If `start` is past that horizon, return an empty payload so the
+ *   strip silently hides instead of throwing.
+ * - If only `end` exceeds the horizon, clamp `end` so the caller still
+ *   sees forecast for the days that ARE in range (the previous behaviour
+ *   was to lose the whole window the moment one day went out of bounds —
+ *   that's the "weather not showing for trips ~2-3 weeks ahead" bug).
  */
 export async function fetchForecast(
   lat: number,
@@ -44,6 +50,18 @@ export async function fetchForecast(
   startDate: string,
   endDate: string
 ): Promise<WeatherResponse> {
+  const HORIZON_DAYS = 16;
+  const today = new Date();
+  const horizon = new Date(today);
+  horizon.setUTCDate(horizon.getUTCDate() + HORIZON_DAYS);
+  const horizonStr = horizon.toISOString().slice(0, 10);
+
+  if (startDate > horizonStr) {
+    // Genuinely beyond the forecast window — no point hitting upstream.
+    return { latitude: lat, longitude: lon, timezone: "auto", daily: [] };
+  }
+  const effectiveEnd = endDate > horizonStr ? horizonStr : endDate;
+
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.searchParams.set("latitude", lat.toString());
   url.searchParams.set("longitude", lon.toString());
@@ -53,7 +71,7 @@ export async function fetchForecast(
   );
   url.searchParams.set("timezone", "auto");
   url.searchParams.set("start_date", startDate);
-  url.searchParams.set("end_date", endDate);
+  url.searchParams.set("end_date", effectiveEnd);
 
   const res = await fetch(url.toString(), { next: { revalidate: 10800 } });
   if (!res.ok) throw new Error(`Open-Meteo ${res.status}`);

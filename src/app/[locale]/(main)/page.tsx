@@ -36,6 +36,7 @@ import {
   Building2,
   Gem,
   Globe2,
+  Car,
 } from "lucide-react";
 import { TripCard } from "@/components/results/TripCard";
 import { getCityImageByIata } from "@/lib/cityImages";
@@ -242,17 +243,30 @@ export default function Home() {
             <h1 className="font-display font-extrabold text-white mb-4 sm:mb-5 text-[32px] leading-[38px] sm:text-[48px] sm:leading-[56px] lg:text-[64px] lg:leading-[72px] tracking-tight" style={{ textShadow: '0 2px 16px rgba(0,0,0,0.35)' }}>
               {isRo ? (<>Vacanța visurilor tale,<br />planificată de AI</>) : (<>Your dream vacation,<br />planned by AI</>)}
             </h1>
-            {/* CTA Button */}
-            <button
-              type="button"
-              onClick={goToPlan}
-              className="group relative inline-flex items-center gap-2 sm:gap-3 rounded-full bg-primary-500 px-6 py-3 text-sm sm:px-10 sm:py-5 sm:text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
-              style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
-            >
-              <Plane className="h-4 w-4 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:-rotate-12" />
-              {isRo ? "Planifică-mi călătoria" : "Plan My Trip"}
-              <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-1" />
-            </button>
+            {/* CTA Buttons — primary (flight planner) + secondary (road trip).
+                Stack on mobile, side-by-side from sm up so road-trip discovery
+                doesn't have to wait for the user to scroll past the hero. */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+              <button
+                type="button"
+                onClick={goToPlan}
+                className="group relative inline-flex items-center gap-2 sm:gap-3 rounded-full bg-primary-500 px-6 py-3 text-sm sm:px-10 sm:py-5 sm:text-lg font-bold text-white shadow-2xl hover:bg-primary-600 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+                style={{ boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255,255,255,0.1) inset' }}
+              >
+                <Plane className="h-4 w-4 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:-rotate-12" />
+                {isRo ? "Planifică-mi călătoria" : "Plan My Trip"}
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-1" />
+              </button>
+
+              <Link
+                href={lp("/road-trip")}
+                className="group relative inline-flex items-center gap-2 sm:gap-3 rounded-full bg-white/15 backdrop-blur-sm border border-white/30 px-6 py-3 text-sm sm:px-10 sm:py-5 sm:text-lg font-bold text-white hover:bg-white/25 hover:scale-[1.03] active:scale-[0.98] transition-all duration-300"
+              >
+                <Car className="h-4 w-4 sm:h-6 sm:w-6 transition-transform duration-300 group-hover:-translate-x-0.5" />
+                {isRo ? "Planifică un road trip" : "Plan a road trip"}
+                <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
+            </div>
 
           </div>
         </div>
