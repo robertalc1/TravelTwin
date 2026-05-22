@@ -482,19 +482,30 @@ Return ONLY valid JSON (no markdown, no backticks):
   "estimatedDailyExpenses": { "food": 40, "transport": 15, "activities": 25 }
 }`;
 
-          const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: 2500,
-              messages: [{ role: 'user', content: prompt }],
-            }),
-          });
+          // Abort the Anthropic call at 25s so a single hung request can't
+          // ride the full Vercel 60s budget and force a "An error occurred…"
+          // gateway page on the client.
+          const aiAbort = new AbortController();
+          const aiTimeout = setTimeout(() => aiAbort.abort(), 25_000);
+          let aiRes: Response;
+          try {
+            aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 2500,
+                messages: [{ role: 'user', content: prompt }],
+              }),
+              signal: aiAbort.signal,
+            });
+          } finally {
+            clearTimeout(aiTimeout);
+          }
 
           if (aiRes.ok) {
             const aiData = await aiRes.json();
@@ -747,19 +758,27 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
       const prompt = buildVariantPrompt(pkg, spec, ctx, activityBudget);
 
       try {
-        const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2500,
-            messages: [{ role: 'user', content: prompt }],
-          }),
-        });
+        const aiAbort = new AbortController();
+        const aiTimeout = setTimeout(() => aiAbort.abort(), 25_000);
+        let aiRes: Response;
+        try {
+          aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-6',
+              max_tokens: 2500,
+              messages: [{ role: 'user', content: prompt }],
+            }),
+            signal: aiAbort.signal,
+          });
+        } finally {
+          clearTimeout(aiTimeout);
+        }
         if (aiRes.ok) {
           const aiData = await aiRes.json();
           const text = aiData.content?.[0]?.text || '';

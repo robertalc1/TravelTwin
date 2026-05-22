@@ -312,8 +312,26 @@ export default function PlanPage() {
       clearInterval(stepInterval);
       clearInterval(progressInterval);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || t("errorGeneric"));
+      // Defensive parse: when Vercel kills the function (timeout / crash) it
+      // returns a plain-text gateway page starting with "An error occurred…".
+      // Calling res.json() on that throws "Unexpected token 'A'…" which then
+      // leaks straight to the user. Read as text first, parse safely.
+      const rawBody = await res.text();
+      type PlanResponse = {
+        error?: string;
+        warning?: string;
+        packages?: unknown[];
+        budget?: number;
+        inBudgetCount?: number;
+        overflowCount?: number;
+        relaxed?: boolean;
+      };
+      let data: PlanResponse | null = null;
+      try { data = rawBody ? (JSON.parse(rawBody) as PlanResponse) : null; } catch { /* non-JSON gateway page */ }
+      if (!res.ok) {
+        throw new Error(data?.error || `${t("errorGeneric")} (${res.status})`);
+      }
+      if (!data) throw new Error(t("errorGeneric"));
       if (!data.packages?.length) throw new Error(data.warning || t("errorNoTrips"));
 
       setLoadingProgress(100);

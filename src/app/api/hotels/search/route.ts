@@ -362,7 +362,12 @@ export async function GET(req: Request) {
         }
       : null;
 
-    await setCache(cacheKey, { hotels, pricingNote }, 60 * 24);
+    // 24h cache for non-empty results; only 1h for empty ones so a single
+    // transient upstream blip doesn't stick a city as "no hotels" for a full
+    // day (this was the HER/Heraklion bug — empty result re-served from cache
+    // long after the upstream came back online).
+    const cacheTtl = hotels.length > 0 ? 60 * 24 : 60;
+    await setCache(cacheKey, { hotels, pricingNote }, cacheTtl);
     return NextResponse.json({
       hotels,
       source: 'live',
