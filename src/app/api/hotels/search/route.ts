@@ -241,9 +241,14 @@ export async function GET(req: Request) {
   // pretense). HotelOfferData.hotel.cityCode is purely an identifier shown on
   // the card; not consumed as IATA downstream for the road-trip flow.
   const effectiveCityCode = cityCode || (cityQuery || '').split(',')[0].trim();
+  // Cache key intentionally stays at v2 — bumping it on every code change
+  // would throw away valid Tripadvisor responses each deploy. The reader
+  // below handles both the legacy plain-array shape AND the new tuple
+  // {hotels, pricingNote} shape gracefully, so format evolution doesn't
+  // require a key bump.
   const cacheKey = cityCode
-    ? `hotelsSearch:v4:${cityCode}:${checkIn}:${checkOut}:${adults}`
-    : `hotelsSearch:v4:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
+    ? `hotelsSearch:v2:${cityCode}:${checkIn}:${checkOut}:${adults}`
+    : `hotelsSearch:v3:byQuery:${(cityQuery || '').toLowerCase()}:${checkIn}:${checkOut}:${adults}`;
 
   const cached = await getCached(cacheKey);
   if (cached) {
