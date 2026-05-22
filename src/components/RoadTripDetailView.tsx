@@ -706,11 +706,6 @@ export default function RoadTripDetailView({ trip }: Props) {
                     : trip.aiContent!.topAttractions.slice(0, 6).map((a) => a.name)
                 }
                 city={trip.destinationCity}
-                descriptions={Object.fromEntries(
-                  liveAttractions.length > 0
-                    ? liveAttractions.map((a) => [a.name, a.description || a.category || ''])
-                    : trip.aiContent!.topAttractions.map((a) => [a.name, a.description]),
-                )}
               />
             </section>
           )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Camera, ExternalLink, MapPin } from "lucide-react";
+import { Camera, MapPin } from "lucide-react";
 
 interface PhotoResult {
   url: string;
@@ -12,12 +12,11 @@ interface PhotoResult {
 interface Props {
   names: string[];
   city: string;
-  descriptions?: Record<string, string>;
   onSelectPlace?: (name: string) => void;
   selectedPlace?: string | null;
 }
 
-export default function AttractionPhotos({ names, city, descriptions, onSelectPlace, selectedPlace }: Props) {
+export default function AttractionPhotos({ names, city, onSelectPlace, selectedPlace }: Props) {
   const [images, setImages] = useState<Record<string, PhotoResult>>({});
   const [loading, setLoading] = useState(true);
 
@@ -68,46 +67,11 @@ export default function AttractionPhotos({ names, city, descriptions, onSelectPl
 
             {/* Gradient + name overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-            <div className="absolute bottom-0 left-0 right-0 p-3 flex items-end justify-between">
-              <span className="text-xs font-semibold text-white leading-tight line-clamp-2 flex-1">
+            <div className="absolute bottom-0 left-0 right-0 p-3">
+              <span className="text-xs font-semibold text-white leading-tight line-clamp-2">
                 {name}
               </span>
-              <a
-                href={`https://en.wikipedia.org/wiki/${encodeURIComponent(name)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-              >
-                <ExternalLink className="h-3 w-3 text-white/70" />
-              </a>
             </div>
-
-            {/* Unsplash photo credit */}
-            {photo?.credit && (
-              <div className="absolute top-0 left-0 right-0">
-                <a
-                  href={photo.creditLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="block opacity-0 group-hover:opacity-100 transition-opacity px-2 pt-1 pb-0.5 bg-gradient-to-b from-black/50 to-transparent"
-                >
-                  <span className="text-[9px] text-white/80 truncate block">
-                    Photo by {photo.credit} on Unsplash
-                  </span>
-                </a>
-              </div>
-            )}
-
-            {/* Description tooltip */}
-            {descriptions?.[name] && (
-              <div className="absolute inset-x-0 top-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <p className="text-[10px] text-white/90 bg-black/50 rounded-lg px-2 py-1 leading-snug line-clamp-2 backdrop-blur-sm">
-                  {descriptions[name]}
-                </p>
-              </div>
-            )}
 
             {/* Show on map indicator */}
             {onSelectPlace && (

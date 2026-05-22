@@ -528,7 +528,6 @@ export default function TripDetailView({
                   <AttractionPhotos
                     names={ai.topAttractions.map((a) => a.name)}
                     city={trip.destinationCity}
-                    descriptions={Object.fromEntries(ai.topAttractions.map((a) => [a.name, a.description]))}
                     onSelectPlace={setSelectedPlace}
                     selectedPlace={selectedPlace}
                   />
