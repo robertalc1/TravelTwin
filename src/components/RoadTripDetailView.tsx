@@ -128,7 +128,14 @@ export default function RoadTripDetailView({ trip }: Props) {
   // `money()`, which both converts and locale-formats. Hotel prices come
   // pre-formatted from Tripadvisor and stay as-is.
   const { format } = useCurrency();
-  const money = (eur: number) => format(eur, 'EUR');
+  // Defensive money formatter — coerce undefined/NaN to 0 so a stale
+  // sessionStorage trip (missing fields added in a later deploy, e.g.
+  // `trainFarePerPerson`) renders as `€0` instead of `NaN` or crashing.
+  const money = (eur: number | undefined | null) => {
+    const n = typeof eur === 'number' && Number.isFinite(eur) ? eur : 0;
+    return format(n, 'EUR');
+  };
+  const trainFarePerPerson = trip.cost.trainFarePerPerson ?? 0;
 
   const heroUrl = resolveRoadTripHero(trip);
   const originCity = trip.origin.formatted.split(',')[0]?.trim() || trip.origin.formatted;
@@ -769,12 +776,12 @@ export default function RoadTripDetailView({ trip }: Props) {
                     <CostRow
                       icon={<TrainFront className="h-4 w-4" />}
                       label={isRo ? 'Bilet tren / persoană (est.)' : 'Train fare / person (est.)'}
-                      value={money(trip.cost.trainFarePerPerson)}
+                      value={money(trainFarePerPerson)}
                     />
                     <CostRow
                       icon={<TrainFront className="h-4 w-4" />}
                       label={isRo ? `× ${trip.adults} pasageri` : `× ${trip.adults} passengers`}
-                      value={money(trip.cost.trainFarePerPerson * trip.adults)}
+                      value={money(trainFarePerPerson * trip.adults)}
                     />
                   </>
                 ) : (
@@ -851,11 +858,11 @@ export default function RoadTripDetailView({ trip }: Props) {
                 <>
                   <Row
                     label={isRo ? 'Bilet / pers. (est.)' : 'Fare / person (est.)'}
-                    value={money(trip.cost.trainFarePerPerson)}
+                    value={money(trainFarePerPerson)}
                   />
                   <Row
                     label={isRo ? `× ${trip.adults} pers.` : `× ${trip.adults} pax`}
-                    value={money(trip.cost.trainFarePerPerson * trip.adults)}
+                    value={money(trainFarePerPerson * trip.adults)}
                   />
                 </>
               ) : (

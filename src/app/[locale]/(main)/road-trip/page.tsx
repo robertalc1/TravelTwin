@@ -18,7 +18,6 @@ import {
   AlertCircle,
   Plane,
   TrainFront,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/hooks/useUser";
@@ -36,6 +35,10 @@ const EuropeMapPicker = dynamic(() => import("@/components/EuropeMapPicker"), {
 });
 
 interface FormState {
+  originQuery: string;
+  destinationQuery: string;
+  /** Set when picked via map. Kept in sync with originQuery to power the
+   *  selected-pin highlight; cleared when the user types over the input. */
   origin: MapPickerCity | null;
   destination: MapPickerCity | null;
   departureDate: string;
@@ -45,6 +48,21 @@ interface FormState {
   fuelPricePerLitre: number;
   consumption: number;
 }
+
+const ORIGIN_SUGGESTIONS = [
+  "Bucharest, Romania",
+  "Cluj-Napoca, Romania",
+  "Timișoara, Romania",
+  "Iași, Romania",
+];
+const DESTINATION_SUGGESTIONS = [
+  "Sofia, Bulgaria",
+  "Budapest, Hungary",
+  "Vienna, Austria",
+  "Istanbul, Turkey",
+  "Belgrade, Serbia",
+  "Thessaloniki, Greece",
+];
 
 function todayPlus(days: number): string {
   return new Date(Date.now() + days * 86400000).toISOString().split("T")[0];
@@ -63,6 +81,7 @@ export default function RoadTripWizardPage() {
 
   const [step, setStep] = useState(0);
   const [pickMode, setPickMode] = useState<"origin" | "destination">("origin");
+  const [showMap, setShowMap] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flightSuggestion, setFlightSuggestion] = useState<{
@@ -72,6 +91,8 @@ export default function RoadTripWizardPage() {
   } | null>(null);
 
   const [form, setForm] = useState<FormState>(() => ({
+    originQuery: "",
+    destinationQuery: "",
     origin: null,
     destination: null,
     departureDate: todayPlus(14),
@@ -83,7 +104,9 @@ export default function RoadTripWizardPage() {
   }));
 
   const canNext = useMemo(() => {
-    if (step === 0) return Boolean(form.origin && form.destination);
+    if (step === 0) {
+      return form.originQuery.trim().length >= 2 && form.destinationQuery.trim().length >= 2;
+    }
     if (step === 1) return Boolean(form.departureDate);
     return true;
   }, [step, form]);
@@ -92,15 +115,33 @@ export default function RoadTripWizardPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function handleOriginText(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      originQuery: value,
+      // Typing breaks the link to the map-picked city; the input takes over.
+      origin: prev.origin && formatCity(prev.origin) === value ? prev.origin : null,
+    }));
+  }
+  function handleDestinationText(value: string) {
+    setForm((prev) => ({
+      ...prev,
+      destinationQuery: value,
+      destination: prev.destination && formatCity(prev.destination) === value ? prev.destination : null,
+    }));
+  }
+
   function handlePickCity(city: MapPickerCity) {
+    const formatted = formatCity(city);
     if (pickMode === "origin") {
-      set("origin", city);
-      // Auto-advance to destination if it isn't yet picked
-      if (!form.destination) setPickMode("destination");
+      // Same-city guard: never let origin == destination
+      if (form.destination && form.destination.name === city.name) return;
+      setForm((prev) => ({ ...prev, origin: city, originQuery: formatted }));
+      // Auto-advance to destination if it isn't picked yet
+      if (!form.destination && !form.destinationQuery) setPickMode("destination");
     } else {
-      // Block same city as origin
       if (form.origin && form.origin.name === city.name) return;
-      set("destination", city);
+      setForm((prev) => ({ ...prev, destination: city, destinationQuery: formatted }));
     }
   }
 
@@ -109,7 +150,9 @@ export default function RoadTripWizardPage() {
       openAuthModal("login", `/${locale}/road-trip`);
       return;
     }
-    if (!form.origin || !form.destination) return;
+    const originQuery = form.originQuery.trim();
+    const destinationQuery = form.destinationQuery.trim();
+    if (!originQuery || !destinationQuery) return;
     setSubmitting(true);
     setError(null);
     setFlightSuggestion(null);
@@ -118,12 +161,8 @@ export default function RoadTripWizardPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          originQuery: formatCity(form.origin),
-          destinationQuery: formatCity(form.destination),
-          // Pass lat/lng + countryCode straight through so the server can
-          // skip geocoding and the Europe-only check is authoritative.
-          originCity: form.origin,
-          destinationCity: form.destination,
+          originQuery,
+          destinationQuery,
           departureDate: form.departureDate,
           returnDate: form.returnDate,
           mode: form.mode,
@@ -142,8 +181,8 @@ export default function RoadTripWizardPage() {
         ) {
           setFlightSuggestion({
             url: `/${locale}${data.flightSearchUrl}`,
-            origin: data.origin || formatCity(form.origin),
-            destination: data.destination || formatCity(form.destination),
+            origin: data.origin || originQuery,
+            destination: data.destination || destinationQuery,
           });
           return;
         }
@@ -196,63 +235,94 @@ export default function RoadTripWizardPage() {
         >
           {step === 0 && (
             <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <PickCard
-                  active={pickMode === "origin"}
-                  label={isRo ? "De unde pleci?" : "Where are you leaving from?"}
-                  emptyText={isRo ? "Apasă pe un oraș pe hartă" : "Click a city on the map"}
-                  city={form.origin}
-                  onActivate={() => setPickMode("origin")}
-                  onClear={() => set("origin", null)}
+              <Field
+                label={isRo ? "De unde pleci?" : "Where are you leaving from?"}
+                icon={<MapPin className="h-4 w-4 text-emerald-500" />}
+              >
+                <input
+                  type="text"
+                  value={form.originQuery}
+                  onChange={(e) => handleOriginText(e.target.value)}
+                  onFocus={() => setPickMode("origin")}
+                  placeholder={isRo ? "ex: Bucharest, Romania" : "e.g. Bucharest, Romania"}
+                  className="w-full rounded-lg border border-border-default bg-background px-4 py-3 text-body text-text-primary placeholder:text-text-muted focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 />
-                <PickCard
-                  active={pickMode === "destination"}
-                  label={isRo ? "Unde mergi?" : "Where are you going?"}
-                  emptyText={isRo ? "Apasă pe un oraș pe hartă" : "Click a city on the map"}
-                  city={form.destination}
-                  onActivate={() => setPickMode("destination")}
-                  onClear={() => set("destination", null)}
+                <SuggestionChips
+                  suggestions={ORIGIN_SUGGESTIONS}
+                  onPick={(v) => handleOriginText(v)}
                 />
-              </div>
+              </Field>
+              <Field
+                label={isRo ? "Unde mergi?" : "Where are you going?"}
+                icon={<MapPin className="h-4 w-4 text-emerald-500" />}
+              >
+                <input
+                  type="text"
+                  value={form.destinationQuery}
+                  onChange={(e) => handleDestinationText(e.target.value)}
+                  onFocus={() => setPickMode("destination")}
+                  placeholder={isRo ? "ex: Sofia, Bulgaria" : "e.g. Sofia, Bulgaria"}
+                  className="w-full rounded-lg border border-border-default bg-background px-4 py-3 text-body text-text-primary placeholder:text-text-muted focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                />
+                <SuggestionChips
+                  suggestions={DESTINATION_SUGGESTIONS}
+                  onPick={(v) => handleDestinationText(v)}
+                />
+              </Field>
 
-              <div className="flex items-center gap-2 rounded-full border border-border-default bg-surface-sunken p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setPickMode("origin")}
-                  className={`flex-1 rounded-full px-3 py-1.5 font-semibold transition-colors ${
-                    pickMode === "origin"
-                      ? "bg-emerald-500 text-white"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {isRo ? "Alege origine" : "Pick origin"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPickMode("destination")}
-                  className={`flex-1 rounded-full px-3 py-1.5 font-semibold transition-colors ${
-                    pickMode === "destination"
-                      ? "bg-orange-500 text-white"
-                      : "text-text-secondary hover:text-text-primary"
-                  }`}
-                >
-                  {isRo ? "Alege destinație" : "Pick destination"}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowMap((s) => !s)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                {showMap
+                  ? (isRo ? "Ascunde harta" : "Hide map")
+                  : (isRo ? "Sau alege de pe hartă" : "Or pick from the map")}
+              </button>
 
-              <EuropeMapPicker
-                mode={pickMode}
-                selectedCity={pickMode === "origin" ? form.origin : form.destination}
-                excludeCity={pickMode === "origin" ? form.destination?.name : form.origin?.name}
-                onSelect={handlePickCity}
-                height="460px"
-              />
+              {showMap && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 rounded-full border border-border-default bg-surface-sunken p-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPickMode("origin")}
+                      className={`flex-1 rounded-full px-3 py-1.5 font-semibold transition-colors ${
+                        pickMode === "origin"
+                          ? "bg-emerald-500 text-white"
+                          : "text-text-secondary hover:text-text-primary"
+                      }`}
+                    >
+                      {isRo ? "Alege origine" : "Pick origin"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPickMode("destination")}
+                      className={`flex-1 rounded-full px-3 py-1.5 font-semibold transition-colors ${
+                        pickMode === "destination"
+                          ? "bg-orange-500 text-white"
+                          : "text-text-secondary hover:text-text-primary"
+                      }`}
+                    >
+                      {isRo ? "Alege destinație" : "Pick destination"}
+                    </button>
+                  </div>
 
-              <p className="text-xs text-text-muted">
-                {isRo
-                  ? "Pini verzi = orașe mari. Pini gri = orașe secundare. Pinul portocaliu este selecția curentă."
-                  : "Green pins = major cities. Grey pins = smaller cities. Orange pin = current selection."}
-              </p>
+                  <EuropeMapPicker
+                    mode={pickMode}
+                    selectedCity={pickMode === "origin" ? form.origin : form.destination}
+                    excludeCity={pickMode === "origin" ? form.destination?.name : form.origin?.name}
+                    onSelect={handlePickCity}
+                    height="380px"
+                  />
+
+                  <p className="text-xs text-text-muted">
+                    {isRo
+                      ? "Pini verzi = orașe mari. Pini gri = orașe secundare. Click pe un pin completează automat câmpul de mai sus."
+                      : "Green pins = major cities. Grey pins = smaller ones. Clicking a pin fills the field above."}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -498,74 +568,26 @@ function Field({
   );
 }
 
-function PickCard({
-  active,
-  label,
-  emptyText,
-  city,
-  onActivate,
-  onClear,
+function SuggestionChips({
+  suggestions,
+  onPick,
 }: {
-  active: boolean;
-  label: string;
-  emptyText: string;
-  city: MapPickerCity | null;
-  onActivate: () => void;
-  onClear: () => void;
+  suggestions: string[];
+  onPick: (v: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onActivate}
-      className={`group flex items-start gap-3 rounded-radius-xl border-2 p-4 text-left transition-all ${
-        active
-          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/15"
-          : "border-border-default bg-surface hover:border-emerald-300"
-      }`}
-    >
-      <span
-        className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-          active ? "bg-emerald-500 text-white" : "bg-surface-sunken text-text-secondary"
-        }`}
-      >
-        <MapPin className="h-4 w-4" />
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-xs font-semibold uppercase tracking-wide text-text-muted">
-          {label}
-        </span>
-        {city ? (
-          <span className="mt-1 flex items-center gap-2">
-            <span className="block truncate text-body font-semibold text-text-primary">
-              {city.name}, {city.country}
-            </span>
-          </span>
-        ) : (
-          <span className="mt-1 block text-body-sm text-text-muted">{emptyText}</span>
-        )}
-      </span>
-      {city && (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onClear();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              onClear();
-            }
-          }}
-          className="ml-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-text-muted hover:bg-surface-sunken hover:text-text-primary"
-          aria-label="Clear selection"
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {suggestions.map((s) => (
+        <button
+          key={s}
+          type="button"
+          onClick={() => onPick(s)}
+          className="rounded-full border border-border-default bg-surface-sunken px-3 py-1 text-xs text-text-secondary hover:border-emerald-500 hover:text-emerald-600"
         >
-          <X className="h-3.5 w-3.5" />
-        </span>
-      )}
-    </button>
+          {s}
+        </button>
+      ))}
+    </div>
   );
 }
 

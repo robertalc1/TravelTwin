@@ -370,10 +370,16 @@ export async function POST(req: NextRequest) {
     const weatherPromises = stopovers.map((s) => {
       const arrivalDate = addDays(departureDate, Math.floor(s.arrivalHourFromStart / 24));
       return fetchForecast(s.lat, s.lng, arrivalDate, arrivalDate)
-        .then((r) => r.daily[0] ?? null)
+        .then((r) => r?.daily?.[0] ?? null)
         .catch(() => null);
     });
-    const restaurantPromises = stopovers.map((s) => loadStopoverRestaurants(s));
+    // Belt-and-braces .catch — loadStopoverRestaurants already swallows its
+    // own errors and returns [], but if anything new gets added there in the
+    // future we still don't want a single bad call to take down the whole
+    // trip request.
+    const restaurantPromises = stopovers.map((s) =>
+      loadStopoverRestaurants(s).catch(() => [] as TARestaurant[]),
+    );
 
     const [hotelResults, weatherResults, restaurantResults] = await Promise.all([
       Promise.all(hotelPromises),
@@ -681,23 +687,27 @@ function humanizeHotelError(context: string, err: Error): string {
  * an empty array on any failure — the UI hides the strip gracefully.
  */
 async function loadStopoverRestaurants(stop: Stopover): Promise<TARestaurant[]> {
-  const queryKey = `${stop.city}${stop.country ? `, ${stop.country}` : ''}`.toLowerCase();
-  const cacheKey = `roadTripStopRest:v1:${queryKey}`;
-  const cached = await getCached(cacheKey);
-  if (cached && Array.isArray(cached.data)) {
-    return cached.data as TARestaurant[];
-  }
-
+  // Entire function wrapped in a single try/catch — getCached / setCache go
+  // through Supabase and can throw on transient network issues. Restaurants
+  // are non-essential, so any error path returns [] and the UI quietly
+  // hides the strip.
   try {
+    const queryKey = `${stop.city}${stop.country ? `, ${stop.country}` : ''}`.toLowerCase();
+    const cacheKey = `roadTripStopRest:v1:${queryKey}`;
+    const cached = await getCached(cacheKey).catch(() => null);
+    if (cached && Array.isArray(cached.data)) {
+      return cached.data as TARestaurant[];
+    }
+
     const locId = await searchRestaurantLocationId(
       stop.country ? `${stop.city}, ${stop.country}` : stop.city,
     );
     if (!locId) {
-      await setCache(cacheKey, [], 60 * 6);
+      await setCache(cacheKey, [], 60 * 6).catch(() => undefined);
       return [];
     }
     const list = (await searchRestaurants(locId)).slice(0, 3);
-    await setCache(cacheKey, list, 60 * 24);
+    await setCache(cacheKey, list, 60 * 24).catch(() => undefined);
     return list;
   } catch {
     return [];
