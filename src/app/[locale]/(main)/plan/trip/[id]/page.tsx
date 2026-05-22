@@ -59,12 +59,24 @@ export default function TripDetailPage() {
   useEffect(() => {
     if (!id) return;
 
-    // 1. Try trip_${id} first (works for both homepage deals and planner packages)
+    // 1. Try trip_${id} first. Two writers stash here with DIFFERENT shapes:
+    //   - homepage + planner write the raw TripPackage (nested: destination.iata)
+    //   - favorites page writes the already-flattened TripDetail (destinationCode at root)
+    // Detect by presence of the nested `destination` object so re-opening a
+    // saved favorite doesn't crash packageToTripDetail and bounce to /.
     const stored = sessionStorage.getItem(`trip_${id}`);
     if (stored) {
       try {
-        const pkg = JSON.parse(stored) as TripPackage;
-        setTripDetail(packageToTripDetail(pkg));
+        const parsed = JSON.parse(stored) as Partial<TripPackage> & Partial<TripDetail>;
+        const looksLikePackage = parsed && typeof parsed === 'object'
+          && 'destination' in parsed
+          && parsed.destination
+          && typeof parsed.destination === 'object';
+        if (looksLikePackage) {
+          setTripDetail(packageToTripDetail(parsed as TripPackage));
+        } else {
+          setTripDetail(parsed as TripDetail);
+        }
         return;
       } catch { /* ignore parse error, fall through */ }
     }
