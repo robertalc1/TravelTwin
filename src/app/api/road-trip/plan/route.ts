@@ -10,6 +10,7 @@ import {
 import {
   getGeoIdByQuery,
   searchHotelsByGeoId,
+  searchLocations,
   type TAHotel,
 } from '@/lib/tripadvisor-client';
 import {
@@ -18,6 +19,8 @@ import {
   type RoadTripAiContent,
 } from '@/lib/road-trip-prompt';
 import { generateFallbackContent } from '@/lib/fallbackContent';
+import { CITY_TO_IATA } from '@/lib/iataMapping';
+import { getCached, setCache } from '@/lib/cache';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -38,11 +41,57 @@ interface RequestBody {
 interface Stopover {
   city: string;
   country?: string;
+  iata?: string;
   lat: number;
   lng: number;
   order: number;
   arrivalHourFromStart: number;
   hotel: TAHotel | null;
+}
+
+/**
+ * Resolve a free-form city name to an IATA airport code so the road-trip
+ * flow can navigate to /hotels/search?cityCode=IATA — the exact same URL
+ * shape the flight side uses. Two hops: static CITY_TO_IATA table first
+ * (covers ~80 major European cities like Istanbul=IST, Madrid=MAD), then
+ * Tripadvisor's flight-search airport autocomplete as a network fallback.
+ * Caches the (cityName → iata) mapping for 30 days so the second trip on
+ * the same route is instant.
+ */
+async function resolveCityToIata(cityName: string): Promise<string | null> {
+  const trimmed = (cityName || '').trim();
+  if (!trimmed) return null;
+  const cacheKey = `roadTripIata:v1:${trimmed.toLowerCase()}`;
+  const cached = await getCached(cacheKey);
+  if (cached && typeof cached.data === 'string') {
+    return cached.data || null;
+  }
+
+  const targetLower = trimmed.toLowerCase();
+  for (const [key, iata] of Object.entries(CITY_TO_IATA)) {
+    if (key.toLowerCase() === targetLower) {
+      await setCache(cacheKey, iata, 60 * 24 * 30);
+      return iata;
+    }
+  }
+
+  try {
+    const locations = await searchLocations(trimmed);
+    const exact = locations.find(
+      (loc) => (loc.cityName || '').trim().toLowerCase() === targetLower && loc.airportCode,
+    );
+    const picked = exact?.airportCode
+      || locations.find((loc) => loc.airportCode)?.airportCode
+      || null;
+    if (picked) {
+      const code = picked.toUpperCase();
+      await setCache(cacheKey, code, 60 * 24 * 30);
+      return code;
+    }
+  } catch {
+    /* network failure — just skip the IATA and keep cityQuery path */
+  }
+  return null;
 }
 
 interface RoadTripResponse {
@@ -51,6 +100,7 @@ interface RoadTripResponse {
   destination: { query: string; formatted: string; lat: number; lng: number };
   destinationCity: string;
   destinationCountry: string;
+  destinationIata?: string;
   mode: 'car' | 'bus';
   departureDate: string;
   returnDate?: string;
@@ -318,6 +368,12 @@ export async function POST(req: NextRequest) {
         ? `https://www.flixbus.com/search?from=${encodeURIComponent(shortCityName(origin))}&to=${encodeURIComponent(destinationCity)}&departureDate=${departureDate}`
         : undefined;
 
+    // Pre-resolve destination IATA so RoadTripDetailView can navigate to
+    // /hotels/search?cityCode=IATA (the proven flight-side URL) instead of
+    // the free-text cityQuery path which Tripadvisor's geo search sometimes
+    // rejects for major cities like Istanbul, Türkiye.
+    const destinationIata = await resolveCityToIata(destinationCity).catch(() => null);
+
     const response: RoadTripResponse = {
       id,
       origin: {
@@ -334,6 +390,7 @@ export async function POST(req: NextRequest) {
       },
       destinationCity,
       destinationCountry,
+      destinationIata: destinationIata || undefined,
       mode,
       departureDate,
       returnDate,
@@ -389,9 +446,11 @@ async function computeStopovers(
     // (e.g. "Split" → "Split, Croatia").
     const result = await findNearbyCity(lat, lng).catch(() => null);
     if (result?.name) {
+      const iata = await resolveCityToIata(result.name).catch(() => null);
       stops.push({
         city: result.name,
         country: result.country,
+        iata: iata || undefined,
         lat,
         lng,
         order: i,

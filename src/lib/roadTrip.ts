@@ -5,6 +5,7 @@ import { CITY_HERO_IMAGES } from '@/lib/tripDetail';
 export interface RoadTripStopover {
   city: string;
   country?: string;
+  iata?: string;
   lat: number;
   lng: number;
   order: number;
@@ -18,6 +19,7 @@ export interface RoadTripData {
   destination: { query: string; formatted: string; lat: number; lng: number };
   destinationCity: string;
   destinationCountry: string;
+  destinationIata?: string;
   mode: 'car' | 'bus';
   departureDate: string;
   returnDate?: string;

@@ -230,7 +230,7 @@ export async function GET(req: Request) {
           hotels: [],
           source: 'live',
           count: 0,
-          warning: `Tripadvisor doesn't index "${cityQuery}". Try a nearby larger city.`,
+          warning: `No hotels available in ${cityQuery} for the selected dates.`,
         });
       }
     }

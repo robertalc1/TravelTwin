@@ -53,20 +53,29 @@ function buildHotelSearchHref(opts: {
   tripId: string;
   cityQuery: string;
   cityName?: string;
+  iata?: string;
   checkIn: string;
   checkOut: string;
   adults: number;
   stopoverOrder?: number;
 }): string {
+  const displayName = opts.cityName || opts.cityQuery.split(',')[0].trim();
   const qs = new URLSearchParams({
-    cityQuery: opts.cityQuery,
-    cityName: opts.cityName || opts.cityQuery.split(',')[0].trim(),
+    cityName: displayName,
     checkIn: opts.checkIn,
     checkOut: opts.checkOut,
     adults: String(opts.adults),
     tripId: opts.tripId,
     tripType: 'road-trip',
   });
+  if (opts.iata) {
+    // Identical URL shape to the flight side, which is proven to populate the
+    // 30-card grid. Tripadvisor's hotels searchLocation is reliable for IATA
+    // queries even when it returns nothing for the same city's free text.
+    qs.set('cityCode', opts.iata);
+  } else {
+    qs.set('cityQuery', opts.cityQuery);
+  }
   if (opts.stopoverOrder !== undefined) {
     qs.set('stopover', String(opts.stopoverOrder));
   }
@@ -271,6 +280,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                     tripId: trip.id,
                     cityQuery: s.country ? `${s.city}, ${s.country}` : s.city,
                     cityName: s.city,
+                    iata: s.iata,
                     checkIn: stopCheckIn,
                     checkOut: stopCheckOut,
                     adults: trip.adults,
@@ -638,6 +648,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                 ? `${trip.destinationCity}, ${trip.destinationCountry}`
                 : trip.destinationCity,
               cityName: trip.destinationCity,
+              iata: trip.destinationIata,
               checkIn: destinationCheckIn,
               checkOut: destinationCheckOut,
               adults: trip.adults,
