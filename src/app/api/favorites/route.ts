@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
-const ALLOWED_ITEM_TYPES = ["city", "attraction", "hotel"] as const;
+const ALLOWED_ITEM_TYPES = ["city", "attraction", "hotel", "trip"] as const;
 type ItemType = (typeof ALLOWED_ITEM_TYPES)[number];
 
 function isItemType(v: unknown): v is ItemType {

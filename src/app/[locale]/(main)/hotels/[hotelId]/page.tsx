@@ -5,11 +5,10 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight,
+  ArrowLeft, Star, MapPin, ChevronLeft, ChevronRight,
   Navigation,
 } from "lucide-react";
 import { useCurrencyStore } from "@/stores/currencyStore";
-import { useToastStore } from "@/stores/toastStore";
 import { getHotelImage } from "@/lib/hotelImages";
 import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
@@ -28,12 +27,6 @@ interface TAHotelDetail {
   longitude?: number;
   priceRange?: string;
   rankingString?: string;
-}
-
-interface FavoriteRow {
-  id: string;
-  item_type: string;
-  item_id: string;
 }
 
 const SECTIONS = [
@@ -63,13 +56,7 @@ export default function StandaloneHotelDetailPage() {
   const [photoIndex, setPhotoIndex] = useState(0);
   const [activeSection, setActiveSection] = useState<SectionId>("images");
 
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [favoriteRowId, setFavoriteRowId] = useState<string | null>(null);
-  const [favoritePending, setFavoritePending] = useState(false);
-  const [sharePending, setSharePending] = useState(false);
-
   const formatCurrency = useCurrencyStore((s) => s.format);
-  const showToast = useToastStore((s) => s.show);
   const { user } = useUser();
   const openAuthModal = useAuthModalStore((s) => s.open);
 
@@ -114,25 +101,6 @@ export default function StandaloneHotelDetailPage() {
       cancelled = true;
     };
   }, [id, checkIn, checkOut, isRo]);
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    fetch("/api/favorites")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { favorites?: FavoriteRow[] } | null) => {
-        if (cancelled || !data?.favorites) return;
-        const row = data.favorites.find(
-          (f) => f.item_type === "hotel" && f.item_id === id,
-        );
-        if (row) {
-          setIsFavorited(true);
-          setFavoriteRowId(row.id);
-        }
-      })
-      .catch(() => { /* unauth or offline */ });
-    return () => { cancelled = true; };
-  }, [id]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -188,91 +156,6 @@ export default function StandaloneHotelDetailPage() {
     router.push(target);
   }
 
-  async function toggleFavorite() {
-    if (favoritePending) return;
-    setFavoritePending(true);
-    try {
-      if (isFavorited) {
-        const qs = new URLSearchParams({ item_type: "hotel", item_id: id });
-        const res = await fetch(`/api/favorites?${qs.toString()}`, { method: "DELETE" });
-        if (!res.ok) {
-          showToast(
-            res.status === 401
-              ? isRo ? "Autentifică-te ca să gestionezi favoritele" : "Sign in to manage favorites"
-              : isRo ? "Nu am putut elimina din favorite" : "Could not remove favorite",
-            "error",
-          );
-          return;
-        }
-        setIsFavorited(false);
-        setFavoriteRowId(null);
-        showToast(isRo ? "Eliminat din favorite" : "Removed from favorites", "info");
-      } else {
-        const res = await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            item_type: "hotel",
-            item_id: id,
-            item_name: displayName,
-            item_data: {
-              cityCode, checkIn, checkOut, total,
-              photo: photos[0], stars, address: hotel?.address,
-            },
-          }),
-        });
-        if (!res.ok) {
-          showToast(
-            res.status === 401
-              ? isRo ? "Autentifică-te ca să salvezi favorite" : "Sign in to save favorites"
-              : isRo ? "Nu am putut salva favoritul" : "Could not save favorite",
-            "error",
-          );
-          return;
-        }
-        const data = (await res.json()) as { favorite?: { id: string } };
-        if (data.favorite?.id) setFavoriteRowId(data.favorite.id);
-        setIsFavorited(true);
-        showToast(isRo ? "Salvat în favorite" : "Saved to favorites", "success");
-      }
-    } catch {
-      showToast(isRo ? "Eroare de rețea — încearcă din nou" : "Network error — try again", "error");
-    } finally {
-      setFavoritePending(false);
-    }
-  }
-
-  async function handleShare() {
-    if (sharePending) return;
-    setSharePending(true);
-    try {
-      const url = typeof window !== "undefined" ? window.location.href : "";
-      const navWithShare = navigator as Navigator & {
-        share?: (data: ShareData) => Promise<void>;
-      };
-      if (navWithShare.share) {
-        try {
-          await navWithShare.share({
-            title: displayName,
-            text: isRo ? `Vezi ${displayName} pe TravelTwin` : `Check out ${displayName} on TravelTwin`,
-            url,
-          });
-          return;
-        } catch { /* user cancelled */ }
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        showToast(isRo ? "Link copiat în clipboard" : "Link copied to clipboard", "success");
-      } else {
-        showToast(isRo ? "Share-ul nu este suportat" : "Sharing not supported", "error");
-      }
-    } finally {
-      setSharePending(false);
-    }
-  }
-
-  void favoriteRowId;
-
   const directionsUrl =
     hotel?.latitude && hotel?.longitude
       ? `https://www.google.com/maps/dir/?api=1&destination=${hotel.latitude},${hotel.longitude}`
@@ -316,29 +199,6 @@ export default function StandaloneHotelDetailPage() {
           <h1 className="flex-1 text-base sm:text-lg font-bold text-text-primary truncate">
             {displayName}
           </h1>
-          <button
-            type="button"
-            onClick={handleShare}
-            disabled={sharePending}
-            aria-label={isRo ? "Share" : "Share"}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors disabled:opacity-50"
-          >
-            <Share2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={toggleFavorite}
-            disabled={favoritePending}
-            aria-label={isFavorited ? (isRo ? "Elimină din favorite" : "Remove from favorites") : (isRo ? "Salvează în favorite" : "Save to favorites")}
-            aria-pressed={isFavorited}
-            className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
-              isFavorited
-                ? "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-500"
-                : "border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-            }`}
-          >
-            <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />
-          </button>
         </div>
       </div>
 

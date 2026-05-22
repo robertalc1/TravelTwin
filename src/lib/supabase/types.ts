@@ -112,7 +112,7 @@ export interface Review {
 export interface Favorite {
     id: string;
     user_id: string;
-    item_type: "city" | "attraction" | "hotel";
+    item_type: "city" | "attraction" | "hotel" | "trip";
     item_id: string;
     item_name: string;
     item_data: Record<string, unknown> | null;

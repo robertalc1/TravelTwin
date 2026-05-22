@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 import {
   Plane, Hotel, ArrowLeft, MapPin, Star, Calendar,
   Coffee, Sun, Moon, Utensils, Camera,
-  Lightbulb, Navigation, DollarSign, Share2, Check,
+  Lightbulb, Navigation, DollarSign, Share2, Check, Heart,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
@@ -86,6 +86,11 @@ export default function TripDetailView({
   const [originCode, setOriginCode] = useState('');
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Favorite (save trip) — persists to /api/favorites with item_type='trip'
+  // and stashes the full TripDetail in item_data so the favorites page can
+  // re-hydrate sessionStorage and bring the user straight back here.
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoritePending, setFavoritePending] = useState(false);
   const [moreOptionsTab, setMoreOptionsTab] = useState<'hotels' | 'cars'>('hotels');
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
@@ -99,6 +104,63 @@ export default function TripDetailView({
   const storeSelectedHotel = useTripPricing((s) => s.selectedHotel);
   const storeSelectedTransfer = useTripPricing((s) => s.selectedTransfer);
   const hasSelectedHotel = Boolean(storeSelectedHotel);
+
+  // Check if this trip is already saved as a favorite (silent on errors:
+  // unauthenticated users just see an empty heart).
+  useEffect(() => {
+    if (!trip?.id) return;
+    let cancelled = false;
+    fetch('/api/favorites')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { favorites?: Array<{ item_type: string; item_id: string }> } | null) => {
+        if (cancelled || !data?.favorites) return;
+        const hit = data.favorites.some(
+          (f) => f.item_type === 'trip' && f.item_id === trip.id,
+        );
+        if (hit) setIsFavorited(true);
+      })
+      .catch(() => { /* unauth or offline — silent */ });
+    return () => { cancelled = true; };
+  }, [trip?.id]);
+
+  async function toggleFavorite() {
+    if (favoritePending || !trip?.id) return;
+    if (!user) { openAuthModal('login'); return; }
+    setFavoritePending(true);
+    try {
+      if (isFavorited) {
+        const qs = new URLSearchParams({ item_type: 'trip', item_id: trip.id });
+        const res = await fetch(`/api/favorites?${qs.toString()}`, { method: 'DELETE' });
+        if (res.ok) setIsFavorited(false);
+      } else {
+        // Stash the full TripDetail in item_data so a click on the favorites
+        // page can hydrate sessionStorage and bring the user back here
+        // without re-fetching the package from scratch.
+        const res = await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            item_type: 'trip',
+            item_id: trip.id,
+            item_name: `${trip.nights} nights in ${trip.destinationCity}`,
+            item_data: {
+              trip_type: 'flight',
+              destinationCity: trip.destinationCity,
+              destinationCountry: trip.destinationCountry,
+              departureDate: trip.departureDate,
+              returnDate: trip.returnDate,
+              nights: trip.nights,
+              totalPrice: trip.totalPrice,
+              currency: trip.currency,
+              fullData: trip,
+            },
+          }),
+        });
+        if (res.ok) setIsFavorited(true);
+      }
+    } catch { /* silent — UI state simply won't flip */ }
+    finally { setFavoritePending(false); }
+  }
 
   // Seed flight + default hotel + airport-transfer estimate on trip mount.
   useEffect(() => {
@@ -309,6 +371,20 @@ export default function TripDetailView({
             aria-label="Share trip"
           >
             <Share2 className="h-4 w-4 text-text-primary" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleFavorite}
+            disabled={favoritePending}
+            aria-label={isFavorited ? 'Remove from favorites' : 'Save to favorites'}
+            aria-pressed={isFavorited}
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors shrink-0 disabled:opacity-50 ${
+              isFavorited
+                ? 'bg-red-50 dark:bg-red-900/20 text-red-500'
+                : 'bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken text-text-primary'
+            }`}
+          >
+            <Heart className={`h-4 w-4 ${isFavorited ? 'fill-current' : ''}`} />
           </button>
         </div>
       </div>

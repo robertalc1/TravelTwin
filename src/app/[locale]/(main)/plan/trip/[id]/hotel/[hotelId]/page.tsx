@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, MapPin, Heart, Share2, ChevronLeft, ChevronRight,
+  ArrowLeft, Star, MapPin, ChevronLeft, ChevronRight,
   Navigation,
 } from "lucide-react";
 import { useCurrencyStore } from "@/stores/currencyStore";
@@ -27,12 +27,6 @@ interface TAHotelDetail {
   longitude?: number;
   priceRange?: string;
   rankingString?: string;
-}
-
-interface FavoriteRow {
-  id: string;
-  item_type: string;
-  item_id: string;
 }
 
 const SECTIONS = [
@@ -60,14 +54,6 @@ function HotelDetailContent() {
   const [warning, setWarning] = useState<string | null>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [activeSection, setActiveSection] = useState<SectionId>("images");
-
-  // Favorites state
-  const [isFavorited, setIsFavorited] = useState(false);
-  const [favoriteRowId, setFavoriteRowId] = useState<string | null>(null);
-  const [favoritePending, setFavoritePending] = useState(false);
-
-  // Share UI state
-  const [sharePending, setSharePending] = useState(false);
 
   const formatCurrency = useCurrencyStore((s) => s.format);
   const showToast = useToastStore((s) => s.show);
@@ -115,29 +101,6 @@ function HotelDetailContent() {
     };
   }, [id, checkIn, checkOut]);
 
-  // Check whether this hotel is already favorited
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    fetch("/api/favorites")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { favorites?: FavoriteRow[] } | null) => {
-        if (cancelled || !data?.favorites) return;
-        const row = data.favorites.find(
-          (f) => f.item_type === "hotel" && f.item_id === id,
-        );
-        if (row) {
-          setIsFavorited(true);
-          setFavoriteRowId(row.id);
-        }
-      })
-      .catch(() => {
-        /* unauth or offline — silent */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
 
   // Track which section is in view → highlight tab in the anchor menu.
   useEffect(() => {
@@ -228,105 +191,6 @@ function HotelDetailContent() {
     router.push(`/plan/trip/${tripId}`);
   }
 
-  async function toggleFavorite() {
-    if (favoritePending) return;
-    setFavoritePending(true);
-    try {
-      if (isFavorited) {
-        const qs = new URLSearchParams({
-          item_type: "hotel",
-          item_id: id,
-        });
-        const res = await fetch(`/api/favorites?${qs.toString()}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          if (res.status === 401) {
-            showToast("Sign in to manage favorites", "error");
-          } else {
-            showToast("Could not remove favorite", "error");
-          }
-          return;
-        }
-        setIsFavorited(false);
-        setFavoriteRowId(null);
-        showToast("Removed from favorites", "info");
-      } else {
-        const res = await fetch("/api/favorites", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            item_type: "hotel",
-            item_id: id,
-            item_name: displayName,
-            item_data: {
-              cityCode,
-              checkIn,
-              checkOut,
-              total,
-              photo: photos[0],
-              stars,
-              address: hotel?.address,
-            },
-          }),
-        });
-        if (!res.ok) {
-          if (res.status === 401) {
-            showToast("Sign in to save favorites", "error");
-          } else {
-            showToast("Could not save favorite", "error");
-          }
-          return;
-        }
-        const data = (await res.json()) as { favorite?: { id: string } };
-        if (data.favorite?.id) setFavoriteRowId(data.favorite.id);
-        setIsFavorited(true);
-        showToast("Saved to favorites", "success");
-      }
-    } catch {
-      showToast("Network error — try again", "error");
-    } finally {
-      setFavoritePending(false);
-    }
-  }
-
-  async function handleShare() {
-    if (sharePending) return;
-    setSharePending(true);
-    try {
-      const url = typeof window !== "undefined" ? window.location.href : "";
-      const navWithShare = navigator as Navigator & {
-        share?: (data: ShareData) => Promise<void>;
-      };
-      if (navWithShare.share) {
-        try {
-          await navWithShare.share({
-            title: displayName,
-            text: `Check out ${displayName} on TravelTwin`,
-            url,
-          });
-          return;
-        } catch {
-          /* user cancelled or share unsupported — fall through to clipboard */
-        }
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        showToast("Link copied to clipboard", "success");
-      } else {
-        showToast("Sharing not supported on this browser", "error");
-      }
-    } finally {
-      setSharePending(false);
-    }
-  }
-
-  // Reference to favoriteRowId so the lint rule doesn't complain — it's the
-  // row id we'd use if we wanted to delete by primary key. We currently look
-  // up by (item_type, item_id) which is also unique, so the id stays as a
-  // forward-compat handle for future operations.
-  void favoriteRowId;
-
   const directionsUrl =
     hotel?.latitude && hotel?.longitude
       ? `https://www.google.com/maps/dir/?api=1&destination=${hotel.latitude},${hotel.longitude}`
@@ -363,29 +227,6 @@ function HotelDetailContent() {
           <h1 className="flex-1 text-base sm:text-lg font-bold text-text-primary truncate">
             {displayName}
           </h1>
-          <button
-            type="button"
-            onClick={handleShare}
-            disabled={sharePending}
-            aria-label="Share"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors disabled:opacity-50"
-          >
-            <Share2 className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={toggleFavorite}
-            disabled={favoritePending}
-            aria-label={isFavorited ? "Remove from favorites" : "Save to favorites"}
-            aria-pressed={isFavorited}
-            className={`flex h-10 w-10 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
-              isFavorited
-                ? "border-red-200 bg-red-50 dark:bg-red-900/20 text-red-500"
-                : "border-neutral-200 dark:border-border-default text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
-            }`}
-          >
-            <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />
-          </button>
         </div>
       </div>
 
