@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Heart, Plane, Hotel, CalendarDays, User, MapPin, Car } from "lucide-react";
+import { Heart, Plane, Hotel, CalendarDays, User, MapPin, Car, CarFront } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 export function Footer() {
@@ -53,6 +53,12 @@ export function Footer() {
                 <Link href={lp("/hotels")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
                   <Hotel className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
                   {locale === "ro" ? "Caută hoteluri" : "Search Hotels"}
+                </Link>
+              </li>
+              <li>
+                <Link href={lp("/transfers")} className="flex items-center gap-2.5 text-body-sm text-text-secondary hover:text-primary-500 transition-colors group">
+                  <CarFront className="h-4 w-4 text-text-muted group-hover:text-primary-500 transition-colors shrink-0" />
+                  {t("carRentals")}
                 </Link>
               </li>
             </ul>

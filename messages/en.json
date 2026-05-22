@@ -90,8 +90,6 @@
       "errorNoTrips": "No trips found for your criteria. Try adjusting your budget or dates.",
       "loadingTitle": "Your AI travel agent is working...",
       "loadingSubtitle": "We're finding your perfect trip",
-      "loadingStep1": "Searching 400+ airlines for the best flights...",
-      "loadingStep2": "Comparing 150,000+ hotels worldwide...",
       "loadingStep3": "Building your personalized itinerary...",
       "loadingStep4": "Selecting the top matches for you...",
       "travelStyles": {

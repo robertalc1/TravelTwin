@@ -259,10 +259,11 @@ export default function PlanPage() {
     setLoadingProgress(0);
     setError("");
 
-    // Animate loading steps
+    // Animate loading steps — two visible steps now (itinerary build + match),
+    // so step counter only walks 0 → 1.
     const stepInterval = setInterval(() => {
       setLoadingStep(s => {
-        if (s < 3) return s + 1;
+        if (s < 1) return s + 1;
         clearInterval(stepInterval);
         return s;
       });
@@ -370,8 +371,8 @@ export default function PlanPage() {
 
           {/* Steps */}
           <div className="space-y-3 mb-10 text-left">
-            {(["loadingStep1", "loadingStep2", "loadingStep3", "loadingStep4"] as const).map((key, i) => {
-              const icon = ["✈️", "🏨", "🗺️", "⭐"][i];
+            {(["loadingStep3", "loadingStep4"] as const).map((key, i) => {
+              const icon = ["🗺️", "⭐"][i];
               return (
                 <div
                   key={key}
