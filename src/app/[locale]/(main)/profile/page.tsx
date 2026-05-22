@@ -394,10 +394,49 @@ function StatusPill({ status }: { status: SavedTrip["status"] }) {
 /* ═════════ TAB — Favorites ═════════ */
 function FavoritesTab() {
     const { user } = useUser();
+    const router = useRouter();
+    const locale = useLocale();
     const showToast = useToastStore((s) => s.show);
     const [favs, setFavs] = useState<Favorite[]>([]);
     const [loading, setLoading] = useState(true);
     const [removing, setRemoving] = useState<string | null>(null);
+
+    // Mirror the /favorites page openFavorite logic so clicking a card from
+    // the profile tab opens the trip detail (or hotel page) instead of being
+    // a dead card. Re-hydrates sessionStorage so the trip page can render
+    // without re-fetching the package.
+    function openFavorite(fav: Favorite) {
+        const data = (fav.item_data ?? {}) as Record<string, unknown>;
+        if (fav.item_type === "trip") {
+            const tripType = String(data.trip_type ?? "");
+            const fullData = data.fullData;
+            if (tripType === "road-trip") {
+                try {
+                    if (fullData) sessionStorage.setItem(`roadTrip_${fav.item_id}`, JSON.stringify(fullData));
+                } catch { /* quota / private mode */ }
+                router.push(`/${locale}/road-trip/result/${fav.item_id}`);
+                return;
+            }
+            if (tripType === "flight") {
+                try {
+                    if (fullData) sessionStorage.setItem(`trip_${fav.item_id}`, JSON.stringify(fullData));
+                } catch { /* ignore */ }
+                router.push(`/${locale}/plan/trip/${fav.item_id}`);
+                return;
+            }
+        }
+        if (fav.item_type === "hotel") {
+            const qs = new URLSearchParams();
+            if (data.cityCode) qs.set("cityCode", String(data.cityCode));
+            if (data.checkIn) qs.set("checkIn", String(data.checkIn));
+            if (data.checkOut) qs.set("checkOut", String(data.checkOut));
+            if (data.total) qs.set("total", String(data.total));
+            if (fav.item_name) qs.set("name", fav.item_name);
+            router.push(`/${locale}/hotels/${encodeURIComponent(fav.item_id)}?${qs.toString()}`);
+            return;
+        }
+        router.push(`/${locale}`);
+    }
 
     useEffect(() => {
         if (!user) return;
@@ -458,23 +497,27 @@ function FavoritesTab() {
             {favs.map((f) => (
                 <div
                     key={f.id}
-                    className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-5 flex items-start justify-between"
+                    className="group rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-5 flex items-start justify-between hover:shadow-md transition-shadow"
                 >
-                    <div className="min-w-0">
-                        <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => openFavorite(f)}
+                        className="min-w-0 text-left flex-1 cursor-pointer"
+                    >
+                        <h3 className="text-base font-bold text-text-primary flex items-center gap-2 group-hover:text-primary-600 transition-colors">
                             <Heart className="h-4 w-4 fill-red-500 text-red-500" />
                             {f.item_name}
                         </h3>
                         <p className="text-xs text-text-muted mt-1">
                             Saved {new Date(f.created_at).toLocaleDateString()}
                         </p>
-                    </div>
+                    </button>
                     <button
                         type="button"
-                        onClick={() => remove(f)}
+                        onClick={(e) => { e.stopPropagation(); remove(f); }}
                         disabled={removing === f.id}
                         aria-label={`Remove ${f.item_name}`}
-                        className="text-text-muted hover:text-red-500 transition-colors disabled:opacity-60"
+                        className="text-text-muted hover:text-red-500 transition-colors disabled:opacity-60 ml-3"
                     >
                         {removing === f.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                     </button>
