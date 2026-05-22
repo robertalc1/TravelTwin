@@ -1,5 +1,6 @@
-import type { TAHotel } from '@/lib/tripadvisor-client';
+import type { TAHotel, TARestaurant } from '@/lib/tripadvisor-client';
 import type { RoadTripAiContent } from '@/lib/road-trip-prompt';
+import type { DailyForecast } from '@/lib/weatherService';
 import { CITY_HERO_IMAGES } from '@/lib/tripDetail';
 
 export interface RoadTripStopover {
@@ -11,6 +12,10 @@ export interface RoadTripStopover {
   order: number;
   arrivalHourFromStart: number;
   hotel: TAHotel | null;
+  /** One-day weather forecast for the estimated arrival date. */
+  weather?: DailyForecast | null;
+  /** Top ~3 restaurants in the stopover city (Tripadvisor). */
+  restaurants?: TARestaurant[];
 }
 
 export interface RoadTripData {

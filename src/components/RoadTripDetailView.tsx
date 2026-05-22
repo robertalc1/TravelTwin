@@ -23,6 +23,14 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  Cloud,
+  CloudSun,
+  CloudFog,
+  CloudDrizzle,
+  CloudRain,
+  CloudLightning,
+  Snowflake,
+  type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import { resolveRoadTripHero, formatHours, formatDate, hotelPhotoUrl } from '@/lib/roadTrip';
@@ -30,6 +38,11 @@ import type { RoadTripData } from '@/lib/roadTrip';
 import HeroWeatherStrip from '@/components/Weather/HeroWeatherStrip';
 import AttractionPhotos from '@/components/AttractionPhotos';
 import { useCurrency } from '@/hooks/useCurrency';
+import { decodeWeatherCode } from '@/lib/weatherService';
+
+const WEATHER_ICONS: Record<string, LucideIcon> = {
+  Sun, Cloud, CloudSun, CloudFog, CloudDrizzle, CloudRain, CloudLightning, Snowflake,
+};
 
 interface LiveAttraction {
   id: string;
@@ -363,6 +376,35 @@ export default function RoadTripDetailView({ trip }: Props) {
                               <ChevronRight className="h-3 w-3" />
                             </Link>
                           </>
+                        )}
+
+                        {s.weather && (
+                          <StopoverWeatherChip weather={s.weather} isRo={isRo} />
+                        )}
+
+                        {s.restaurants && s.restaurants.length > 0 && (
+                          <div className="mt-3 border-t border-border-default pt-2">
+                            <p className="text-[11px] uppercase tracking-wide font-semibold text-text-muted flex items-center gap-1">
+                              <Utensils className="h-3 w-3" />
+                              {isRo ? 'Unde mănânci' : 'Where to eat'}
+                            </p>
+                            <ul className="mt-1.5 space-y-1">
+                              {s.restaurants.slice(0, 3).map((r) => (
+                                <li
+                                  key={r.id}
+                                  className="text-xs text-text-secondary line-clamp-1"
+                                >
+                                  <span className="font-semibold text-text-primary">{r.name}</span>
+                                  {r.cuisine && (
+                                    <span className="text-text-muted"> · {r.cuisine.split(',')[0]}</span>
+                                  )}
+                                  {r.priceRange && (
+                                    <span className="text-text-muted"> · {r.priceRange}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -772,6 +814,46 @@ function CostRow({
       <span className="font-semibold text-text-primary">{value}</span>
     </div>
   );
+}
+
+function StopoverWeatherChip({
+  weather,
+  isRo,
+}: {
+  weather: NonNullable<RoadTripData['stopovers'][number]['weather']>;
+  isRo: boolean;
+}) {
+  const decoded = decodeWeatherCode(weather.weatherCode);
+  const Icon = WEATHER_ICONS[decoded.icon] ?? Cloud;
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-md bg-sky-50 dark:bg-sky-900/15 border border-sky-100 dark:border-sky-900/40 px-2 py-1.5">
+      <Icon className="h-3.5 w-3.5 text-sky-600 dark:text-sky-300 shrink-0" />
+      <span className="text-[11px] font-semibold text-sky-900 dark:text-sky-100">
+        {Math.round(weather.tempMin)}° / {Math.round(weather.tempMax)}°
+      </span>
+      <span className="text-[11px] text-sky-700 dark:text-sky-300 line-clamp-1">
+        {isRo ? translateWeather(decoded.label) : decoded.label}
+      </span>
+    </div>
+  );
+}
+
+function translateWeather(en: string): string {
+  const map: Record<string, string> = {
+    'Clear sky': 'Senin',
+    'Mainly clear': 'În mare parte senin',
+    'Partly cloudy': 'Parțial înnorat',
+    'Overcast': 'Înnorat',
+    'Fog': 'Ceață',
+    'Drizzle': 'Burniță',
+    'Rain': 'Ploaie',
+    'Snow': 'Ninsoare',
+    'Rain showers': 'Averse',
+    'Snow showers': 'Averse de zăpadă',
+    'Thunderstorm': 'Furtună',
+    'Unknown': 'Necunoscut',
+  };
+  return map[en] ?? en;
 }
 
 function HotelMiniCard({

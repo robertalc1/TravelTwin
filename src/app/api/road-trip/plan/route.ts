@@ -11,7 +11,10 @@ import {
   getGeoIdByQuery,
   searchHotelsByGeoId,
   searchLocations,
+  searchRestaurantLocationId,
+  searchRestaurants,
   type TAHotel,
+  type TARestaurant,
 } from '@/lib/tripadvisor-client';
 import {
   buildRoadTripPrompt,
@@ -22,6 +25,7 @@ import { generateFallbackContent } from '@/lib/fallbackContent';
 import { CITY_TO_IATA } from '@/lib/iataMapping';
 import { getCached, setCache } from '@/lib/cache';
 import { isEuropean } from '@/lib/europeValidation';
+import { fetchForecast, type DailyForecast } from '@/lib/weatherService';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -48,6 +52,8 @@ interface Stopover {
   order: number;
   arrivalHourFromStart: number;
   hotel: TAHotel | null;
+  weather?: DailyForecast | null;
+  restaurants?: TARestaurant[];
 }
 
 /**
@@ -335,11 +341,29 @@ export async function POST(req: NextRequest) {
         return null;
       }),
     );
-    const hotelResults = await Promise.all(hotelPromises);
+    // Enrich each stopover with weather forecast for the arrival date and a
+    // small list of restaurants from Tripadvisor. Both calls are best-effort
+    // — a failure on either side leaves the field undefined, the UI just
+    // hides that strip rather than blocking the trip.
+    const weatherPromises = stopovers.map((s) => {
+      const arrivalDate = addDays(departureDate, Math.floor(s.arrivalHourFromStart / 24));
+      return fetchForecast(s.lat, s.lng, arrivalDate, arrivalDate)
+        .then((r) => r.daily[0] ?? null)
+        .catch(() => null);
+    });
+    const restaurantPromises = stopovers.map((s) => loadStopoverRestaurants(s));
+
+    const [hotelResults, weatherResults, restaurantResults] = await Promise.all([
+      Promise.all(hotelPromises),
+      Promise.all(weatherPromises),
+      Promise.all(restaurantPromises),
+    ]);
     const stopoverHotels = hotelResults.slice(0, stopovers.length);
     const hotelDestination = hotelResults[hotelResults.length - 1];
     stopovers.forEach((s, i) => {
       s.hotel = stopoverHotels[i];
+      s.weather = weatherResults[i];
+      s.restaurants = restaurantResults[i];
     });
 
     const destinationCity = shortCityName(destination);
@@ -609,6 +633,35 @@ function humanizeHotelError(context: string, err: Error): string {
     return `Could not load ${context} hotel — Tripadvisor authentication failed.`;
   }
   return `Could not load ${context} hotel: ${msg.slice(0, 120)}`;
+}
+
+/**
+ * Best-effort top-3 restaurants for a stopover city. Cached for 24h on
+ * (city, country) so repeated planning of the same route is instant. Returns
+ * an empty array on any failure — the UI hides the strip gracefully.
+ */
+async function loadStopoverRestaurants(stop: Stopover): Promise<TARestaurant[]> {
+  const queryKey = `${stop.city}${stop.country ? `, ${stop.country}` : ''}`.toLowerCase();
+  const cacheKey = `roadTripStopRest:v1:${queryKey}`;
+  const cached = await getCached(cacheKey);
+  if (cached && Array.isArray(cached.data)) {
+    return cached.data as TARestaurant[];
+  }
+
+  try {
+    const locId = await searchRestaurantLocationId(
+      stop.country ? `${stop.city}, ${stop.country}` : stop.city,
+    );
+    if (!locId) {
+      await setCache(cacheKey, [], 60 * 6);
+      return [];
+    }
+    const list = (await searchRestaurants(locId)).slice(0, 3);
+    await setCache(cacheKey, list, 60 * 24);
+    return list;
+  } catch {
+    return [];
+  }
 }
 
 function buildGoogleMapsLink(
