@@ -240,23 +240,23 @@ export default function RoadTripWizardPage() {
       },
     ];
     return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary-900 via-secondary-800 to-primary-900 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-br from-secondary-900 via-secondary-800 to-primary-900 flex items-center justify-center px-4 py-8">
         <div className="max-w-md w-full text-center">
-          <div className="text-6xl mb-8 animate-bounce">{heroIcon}</div>
-          <h2 className="text-2xl font-bold text-white mb-2">
+          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-bounce">{heroIcon}</div>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 px-2">
             {isRo ? "Agentul tău AI lucrează..." : "Your AI travel agent is working..."}
           </h2>
-          <p className="text-white/70 mb-10">
+          <p className="text-sm sm:text-base text-white/70 mb-8 sm:mb-10 px-2">
             {isRo ? "Căutăm road trip-ul tău perfect" : "We're finding your perfect road trip"}
           </p>
-          <div className="space-y-3 mb-10 text-left">
+          <div className="space-y-3 mb-8 sm:mb-10 text-left">
             {steps.map((s, i) => (
               <div
                 key={i}
                 className={`flex items-center gap-3 transition-all duration-500 ${i <= loadingStep ? "opacity-100" : "opacity-30"}`}
               >
-                <span className="text-xl">{i < loadingStep ? "✅" : s.icon}</span>
-                <span className={`text-sm ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{s.label}</span>
+                <span className="text-xl shrink-0">{i < loadingStep ? "✅" : s.icon}</span>
+                <span className={`text-xs sm:text-sm leading-snug ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{s.label}</span>
               </div>
             ))}
           </div>

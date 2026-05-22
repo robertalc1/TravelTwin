@@ -361,16 +361,16 @@ export default function PlanPage() {
   // Loading screen
   if (aiLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-secondary-500 via-secondary-600 to-primary-600 flex items-center justify-center">
-        <div className="w-full max-w-lg px-6 text-center">
+      <div className="min-h-screen bg-gradient-to-br from-secondary-500 via-secondary-600 to-primary-600 flex items-center justify-center py-8">
+        <div className="w-full max-w-lg px-4 sm:px-6 text-center">
           {/* Animated plane */}
-          <div className="text-6xl mb-8 animate-bounce">✈️</div>
+          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-bounce">✈️</div>
 
-          <h2 className="text-2xl font-bold text-white mb-2">{t("loadingTitle")}</h2>
-          <p className="text-white/70 mb-10">{t("loadingSubtitle")}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 px-2">{t("loadingTitle")}</h2>
+          <p className="text-sm sm:text-base text-white/70 mb-8 sm:mb-10 px-2">{t("loadingSubtitle")}</p>
 
           {/* Steps */}
-          <div className="space-y-3 mb-10 text-left">
+          <div className="space-y-3 mb-8 sm:mb-10 text-left">
             {(["loadingStep3", "loadingStep4"] as const).map((key, i) => {
               const icon = ["🗺️", "⭐"][i];
               return (
@@ -378,8 +378,8 @@ export default function PlanPage() {
                   key={key}
                   className={`flex items-center gap-3 transition-all duration-500 ${i <= loadingStep ? "opacity-100" : "opacity-30"}`}
                 >
-                  <span className="text-xl">{i < loadingStep ? "✅" : icon}</span>
-                  <span className={`text-sm ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{t(key)}</span>
+                  <span className="text-xl shrink-0">{i < loadingStep ? "✅" : icon}</span>
+                  <span className={`text-xs sm:text-sm leading-snug ${i <= loadingStep ? "text-white" : "text-white/50"}`}>{t(key)}</span>
                 </div>
               );
             })}
