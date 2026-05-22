@@ -57,7 +57,7 @@ export interface FallbackInput {
   nights: number;
   styles?: string[];
   locale?: 'ro' | 'en';
-  mode?: 'flight' | 'car' | 'bus';
+  mode?: 'flight' | 'car' | 'bus' | 'train';
   durationHours?: number;
   stopoverCity?: string;
   originCity?: string;
@@ -648,7 +648,12 @@ function buildDayByDay(input: FallbackInput, cityData: CityData): FallbackAiCont
         };
       }
     } else {
-      const modeNoun = mode === 'car' ? (isRo ? 'mașina' : 'the car') : (isRo ? 'autobuzul' : 'the bus');
+      const modeNoun =
+        mode === 'car'
+          ? isRo ? 'mașina' : 'the car'
+          : mode === 'train'
+            ? isRo ? 'trenul' : 'the train'
+            : isRo ? 'autobuzul' : 'the bus';
       if (isFirst) {
         const dayDest = hasStopover ? stopoverCity! : destination.city;
         title = isRo
@@ -665,7 +670,9 @@ function buildDayByDay(input: FallbackInput, cityData: CityData): FallbackAiCont
           activity: isRo ? 'Pauză la jumătate de drum' : 'Mid-route break',
           description: mode === 'car'
             ? (isRo ? 'Oprire pentru cafea și combustibil' : 'Stop for coffee and fuel')
-            : (isRo ? 'Pauză la o stație de autobuz' : 'Brief bus station stop'),
+            : mode === 'train'
+              ? (isRo ? 'Schimbare de tren sau pauză în vagonul-restaurant' : 'Train transfer or dining-car break')
+              : (isRo ? 'Pauză la o stație de autobuz' : 'Brief bus station stop'),
           type: 'transport',
         };
         evening = {
@@ -784,6 +791,26 @@ function buildLocalTips(input: FallbackInput): string[] {
         ];
   }
 
+  if (mode === 'train') {
+    return isRo
+      ? [
+          'Rezervă biletele de tren cu 2-4 săptămâni înainte pentru tarifele cele mai bune',
+          'Verifică pe Trainline sau pe site-ul operatorului național — adesea există reduceri pentru tineri/seniori',
+          'Pentru rute lungi, ia o pernă mică și o sticlă de apă — vagoanele restaurant pot fi scumpe',
+          'Validează biletul la operatorul local dacă e cerut (în RO/IT/FR controlul e digital, în alte țări nu)',
+          'Programează măcar 20 de minute între conexiuni — întârzierile sunt frecvente',
+          `Rezervă un hotel aproape de gara principală în ${destination.city} ca să eviți transferurile inutile`,
+        ]
+      : [
+          'Book tickets 2-4 weeks ahead for the lowest fares',
+          'Check Trainline or the national operator — youth/senior discounts are common',
+          'Long-distance: bring a small pillow and a water bottle (dining cars get pricey)',
+          'Validate paper tickets where required (RO/IT/FR are digital, others may not be)',
+          'Allow at least 20 min between connections — delays happen',
+          `Book a hotel close to the central station in ${destination.city} to skip extra transfers`,
+        ];
+  }
+
   // bus
   return isRo
     ? [
@@ -817,8 +844,8 @@ export function generateFallbackContent(input: FallbackInput): FallbackAiContent
         ? `Descoperă magia destinației ${destination.city} într-o călătorie de ${nights} nopți. De la repere iconice la comori locale, această ofertă combină cele mai bune experiențe din ${destination.country}.`
         : `Discover the magic of ${destination.city} on this perfectly curated ${nights}-night journey. From iconic landmarks to hidden local gems, this trip combines the best of ${destination.country} culture and beauty.`)
     : (isRo
-        ? `Road trip${mode === 'car' ? ' cu mașina' : ' cu autobuzul'} către ${destination.city}, cu drum prin ${destination.country}. Combină atmosfera de drum cu experiențele autentice de la destinație.`
-        : `${mode === 'car' ? 'Car' : 'Bus'} road trip to ${destination.city}, crossing ${destination.country}. Combines the spirit of the road with authentic experiences at the destination.`);
+        ? `Road trip${mode === 'car' ? ' cu mașina' : mode === 'train' ? ' cu trenul' : ' cu autobuzul'} către ${destination.city}, cu drum prin ${destination.country}. Combină atmosfera de drum cu experiențele autentice de la destinație.`
+        : `${mode === 'car' ? 'Car' : mode === 'train' ? 'Train' : 'Bus'} road trip to ${destination.city}, crossing ${destination.country}. Combines the spirit of the road with authentic experiences at the destination.`);
 
   const whyThisTrip = isRo
     ? `Această călătorie este potrivită pentru cei care caută o experiență de neuitat în ${destination.city}${styles.length ? `, axată pe ${styleText}` : ''}.`

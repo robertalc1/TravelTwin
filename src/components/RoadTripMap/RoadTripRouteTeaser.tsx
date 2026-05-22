@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { MapPin, Car, Bus, Navigation, Sparkles } from 'lucide-react';
+import { MapPin, Car, Bus, TrainFront, Navigation, Sparkles } from 'lucide-react';
 import { buildStaticRouteUrl } from '@/components/RouteMap/buildEmbedUrl';
 
 interface RoutePoint {
@@ -18,7 +18,7 @@ interface Props {
   destinationLat: number;
   destinationLon: number;
   stopovers?: RoutePoint[];
-  mode: 'car' | 'bus';
+  mode: 'car' | 'bus' | 'train';
   href: string;
   locale: 'ro' | 'en';
 }
@@ -43,7 +43,7 @@ export default function RoadTripRouteTeaser({
     waypoints: stopovers,
     size: '1280x600',
   });
-  const Icon = mode === 'car' ? Car : Bus;
+  const Icon = mode === 'car' ? Car : mode === 'train' ? TrainFront : Bus;
   const isRo = locale === 'ro';
 
   return (

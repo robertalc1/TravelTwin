@@ -25,7 +25,7 @@ export interface RoadTripData {
   destinationCity: string;
   destinationCountry: string;
   destinationIata?: string;
-  mode: 'car' | 'bus';
+  mode: 'car' | 'bus' | 'train';
   departureDate: string;
   returnDate?: string;
   adults: number;
@@ -38,6 +38,8 @@ export interface RoadTripData {
     fuel: number;
     tolls: number;
     busFarePerPerson: number;
+    /** Per-person estimated train fare (€). 0 when mode != 'train'. */
+    trainFarePerPerson: number;
     ferry: number;
     total: number;
     currency: 'EUR';
@@ -54,7 +56,7 @@ export interface RoadTripData {
   };
   stopovers: RoadTripStopover[];
   hotelDestination: TAHotel | null;
-  externalLinks: { googleMaps: string; flixbus?: string };
+  externalLinks: { googleMaps: string; flixbus?: string; trainline?: string };
   aiContent: RoadTripAiContent | null;
   warnings: string[];
 }

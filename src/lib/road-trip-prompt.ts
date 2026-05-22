@@ -2,7 +2,7 @@ export interface RoadTripPromptInput {
   originCity: string;
   destinationCity: string;
   destinationCountry?: string;
-  mode: 'car' | 'bus';
+  mode: 'car' | 'bus' | 'train';
   distanceKm: number;
   durationHours: number;
   departureDate: string;
@@ -79,7 +79,9 @@ export function buildRoadTripPrompt(input: RoadTripPromptInput): string {
   const transportLine =
     mode === 'car'
       ? `${adults} traveler${adults > 1 ? 's' : ''} drive their own car ${distanceKm} km (~${durationHours.toFixed(1)}h total driving time) from ${originCity} to ${destinationCity}${destinationCountry ? `, ${destinationCountry}` : ''}.`
-      : `${adults} traveler${adults > 1 ? 's' : ''} take a long-distance bus ${distanceKm} km (~${durationHours.toFixed(1)}h total) from ${originCity} to ${destinationCity}${destinationCountry ? `, ${destinationCountry}` : ''}. They do NOT drive — describe rest stops as bus station stops, not driver breaks.`;
+      : mode === 'train'
+        ? `${adults} traveler${adults > 1 ? 's' : ''} travel by train ${distanceKm} km (~${durationHours.toFixed(1)}h total rail time) from ${originCity} to ${destinationCity}${destinationCountry ? `, ${destinationCountry}` : ''}. They take a direct connection or one transfer — describe Day 1 as a single travel day with relaxation on board, NOT driver breaks.`
+        : `${adults} traveler${adults > 1 ? 's' : ''} take a long-distance bus ${distanceKm} km (~${durationHours.toFixed(1)}h total) from ${originCity} to ${destinationCity}${destinationCountry ? `, ${destinationCountry}` : ''}. They do NOT drive — describe rest stops as bus station stops, not driver breaks.`;
 
   const stopoverLine =
     stopovers.length === 0
@@ -99,7 +101,7 @@ Trip details:
 - Return date: ${returnDate || 'open'}
 - Total duration: ${tripDays} days (${outboundDays} day${outboundDays > 1 ? 's' : ''} on the road outbound + ${cityDays} day${cityDays > 1 ? 's' : ''} at destination)
 - Travelers: ${adults} adult${adults > 1 ? 's' : ''}
-- Mode of transport: ${mode === 'car' ? 'private car (self-driving)' : 'long-distance bus'}
+- Mode of transport: ${mode === 'car' ? 'private car (self-driving)' : mode === 'train' ? 'European intercity train' : 'long-distance bus'}
 
 Generate a JSON object with EXACTLY this shape (no markdown, no commentary — JSON only):
 
@@ -157,7 +159,7 @@ Rules:
 - topAttractions: 5-8 entries. topRestaurants: 4-6 entries. topCafes: 3-5 entries.
 - localTips MUST include road-specific items: vignettes/tolls for transit countries, driving regulations (Austrian/Swiss alpine, Romanian DN1), fuel pricing, EU travel docs (greencard, RCA international), and 1-2 destination-specific tips.
 - DO NOT mention airports, flights, boarding, airlines, or air travel anywhere.
-- ${mode === 'car' ? 'For driving days, mention realistic break intervals (every 2-3 hours).' : 'For bus days, describe bus terminals and onboard experience.'}
+- ${mode === 'car' ? 'For driving days, mention realistic break intervals (every 2-3 hours).' : mode === 'train' ? 'For travel days, describe boarding the train, the onboard experience and the arrival station.' : 'For bus days, describe bus terminals and onboard experience.'}
 - Output ONLY valid JSON, starting with { and ending with }.`;
 }
 

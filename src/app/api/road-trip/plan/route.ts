@@ -36,7 +36,7 @@ interface RequestBody {
   destinationQuery?: string;
   departureDate?: string;
   returnDate?: string;
-  mode?: 'car' | 'bus';
+  mode?: 'car' | 'bus' | 'train';
   adults?: number;
   fuelPricePerLitre?: number;
   consumption?: number;
@@ -108,7 +108,7 @@ interface RoadTripResponse {
   destinationCity: string;
   destinationCountry: string;
   destinationIata?: string;
-  mode: 'car' | 'bus';
+  mode: 'car' | 'bus' | 'train';
   departureDate: string;
   returnDate?: string;
   adults: number;
@@ -121,6 +121,7 @@ interface RoadTripResponse {
     fuel: number;
     tolls: number;
     busFarePerPerson: number;
+    trainFarePerPerson: number;
     ferry: number;
     total: number;
     currency: 'EUR';
@@ -137,7 +138,7 @@ interface RoadTripResponse {
   };
   stopovers: Stopover[];
   hotelDestination: TAHotel | null;
-  externalLinks: { googleMaps: string; flixbus?: string };
+  externalLinks: { googleMaps: string; flixbus?: string; trainline?: string };
   aiContent: RoadTripAiContent | null;
   warnings: string[];
 }
@@ -176,7 +177,8 @@ export async function POST(req: NextRequest) {
     const destinationQuery = body.destinationQuery?.trim();
     const departureDate = body.departureDate;
     const returnDate = body.returnDate;
-    const mode: 'car' | 'bus' = body.mode === 'bus' ? 'bus' : 'car';
+    const mode: 'car' | 'bus' | 'train' =
+      body.mode === 'bus' ? 'bus' : body.mode === 'train' ? 'train' : 'car';
     const adults = Math.max(1, Math.min(8, body.adults ?? 2));
     const fuelPrice = body.fuelPricePerLitre ?? FUEL_DEFAULT_EUR_PER_L;
     const consumption = body.consumption ?? CONSUMPTION_DEFAULT_L_PER_100KM;
@@ -238,8 +240,14 @@ export async function POST(req: NextRequest) {
     }
 
     let quote: DriveQuote;
+    // Train mode borrows the driving distance as a proxy (rail distance on
+    // major European corridors is within ~10% of road distance), but the
+    // duration and fare come from a heuristic — see `applyTrainHeuristic`
+    // below. Bus stays on transit; car stays on driving.
+    const directionsMode: 'driving' | 'transit' =
+      mode === 'bus' ? 'transit' : 'driving';
     try {
-      quote = await getDriveQuote(origin, destination, mode === 'bus' ? 'transit' : 'driving');
+      quote = await getDriveQuote(origin, destination, directionsMode);
     } catch (e) {
       const msg = (e as Error).message;
       if (msg === 'NO_LAND_ROUTE') {
@@ -284,10 +292,17 @@ export async function POST(req: NextRequest) {
     }
 
     const distanceKm = Math.round(quote.distanceMeters / 1000);
-    const durationHours = quote.durationSeconds / 3600;
-    const durationInTrafficHours = quote.durationInTrafficSeconds
-      ? quote.durationInTrafficSeconds / 3600
-      : undefined;
+    // Train heuristic: weighted-average European speed (TGV/ICE corridors plus
+    // regional segments) ≈ 110 km/h. Override Google's driving duration so
+    // the UI shows a realistic rail travel time, not an 8h drive.
+    const TRAIN_AVG_SPEED_KMH = 110;
+    const TRAIN_FARE_PER_KM_EUR = 0.12;
+    const durationHours =
+      mode === 'train' ? distanceKm / TRAIN_AVG_SPEED_KMH : quote.durationSeconds / 3600;
+    const durationInTrafficHours =
+      mode === 'train' || !quote.durationInTrafficSeconds
+        ? undefined
+        : quote.durationInTrafficSeconds / 3600;
 
     // Ferry estimate: per-km fee scaled by ferry distance + per-passenger fee.
     // Calibrated on real European crossings (Dover-Calais ~€80, Patras-Bari
@@ -308,7 +323,14 @@ export async function POST(req: NextRequest) {
       mode === 'car' ? Math.round((distanceKm * consumption * fuelPrice) / 100) : 0;
     const tolls = mode === 'car' ? Math.round(distanceKm * TOLL_PER_KM_EUR) : 0;
     const busFarePerPerson = mode === 'bus' ? Math.round(distanceKm * BUS_FARE_PER_KM_EUR) : 0;
-    const total = fuel + tolls + busFarePerPerson * adults + ferryCost;
+    const trainFarePerPerson =
+      mode === 'train' ? Math.round(distanceKm * TRAIN_FARE_PER_KM_EUR) : 0;
+    const total =
+      fuel +
+      tolls +
+      busFarePerPerson * adults +
+      trainFarePerPerson * adults +
+      ferryCost;
 
     const stopovers = await computeStopovers(durationHours, origin, destination, mode, warnings);
 
@@ -464,6 +486,10 @@ export async function POST(req: NextRequest) {
       mode === 'bus'
         ? `https://www.flixbus.com/search?from=${encodeURIComponent(shortCityName(origin))}&to=${encodeURIComponent(destinationCity)}&departureDate=${departureDate}`
         : undefined;
+    const trainlineLink =
+      mode === 'train'
+        ? buildTrainlineLink(shortCityName(origin), destinationCity, departureDate)
+        : undefined;
 
     // Pre-resolve destination IATA so RoadTripDetailView can navigate to
     // /hotels/search?cityCode=IATA (the proven flight-side URL) instead of
@@ -499,7 +525,15 @@ export async function POST(req: NextRequest) {
           ? Number(durationInTrafficHours.toFixed(2))
           : undefined,
       },
-      cost: { fuel, tolls, busFarePerPerson, ferry: ferryCost, total, currency: 'EUR' },
+      cost: {
+        fuel,
+        tolls,
+        busFarePerPerson,
+        trainFarePerPerson,
+        ferry: ferryCost,
+        total,
+        currency: 'EUR',
+      },
       ferry: quote.hasFerry
         ? {
             segments: quote.ferrySegments.map((s) => ({
@@ -516,7 +550,11 @@ export async function POST(req: NextRequest) {
         : undefined,
       stopovers,
       hotelDestination: hotelDestination ?? null,
-      externalLinks: { googleMaps: googleMapsLink, flixbus: flixbusLink },
+      externalLinks: {
+        googleMaps: googleMapsLink,
+        flixbus: flixbusLink,
+        trainline: trainlineLink,
+      },
       aiContent,
       warnings,
     };
@@ -535,12 +573,14 @@ async function computeStopovers(
   durationHours: number,
   origin: GeocodeResult,
   destination: GeocodeResult,
-  mode: 'car' | 'bus',
+  mode: 'car' | 'bus' | 'train',
   warnings: string[],
 ): Promise<Stopover[]> {
   // Bus passengers don't drive — long-distance buses run continuously through
-  // the night. No overnight stopovers needed even for 16h+ routes.
-  if (mode === 'bus') return [];
+  // the night. No overnight stopovers needed even for 16h+ routes. Train rides
+  // are similarly point-to-point — high-speed rail covers transcontinental
+  // distance in a single day with onboard food/rest.
+  if (mode === 'bus' || mode === 'train') return [];
   // Self-drive: a single driver can't safely cover >14h in one day.
   if (durationHours < STOPOVER_THRESHOLD_HOURS) return [];
   const count = Math.min(3, Math.floor(durationHours / HOURS_PER_STOPOVER));
@@ -668,16 +708,42 @@ function buildGoogleMapsLink(
   origin: GeocodeResult,
   destination: GeocodeResult,
   stopovers: Stopover[],
-  mode: 'car' | 'bus',
+  mode: 'car' | 'bus' | 'train',
 ): string {
+  // Google Maps doesn't have a dedicated 'rail' travel mode — transit covers
+  // both bus and train. Cars get 'driving'.
+  const travelmode = mode === 'car' ? 'driving' : 'transit';
   const params = new URLSearchParams({
     api: '1',
     origin: `${origin.lat},${origin.lng}`,
     destination: `${destination.lat},${destination.lng}`,
-    travelmode: mode === 'bus' ? 'transit' : 'driving',
+    travelmode,
   });
   if (stopovers.length > 0) {
     params.set('waypoints', stopovers.map((s) => `${s.lat},${s.lng}`).join('|'));
   }
   return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/**
+ * Trainline accepts canonical city slugs in the URL path:
+ *   /en/train-times/bucharest-to-paris
+ * The slugs are predictable for major European cities. We slugify the city
+ * name (lower-case, hyphens, strip diacritics) and trust Trainline's router
+ * to handle the result — when it doesn't recognise the pair, the page still
+ * lands on a homepage that pre-fills the search box from the URL fragment.
+ */
+function buildTrainlineLink(origin: string, destination: string, departureDate: string): string {
+  const slug = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  const o = slug(origin);
+  const d = slug(destination);
+  // Date is informational — Trainline reads `outbound_date` from the query
+  // string when it's present.
+  return `https://www.trainline.com/en/train-times/${o}-to-${d}?outbound_date=${departureDate}`;
 }

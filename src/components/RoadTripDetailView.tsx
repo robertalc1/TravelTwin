@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Car,
   Bus,
+  TrainFront,
   Ship,
   MapPin,
   Clock,
@@ -128,7 +129,13 @@ export default function RoadTripDetailView({ trip }: Props) {
 
   const heroUrl = resolveRoadTripHero(trip);
   const originCity = trip.origin.formatted.split(',')[0]?.trim() || trip.origin.formatted;
-  const Icon = trip.mode === 'car' ? Car : Bus;
+  const Icon = trip.mode === 'car' ? Car : trip.mode === 'train' ? TrainFront : Bus;
+  const modeLabel =
+    trip.mode === 'car'
+      ? (isRo ? 'Cu mașina' : 'By car')
+      : trip.mode === 'train'
+        ? (isRo ? 'Cu trenul' : 'By train')
+        : (isRo ? 'Cu autobuzul' : 'By bus');
 
   // ── Live data from Tripadvisor: attractions + restaurants per destination
   // (cafes stay AI/CITY_DATA — Tripadvisor has no dedicated cafe endpoint).
@@ -190,7 +197,7 @@ export default function RoadTripDetailView({ trip }: Props) {
           <div className="absolute top-4 left-4 flex items-center gap-2 flex-wrap">
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
               <Icon className="h-3.5 w-3.5" />
-              {trip.mode === 'car' ? (isRo ? 'Cu mașina' : 'By car') : isRo ? 'Cu autobuzul' : 'By bus'}
+              {modeLabel}
             </div>
             {trip.ferry && (
               <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/95 backdrop-blur-sm px-3 py-1.5 text-xs font-bold text-white shadow-md">
@@ -631,6 +638,19 @@ export default function RoadTripDetailView({ trip }: Props) {
                       value={money(trip.cost.tolls)}
                     />
                   </>
+                ) : trip.mode === 'train' ? (
+                  <>
+                    <CostRow
+                      icon={<TrainFront className="h-4 w-4" />}
+                      label={isRo ? 'Bilet tren / persoană (est.)' : 'Train fare / person (est.)'}
+                      value={money(trip.cost.trainFarePerPerson)}
+                    />
+                    <CostRow
+                      icon={<TrainFront className="h-4 w-4" />}
+                      label={isRo ? `× ${trip.adults} pasageri` : `× ${trip.adults} passengers`}
+                      value={money(trip.cost.trainFarePerPerson * trip.adults)}
+                    />
+                  </>
                 ) : (
                   <>
                     <CostRow
@@ -701,6 +721,17 @@ export default function RoadTripDetailView({ trip }: Props) {
                   <Row label={isRo ? 'Combustibil' : 'Fuel'} value={money(trip.cost.fuel)} />
                   <Row label={isRo ? 'Taxe drum' : 'Tolls (est.)'} value={money(trip.cost.tolls)} />
                 </>
+              ) : trip.mode === 'train' ? (
+                <>
+                  <Row
+                    label={isRo ? 'Bilet / pers. (est.)' : 'Fare / person (est.)'}
+                    value={money(trip.cost.trainFarePerPerson)}
+                  />
+                  <Row
+                    label={isRo ? `× ${trip.adults} pers.` : `× ${trip.adults} pax`}
+                    value={money(trip.cost.trainFarePerPerson * trip.adults)}
+                  />
+                </>
               ) : (
                 <>
                   <Row
@@ -738,6 +769,17 @@ export default function RoadTripDetailView({ trip }: Props) {
               >
                 <ExternalLink className="h-4 w-4" />
                 Rezervă pe Flixbus
+              </a>
+            )}
+            {trip.externalLinks.trainline && (
+              <a
+                href={trip.externalLinks.trainline}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md"
+              >
+                <TrainFront className="h-4 w-4" />
+                {isRo ? 'Caută bilete pe Trainline' : 'Search tickets on Trainline'}
               </a>
             )}
           </section>

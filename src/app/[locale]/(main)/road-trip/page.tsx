@@ -17,6 +17,7 @@ import {
   Sparkles,
   AlertCircle,
   Plane,
+  TrainFront,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -39,7 +40,7 @@ interface FormState {
   destination: MapPickerCity | null;
   departureDate: string;
   returnDate: string;
-  mode: "car" | "bus";
+  mode: "car" | "bus" | "train";
   adults: number;
   fuelPricePerLitre: number;
   consumption: number;
@@ -312,7 +313,7 @@ export default function RoadTripWizardPage() {
 
           {step === 2 && (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <ModeCard
                   active={form.mode === "car"}
                   onClick={() => set("mode", "car")}
@@ -327,7 +328,22 @@ export default function RoadTripWizardPage() {
                   label={isRo ? "Autobuz" : "Bus"}
                   description={isRo ? "Flixbus / linii intercity" : "Flixbus / intercity lines"}
                 />
+                <ModeCard
+                  active={form.mode === "train"}
+                  onClick={() => set("mode", "train")}
+                  icon={<TrainFront className="h-6 w-6" />}
+                  label={isRo ? "Tren" : "Train"}
+                  description={isRo ? "Tren intercity (cost estimat)" : "Intercity rail (est. fare)"}
+                />
               </div>
+
+              {form.mode === "train" && (
+                <div className="rounded-lg border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/15 p-3 text-xs text-sky-800 dark:text-sky-200">
+                  {isRo
+                    ? "Estimăm prețul și durata pe baza unei viteze medii europene de ~110 km/h și un tarif clasa 2 (~€0.12/km). Pentru tarif real, verifică Trainline sau operatorul național."
+                    : "We estimate fare and duration from a European average of ~110 km/h and a 2nd-class rate (~€0.12/km). For exact prices, check Trainline or the national operator."}
+                </div>
+              )}
 
               {form.mode === "car" && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
