@@ -706,6 +706,11 @@ export default function RoadTripDetailView({ trip }: Props) {
                     : trip.aiContent!.topAttractions.slice(0, 6).map((a) => a.name)
                 }
                 city={trip.destinationCity}
+                onSelectPlace={(name) => {
+                  router.push(
+                    `/${locale}/road-trip/result/${trip.id}/map?place=${encodeURIComponent(name)}`,
+                  );
+                }}
               />
             </section>
           )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import RoadTripMapView from '@/components/RoadTripMap/RoadTripMapView';
 import type { RoadTripData } from '@/lib/roadTrip';
@@ -9,8 +9,10 @@ import type { RoadTripData } from '@/lib/roadTrip';
 export default function RoadTripMapPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useLocale();
   const id = params?.id as string;
+  const initialFocusedPlace = searchParams?.get('place') ?? null;
 
   const [trip, setTrip] = useState<RoadTripData | null>(null);
 
@@ -45,5 +47,5 @@ export default function RoadTripMapPage() {
     );
   }
 
-  return <RoadTripMapView trip={trip} />;
+  return <RoadTripMapView trip={trip} initialFocusedPlace={initialFocusedPlace} />;
 }

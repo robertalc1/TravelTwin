@@ -43,14 +43,25 @@ interface LiveAttraction {
 
 interface Props {
   trip: RoadTripData;
+  /** Optional initial focused place from `?place=<name>` deep-link (used
+   *  when the user clicks an attraction tile on the road-trip detail page).
+   *  Pre-focuses the iframe AND lights up the matching sidebar row. */
+  initialFocusedPlace?: string | null;
 }
 
-export default function RoadTripMapView({ trip }: Props) {
+export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Props) {
   const router = useRouter();
   const locale = useLocale();
   const isRo = locale === 'ro';
   const [mode, setMode] = useState<RoadMode>(trip.mode === 'bus' ? 'transit' : 'driving');
-  const [focusedPlace, setFocusedPlace] = useState<string | null>(null);
+  // Seed from the URL deep-link. Sidebar highlight does
+  // `focusedPlace?.startsWith(name + ',')` — match the `${name}, ${city}`
+  // shape `focusPlace()` uses for clicks so URL-driven seeds also highlight.
+  const [focusedPlace, setFocusedPlace] = useState<string | null>(() => {
+    if (!initialFocusedPlace) return null;
+    if (initialFocusedPlace.includes(',')) return initialFocusedPlace;
+    return `${initialFocusedPlace}, ${trip.destinationCity}`;
+  });
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   const ai = trip.aiContent;
