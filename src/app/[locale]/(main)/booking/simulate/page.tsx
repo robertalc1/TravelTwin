@@ -219,7 +219,7 @@ export default function BookingSimulatePage() {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from("saved_trips").insert({
+          const { error: insertErr } = await supabase.from("saved_trips").insert({
             user_id: user.id,
             destination: bookingTrip.destinationCity || bookingTrip.destinationCode || "Unknown",
             origin: originCity,
@@ -245,10 +245,25 @@ export default function BookingSimulatePage() {
             days: bookingTrip.nights,
             status: "booked",
           });
-          useToastStore.getState().show(`Booking saved: ${bookingRef}`, "success");
+          if (insertErr) {
+            // Surface the real Postgres error (RLS / CHECK / NOT NULL) instead
+            // of failing silently — booking ref is still usable from
+            // sessionStorage, but the cloud copy didn't land in /trips.
+            console.error("[booking/save] supabase error", insertErr);
+            useToastStore.getState().show(
+              `Booking confirmed ${bookingRef}, but couldn't sync to My Trips: ${insertErr.message}`,
+              "error",
+            );
+          } else {
+            useToastStore.getState().show(`Booking saved: ${bookingRef}`, "success");
+          }
         }
       } catch (err) {
-        console.error("[booking/save]", err);
+        console.error("[booking/save] threw", err);
+        useToastStore.getState().show(
+          `Booking confirmed ${bookingRef}, but cloud sync failed — see console.`,
+          "error",
+        );
       }
     }
 

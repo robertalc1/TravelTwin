@@ -95,6 +95,7 @@ export default function TripDetailView({
 
   const initTripPricing = useTripPricing((s) => s.initTrip);
   const seedHotelInStore = useTripPricing((s) => s.seedHotel);
+  const seedHotelAsSelected = useTripPricing((s) => s.seedHotelAsSelected);
   const selectHotelInStore = useTripPricing((s) => s.selectHotel);
   const pricingTotal = useTripPricing(
     (s) => s.breakdown.flightPrice + s.breakdown.hotelPrice + s.breakdown.transferPrice + s.breakdown.extrasPrice,
@@ -225,10 +226,32 @@ export default function TripDetailView({
       checkIn: trip.hotelCheckIn,
       checkOut: trip.hotelCheckOut,
     });
+    // Fall back to the package hotel as a synthetic selectedHotel whenever the
+    // live search fails or returns empty — otherwise HotelsTab shows
+    // "Add accommodation" even though the package always carries a hotel.
+    const fallbackToPackageHotel = () => {
+      if (cancelled || !trip.hotelName || trip.hotelPrice <= 0) return;
+      seedHotelAsSelected({
+        name: trip.hotelName,
+        totalPrice: trip.hotelPrice,
+        stars: trip.hotelStars,
+        cityCode: trip.destinationCode,
+        cityName: trip.destinationCity,
+        checkIn: trip.hotelCheckIn,
+        checkOut: trip.hotelCheckOut,
+        currency: trip.currency,
+        amenities: trip.hotelAmenities,
+      });
+    };
+
     fetch(`/api/hotels/search?${qs.toString()}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { hotels?: HotelOfferData[] } | null) => {
-        if (cancelled || !data?.hotels?.length) return;
+        if (cancelled) return;
+        if (!data?.hotels?.length) {
+          fallbackToPackageHotel();
+          return;
+        }
         const priceOf = (h: HotelOfferData) =>
           parseFloat(h.offers[0]?.price.total || '0');
         // Match the price band shown on /plan/results: pick the live hotel
@@ -245,9 +268,10 @@ export default function TripDetailView({
           : [...data.hotels].sort((a, b) => priceOf(a) - priceOf(b));
         const chosen = sorted.find((h) => priceOf(h) > 0);
         if (chosen) selectHotelInStore(chosen, priceOf(chosen));
+        else fallbackToPackageHotel();
       })
       .catch(() => {
-        /* silent — leave the estimator placeholder in place */
+        fallbackToPackageHotel();
       });
     return () => {
       cancelled = true;
@@ -255,10 +279,17 @@ export default function TripDetailView({
   }, [
     trip.id,
     trip.destinationCode,
+    trip.destinationCity,
     trip.hotelCheckIn,
     trip.hotelCheckOut,
+    trip.hotelName,
+    trip.hotelPrice,
+    trip.hotelStars,
+    trip.hotelAmenities,
+    trip.currency,
     hasSelectedHotel,
     selectHotelInStore,
+    seedHotelAsSelected,
   ]);
 
   // Read origin from sessionStorage (populated by AI planner)

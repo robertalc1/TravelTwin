@@ -367,11 +367,17 @@ function PackageCard({ pkg, index, isBestMatch, budget }: { pkg: TripPackage; in
             </div>
           )}
           {pkg.hotel && (
-            <div className="flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2 text-text-secondary">
-                <Hotel className="h-4 w-4" /> {t("card.hotelLabel", { nights: pkg.nights })}
+            <div className="flex items-start justify-between gap-3 text-sm">
+              <span className="flex items-start gap-2 text-text-secondary min-w-0">
+                <Hotel className="h-4 w-4 mt-0.5 shrink-0" />
+                <span className="min-w-0">
+                  <span className="block">{t("card.hotelLabel", { nights: pkg.nights })}</span>
+                  {pkg.hotel.name && (
+                    <span className="block text-xs text-text-muted line-clamp-1">{pkg.hotel.name}</span>
+                  )}
+                </span>
               </span>
-              <span className="font-semibold">
+              <span className="font-semibold shrink-0">
                 {format(pkg.hotel.price, pkg.currency)}
               </span>
             </div>

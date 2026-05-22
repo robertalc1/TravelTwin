@@ -33,6 +33,21 @@ interface TripPricingStore {
 
   /** Seed a default hotel without a full HotelOfferData (used for the initial package hotel). */
   seedHotel: (label: string, price: number) => void;
+  /** Promote the package hotel to a renderable `selectedHotel` when the live
+   *  Tripadvisor search returns nothing — HotelsTab reads `selectedHotel`,
+   *  not `breakdown.hotelLabel`, so without this the user sees the
+   *  "Add accommodation" empty state even when the package has a hotel. */
+  seedHotelAsSelected: (input: {
+    name: string;
+    totalPrice: number;
+    stars?: number;
+    cityCode: string;
+    cityName?: string;
+    checkIn: string;
+    checkOut: string;
+    currency?: string;
+    amenities?: string[];
+  }) => void;
   selectHotel: (hotel: HotelOfferData, price: number) => void;
   removeHotel: () => void;
 
@@ -94,6 +109,33 @@ export const useTripPricing = create<TripPricingStore>((set, get) => ({
       if (state.selectedHotel) return state;
       return {
         breakdown: { ...state.breakdown, hotelPrice: price, hotelLabel: label },
+      };
+    }),
+
+  seedHotelAsSelected: ({ name, totalPrice, stars, cityCode, cityName, checkIn, checkOut, currency = 'EUR', amenities }) =>
+    set((state) => {
+      // Same no-overwrite rule as seedHotel — user pick wins.
+      if (state.selectedHotel) return state;
+      const synthetic: HotelOfferData = {
+        hotel: {
+          hotelId: `pkg-${cityCode}`,
+          name,
+          rating: stars ? String(stars) : '3',
+          cityCode,
+          address: cityName ? { cityName } : undefined,
+          amenities,
+        },
+        offers: [
+          {
+            price: { currency, total: String(totalPrice) },
+            checkInDate: checkIn,
+            checkOutDate: checkOut,
+          },
+        ],
+      };
+      return {
+        selectedHotel: synthetic,
+        breakdown: { ...state.breakdown, hotelPrice: totalPrice, hotelLabel: name, currency },
       };
     }),
 
