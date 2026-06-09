@@ -62,18 +62,18 @@ id: `deal-${origin}-${toIata}-${Date.now()}-${Math.random().toString(36).slice(2
 |---|---|---|
 | `/en/plan/trip/deal-CND-BUD-...` | Identic cu trip-ul părinte | (același ca mai sus) |
 | `/hotel` | Sub-route pentru detaliile unui hotel ales din tripul respectiv | `src/app/[locale]/(main)/plan/trip/[id]/hotel/[hotelId]/page.tsx` |
-| `15125043` | **`hotelId`** — ID-ul intern Amadeus pentru hotelul concret | segment dinamic `[hotelId]` |
+| `15125043` | **`hotelId`** — ID-ul intern TripAdvisor pentru hotelul concret | segment dinamic `[hotelId]` |
 
 ### Query params (după `?`)
 Acestea sunt **redundante** intenționat — servesc ca „state portabil" ca să nu fie nevoie să citești sessionStorage:
 
 | Param | Valoare | Rol |
 |---|---|---|
-| `cityCode=BUD` | IATA orașului | Pentru re-fetch-ul detaliilor de la Amadeus dacă userul face refresh |
+| `cityCode=BUD` | IATA orașului | Pentru re-fetch-ul detaliilor de la TripAdvisor dacă userul face refresh |
 | `checkIn=2026-05-26` | Data ISO check-in | Calculul nopților + afișare în UI |
 | `checkOut=2026-05-30` | Data ISO check-out | Idem |
 | `total=219` | Preț total în moneda activă | Afișat instant, fără să aștepți API |
-| `name=MEININGER+Budapest+Great+Market+Hall` | Numele hotelului URL-encoded (`+` = spațiu) | Afișat în header chiar dacă API-ul Amadeus e lent |
+| `name=MEININGER+Budapest+Great+Market+Hall` | Numele hotelului URL-encoded (`+` = spațiu) | Afișat în header chiar dacă API-ul TripAdvisor e lent |
 
 **De ce și în query?** Permite partajarea link-ului — dacă trimiți URL-ul cuiva pe WhatsApp, primește toate datele să vadă hotelul fără să aibă acces la sessionStorage-ul tău.
 
@@ -176,11 +176,12 @@ Prefixul `NEXT_PUBLIC_` = expune variabila la browser. E sigur pentru ANON_KEY p
 
 NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 
-### C. **Amadeus GDS** (zboruri + hoteluri live)
+### C. **Groq** (chat live cu Llama 3.3)
 | Variabilă | Tip | Folosită în |
 |---|---|---|
-| `AMADEUS_CLIENT_ID` | Secret server-only | `src/lib/amadeus-client.ts` |
-| `AMADEUS_CLIENT_SECRET` | Secret server-only | Idem |
+| `GROQ_API_KEY` | Secret server-only | [api/chat](src/app/api/chat/route.ts) |
+
+> Notă istorică: în versiunile anterioare, zborurile și hotelurile veneau de la **Amadeus GDS** prin `AMADEUS_CLIENT_ID` și `AMADEUS_CLIENT_SECRET`. Migrarea către TripAdvisor (RapidAPI) a eliminat acele chei — nu mai sunt necesare.
 
 ### D. **Google Maps / Routes** (hartă + directions)
 | Variabilă | Tip | Folosită în |
@@ -188,10 +189,12 @@ NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 | `GOOGLE_MAPS_SERVER_API_KEY` sau `GOOGLE_MAPS_API_KEY` | Secret server-only | [api/directions](src/app/api/directions/route.ts) (fallback chain) |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Public (restricționat la domeniu în Google Cloud Console) | [RouteMapView.tsx](src/components/RouteMap/RouteMapView.tsx), [RouteMapTeaser.tsx](src/components/RouteMap/RouteMapTeaser.tsx) |
 
-### E. **RapidAPI** (TripAdvisor — POI, restaurante, atracții, mașini)
+### E. **RapidAPI** (TripAdvisor — zboruri, hoteluri, locații, POI, restaurante, atracții, mașini)
 | Variabilă | Tip | Folosită în |
 |---|---|---|
 | `RAPIDAPI_KEY` | Secret server-only | [tripadvisor-client.ts](src/lib/tripadvisor-client.ts), [api/debug/rapidapi](src/app/api/debug/rapidapi/route.ts), [api/debug/cars](src/app/api/debug/cars/route.ts), [rateLimiter.ts](src/lib/rateLimiter.ts) |
+
+> Este cheia cea mai importantă — TripAdvisor (prin RapidAPI) este sursa unică pentru toate datele live de călătorie (zboruri, hoteluri, locații).
 
 ### F. **Media providers**
 | Variabilă | Tip | Folosită în |
@@ -220,8 +223,7 @@ NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 3. După adăugare → **Deployments** → click `...` pe ultimul deploy → **Redeploy** (env vars se aplică doar la build-uri noi)
 4. Test rapid:
    - `/api/debug/rapidapi` → confirmă RAPIDAPI_KEY
-   - `/api/debug/cars` → confirmă RapidAPI + Amadeus
-   - `/api/debug/amadeus` (dacă există) → confirmă Amadeus credentials
+   - `/api/debug/cars` → confirmă RapidAPI
 
 ---
 
@@ -230,7 +232,7 @@ NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 | Categorie | Variabile |
 |---|---|
 | **Publice (în browser)** | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` |
-| **Secrete (doar server)** | `ANTHROPIC_API_KEY`, `AMADEUS_CLIENT_ID/SECRET`, `RAPIDAPI_KEY`, `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_MAPS_SERVER_API_KEY` |
+| **Secrete (doar server)** | `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `RAPIDAPI_KEY`, `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_MAPS_SERVER_API_KEY` |
 
 **Regula generală Next.js:**
 - `NEXT_PUBLIC_*` → injectată la build în bundle-ul JS → vizibilă în browser via DevTools → folosește DOAR pentru chei cu restricții stricte (Supabase anon, Maps cu restricție de domeniu)

@@ -2,7 +2,7 @@
 
 ## 1. Descriere generală
 
-**TravelTwin** este o platformă web modernă de planificare și rezervare a călătoriilor, dezvoltată ca lucrare de licență, care combină date reale de la furnizori globali (Amadeus GDS) cu inteligență artificială generativă (Claude AI de la Anthropic) pentru a oferi utilizatorului o experiență completă de tip „digital twin" al călătoriei sale — de la inspirație până la rezervare.
+**TravelTwin** este o platformă web modernă de planificare și rezervare a călătoriilor, dezvoltată ca lucrare de licență, care combină date reale de la furnizori globali (TripAdvisor prin RapidAPI pentru zboruri și hoteluri, Google Routes pentru hărți) cu inteligență artificială generativă (Claude Sonnet 4.6 de la Anthropic + Llama 3.3 prin Groq) pentru a oferi utilizatorului o experiență completă de tip „digital twin" al călătoriei sale — de la inspirație până la rezervare.
 
 Aplicația funcționează ca un **asistent personal de călătorie**: utilizatorul introduce un buget sau o destinație, iar sistemul construiește automat pachete complete (zbor + cazare + transferuri + itinerar zi-cu-zi) folosind prețuri live, recomandări AI și hărți interactive.
 
@@ -22,17 +22,17 @@ Aplicația funcționează ca un **asistent personal de călătorie**: utilizator
 
 ### Backend & integrări
 - **Supabase** — autentificare (email + OAuth Google), bază de date PostgreSQL pentru utilizatori, favorite, istoric căutări
-- **Amadeus Travel API** (GDS oficial) — date live pentru zboruri, hoteluri, locații IATA
-- **Anthropic Claude AI** (`claude-sonnet-4`) — generare itinerarii personalizate, chat AI multilingv, verificări viză
+- **TripAdvisor API (prin RapidAPI)** — date live pentru zboruri, hoteluri, locații, restaurante, atracții turistice și POI (sursă unică pentru toate datele live de călătorie)
+- **Anthropic Claude AI** (`claude-sonnet-4-6`) — generare itinerarii personalizate, chat AI multilingv, verificări viză
+- **Groq + Llama 3.3 70B** — asistent live conversational (latență sub o secundă)
 - **Google Routes API** — rute pietonal/auto/transport public între puncte
+- **Open-Meteo** — prognoză meteo (16 zile)
 - **Unsplash + Pexels** — imagini și video de înaltă calitate pentru destinații
-- **TripAdvisor API** — restaurante, atracții turistice, POI
-- **OpenWeather** — prognoză meteo 7 zile pentru destinație
 
 ### Infrastructură
-- Caching multi-strat (memorie + edge): zboruri 15min, hoteluri 30min, locații 24h
+- Caching multi-strat (memorie + DB Supabase `api_cache`): zboruri 15min, hoteluri 30min, locații 24h, rezultate goale 1h
 - Rate limiting per IP/user
-- Fallback REST direct dacă SDK-ul Amadeus eșuează
+- Strategie de fallback multi-source — dacă TripAdvisor pică, se servesc date din cache
 - Deployment pe Vercel (edge functions)
 
 ---
@@ -65,7 +65,7 @@ Aplicația funcționează ca un **asistent personal de călătorie**: utilizator
 
 ### 3.5 Inspirație & Explorare
 - 16 destinații worldwide cu fotografii premium
-- „Cele mai ieftine destinații din OTP" — Amadeus Flight Inspiration API
+- „Cele mai ieftine destinații din OTP" — TripAdvisor flight search + rute comune (`commonRoutes.ts`)
 - Destinații similare (recomandare AI bazată pe locația aleasă)
 - Video-uri destinație (Pexels) pe pagina hero
 
@@ -104,8 +104,8 @@ src/
 │       ├── favorites, profile          # cont user
 │       └── transfers
 ├── app/api/                            # 28 endpoint-uri REST
-│   ├── flights/{live,inspiration}      # Amadeus
-│   ├── hotels/{live,search,[id]}       # Amadeus + enriched
+│   ├── flights/{live,inspiration}      # TripAdvisor
+│   ├── hotels/{live,search,[id]}       # TripAdvisor
 │   ├── ai/{plan-trip,trip-content,visa-check}  # Claude
 │   ├── chat, weather, geolocation
 │   ├── cars, restaurants, poi, directions
@@ -119,7 +119,7 @@ src/
 │   ├── TripDetail/                     # tabs detaliu trip
 │   └── Weather, Cars, VisaChecker, Hotels
 └── lib/                                # 26 module utilitare
-    ├── amadeus-client.ts               # dual-mode (SDK + REST fallback)
+    ├── tripadvisor-client.ts           # client unic pentru flights + hotels + locations
     ├── destinations.ts                 # scorer destinații
     ├── hotelImages, cityImages         # Unsplash mapping
     ├── cache, rateLimiter              # infrastructure
@@ -144,8 +144,8 @@ src/
    - Competiția returnează sute de rezultate
    - TravelTwin filtrează inteligent în **3 pachete: Economic / Balansat / Premium** — reduce paradoxul alegerii
 
-4. **Date 100% live de la sursa oficială (Amadeus GDS)**
-   - Aceeași sursă folosită de Lufthansa, KLM, Expedia
+4. **Date 100% live de la TripAdvisor (prin RapidAPI)**
+   - TripAdvisor este una dintre cele mai mari platforme de călătorii din lume cu peste 1 miliard de recenzii
    - Fără date mock / hardcoded — toate prețurile sunt live cu timestamp și badge „Live" / „Cached"
 
 5. **Hartă multimodală integrată**
@@ -170,7 +170,7 @@ src/
 
 1. **Type safety strict** — TypeScript fără `any`, validare la build
 2. **Caching multi-strat inteligent** — TTL diferit per tip de resursă (zboruri 15min, locații 24h)
-3. **Fallback REST** dacă SDK-ul oficial Amadeus eșuează — uptime crescut
+3. **Strategie multi-source cu cache** — dacă TripAdvisor pică, sistemul servește din cache și nu lasă utilizatorul cu pagină goală
 4. **Rate limiting per IP** — protecție anti-abuz
 5. **Edge functions (Vercel)** — latență sub 100ms global
 6. **Componente reutilizabile** — design system propriu (Button, Input, Badge, Card, RatingStars)
@@ -190,7 +190,7 @@ src/
 > **TravelTwin = Booking + ChatGPT + Google Maps într-o singură aplicație, dar cu focus pe utilizatorul român și pe AI generativ real, nu doar cosmetică.**
 
 Aplicația demonstrează:
-- Integrare a **3 API-uri AI/GDS de nivel enterprise** (Amadeus + Anthropic + Google)
+- Integrare a **patru servicii externe majore** (TripAdvisor RapidAPI + Anthropic Claude + Groq Llama + Google Routes)
 - **28 endpoint-uri REST** custom cu caching și rate limiting
 - **23 pagini full-stack** organizate în route groups + i18n
 - **60+ componente reutilizabile** cu design system propriu
@@ -204,8 +204,8 @@ Aplicația demonstrează:
 1. **Slide 1** — Titlu + screenshot homepage cu hero video
 2. **Slide 2** — Problema (planificarea unei călătorii e fragmentată: Booking, Skyscanner, Maps, ChatGPT separate)
 3. **Slide 3** — Soluția: TravelTwin (one-stop AI travel planner)
-4. **Slide 4** — Stack tehnologic (cu logo-uri: Next.js, React, TypeScript, Tailwind, Supabase, Amadeus, Claude)
-5. **Slide 5** — Diagrama arhitecturii (Client → Next.js API → Amadeus/Claude/Supabase)
+4. **Slide 4** — Stack tehnologic (cu logo-uri: Next.js, React, TypeScript, Tailwind, Supabase, TripAdvisor, Claude, Groq)
+5. **Slide 5** — Diagrama arhitecturii (Client → Next.js API → TripAdvisor/Claude/Groq/Supabase)
 6. **Slide 6** — Funcționalități clasice (zboruri/hoteluri/mașini) cu screenshot
 7. **Slide 7** — **AI Trip Planner** (flagship) — wizard + 3 pachete + itinerar AI
 8. **Slide 8** — Chat AI integrat + Visa Checker

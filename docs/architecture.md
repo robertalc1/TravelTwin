@@ -14,10 +14,11 @@ graph TB
     end
 
     subgraph EXT["External Systems"]
-        Amadeus[Amadeus GDS<br/>flights + hotels]
+        TripAdvisor[TripAdvisor / RapidAPI<br/>flights + hotels]
         Claude[Anthropic Claude API<br/>itinerary + chat + visa]
+        Groq[Groq · Llama 3.3<br/>chat live]
         Supabase[Supabase<br/>Postgres + Auth + Realtime]
-        Mapbox[Mapbox / Nominatim<br/>geocoding]
+        GoogleRoutes[Google Routes API<br/>driving / transit / walking]
         OpenMeteo[Open-Meteo<br/>weather forecast]
         ERAPI[open.er-api.com<br/>FX rates]
         Unsplash[Unsplash<br/>destination photos]
@@ -25,8 +26,10 @@ graph TB
 
     User -->|HTTPS| Web
     Admin -->|Dashboard| Supabase
-    Web -->|REST OAuth2| Amadeus
+    Web -->|RapidAPI key| TripAdvisor
     Web -->|Messages API| Claude
+    Web -->|OpenAI-compat| Groq
+    Web -->|REST| GoogleRoutes
     Web -->|SSR + Realtime| Supabase
     Web -->|Geocoding| Mapbox
     Web -->|Forecast| OpenMeteo
@@ -52,18 +55,20 @@ graph TB
     end
 
     subgraph ExternalAPIs["External APIs"]
-        AmadeusGDS[Amadeus GDS]
-        ClaudeAPI[Claude Sonnet 4]
-        MapboxAPI[Mapbox / Nominatim]
+        TripAdvisorAPI[TripAdvisor / RapidAPI]
+        ClaudeAPI[Claude Sonnet 4.6]
+        GroqAPI[Groq · Llama 3.3]
+        GoogleRoutesAPI[Google Routes]
         OpenMeteoAPI[Open-Meteo]
     end
 
     Browser -->|SSR + CSR| Next
     Browser -->|Direct| Auth
     Next --> APIRoutes
-    APIRoutes --> AmadeusGDS
+    APIRoutes --> TripAdvisorAPI
     APIRoutes --> ClaudeAPI
-    APIRoutes --> MapboxAPI
+    APIRoutes --> GroqAPI
+    APIRoutes --> GoogleRoutesAPI
     APIRoutes --> OpenMeteoAPI
     APIRoutes --> DB
     Auth --> DB
@@ -144,7 +149,7 @@ sequenceDiagram
     participant W as Browser
     participant API as /api/ai/plan-trip
     participant D as Destinations Matcher
-    participant A as Amadeus Client
+    participant A as TripAdvisor Client
     participant Cache as api_cache
     participant C as Claude API
 
@@ -251,8 +256,8 @@ sequenceDiagram
 |-------|-------|-----|---------|
 | Browser | localStorage | 1h | FX rates |
 | Browser | sessionStorage | session | Plan results, current trip |
-| API | `api_cache` table | 15min | Flights (Amadeus) |
-| API | `api_cache` table | 30min | Hotels (Amadeus) |
+| API | `api_cache` table | 15min | Flights (TripAdvisor) |
+| API | `api_cache` table | 30min | Hotels (TripAdvisor) |
 | API | `api_cache` table | 24h | Locations (IATA autocomplete) |
 | API | `api_cache` table | 24h | Visa check (Claude) |
 | API | `api_cache` table | 3h | Weather (Open-Meteo) |
@@ -261,7 +266,7 @@ sequenceDiagram
 
 ## Error handling philosophy
 
-- Amadeus errors → 4xx surface as "no results, try different dates"; 5xx surface as "try again later".
+- TripAdvisor errors → 4xx surface as "no results, try different dates"; 5xx surface as "try again later".
 - Claude errors → fall back to deterministic template content (no broken UI).
 - Open-Meteo / FX errors → use static fallback snapshot (lib has hard-coded values).
 - Cache write failures → silently ignored (cache is best-effort).
