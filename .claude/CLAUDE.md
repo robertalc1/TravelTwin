@@ -34,16 +34,15 @@ There is no test runner wired up yet — `package.json` has no `test` script. RE
 
 ## Architecture (non-obvious things to know)
 
-### Travel data: Amadeus, with a dual-mode safety wrapper
+### Travel data: Tripadvisor (RapidAPI) for everything live
 
-There are two Amadeus modules and the difference matters:
+`src/lib/tripadvisor-client.ts` is the **canonical** entry point. All live-data API routes import from here:
 
-- `src/lib/amadeus.ts` — wraps `new Amadeus({...})` in try/catch so the SDK can't crash module load when env vars are missing.
-- `src/lib/amadeus-client.ts` — the **canonical** entry point. Has both SDK and raw REST fallback paths. **All API routes import from here**, not from `amadeus.ts` directly. If you find a route using `@/lib/amadeus` directly, that's a bug — route it through `@/lib/amadeus-client`.
+- `searchFlights()` — used by `/api/flights/live` and `/api/flights/inspiration`
+- `searchHotels()` / `getHotelDetails()` — used by `/api/hotels/search` and `/api/hotels/[id]`
+- Locations / IATA resolution: handled locally by `src/lib/iataMapping.ts` + `src/lib/commonRoutes.ts` (no upstream call needed for the well-known routes).
 
-Both routes degrade gracefully: if Amadeus credentials are bad, the user gets a friendly empty state, not a 500.
-
-Hotels on the trip detail pages use **Tripadvisor (RapidAPI)** via `src/lib/tripadvisor-client.ts`, not Amadeus. That's why `/api/hotels/search` and `/api/hotels/live` are different routes.
+Amadeus was the previous primary source but was **fully replaced** during the Tripadvisor migration. The `src/lib/amadeus.ts` and `src/lib/amadeus-client.ts` files have been **deleted**; the `amadeus` npm package is no longer a dependency; `AMADEUS_CLIENT_ID` / `AMADEUS_CLIENT_SECRET` env vars are unused. If you see "Amadeus" in source code, it's only in a **comment describing the migration history** (e.g. `src/lib/tripadvisor-client.ts:2`, `src/lib/pricing.ts:2`, `src/components/TripDetailView.tsx:686`) — not active code. Don't try to import from `@/lib/amadeus*`; the path doesn't exist.
 
 ### Cache layer (`api_cache` table in Supabase)
 
@@ -62,6 +61,30 @@ The `favorites.item_type` column has a Postgres CHECK constraint. Allowed values
 If you add a new item type at the application layer (`src/app/api/favorites/route.ts:ALLOWED_ITEM_TYPES`), **you must also update the DB constraint** via Supabase SQL Editor — otherwise inserts will fail with `new row for relation "favorites" violates check constraint "favorites_item_type_check"`. The pattern for the migration is in `supabase/migrations/20260522_favorites_allow_trip.sql`.
 
 The heart UI **only lives on detail pages** (`TripDetailView`, `RoadTripDetailView`). Don't add a `FavoriteButton` to homepage cards or chat deal cards — the previous one was removed because it set `item_type='city'` and the favorites page couldn't reopen those (no `/explore` route exists).
+
+### Supabase `saved_trips` table — RLS + status CHECK
+
+Same pattern as `favorites`, but two layers gate the insert from `/booking/simulate`:
+
+- **RLS policies** must allow `auth.uid() = user_id` for INSERT/SELECT/UPDATE/DELETE.
+- **`status` CHECK constraint** must include the three values the app uses: `'planning' | 'booked' | 'completed'`.
+
+If either is missing, the booking simulator silently fails its `supabase.from('saved_trips').insert(...)` call. The fix-pattern (idempotent — safe to re-run) is `supabase/migrations/20260522_saved_trips_allow_user_inserts.sql`. The insert path at `src/app/[locale]/(main)/booking/simulate/page.tsx` surfaces the Supabase error via toast — don't swallow it back into a silent `catch` block.
+
+### `tripPricingStore` has TWO hotel-seed actions
+
+`src/stores/tripPricingStore.ts`:
+
+- `seedHotel(label, price)` — sets only the breakdown label. **HotelsTab doesn't render from this** — it reads `selectedHotel`.
+- `seedHotelAsSelected({...})` — constructs a synthetic `HotelOfferData` and stores it as `selectedHotel`. **This is what HotelsTab actually renders.**
+
+The `TripDetailView` auto-pick effect falls back to `seedHotelAsSelected` when `/api/hotels/search` returns 0 hotels — otherwise the user sees "Add accommodation" empty state even when the package has a hotel name. Both seeds respect a user pick (early-return if `selectedHotel` already set).
+
+### `SessionTimeoutModal` — 10-min hard reload on trip detail pages
+
+`src/components/SessionTimeoutModal.tsx` is mounted by `TripDetailView` and fires a fixed `setTimeout` of 10 minutes from mount, then renders a blocking modal whose only action wipes the `trip_*`/`booking_*`/`flightView_*` keys from `sessionStorage` and hard-redirects to `/${locale}`. The displayed `00:00:00` countdown is **static decoration**, not a live ticker — don't try to "fix" it.
+
+It exists to prevent idle tabs from burning Tripadvisor RapidAPI quota on stale prices when a user returns hours later. Bumping the timeout is fine; making it idle-aware (reset on activity) would be a real improvement.
 
 ### Trip data has TWO shapes in sessionStorage — handle both
 
@@ -98,7 +121,7 @@ This repo is on Next.js 16. Middleware was renamed: the file is `src/proxy.ts` a
 
 ### Romanian market quirks
 
-- IATA codes: OTP (București), CLJ (Cluj), TSR (Timișoara), IAS (Iași), SBZ (Sibiu) all work via Amadeus IATA search.
+- IATA codes: OTP (București), CLJ (Cluj), TSR (Timișoara), IAS (Iași), SBZ (Sibiu) are all handled via `src/lib/iataMapping.ts` (local lookup, no upstream call).
 - The homepage uses IP geolocation to surface deals from the user's nearest airport — `src/hooks/useUserLocation.ts` + `/api/deals/from/[iata]`.
 
 ## Where things live (only the non-obvious bits)
