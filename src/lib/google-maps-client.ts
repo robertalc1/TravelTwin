@@ -378,7 +378,3 @@ export async function findNearbyCity(
   if (fallback) await setCache(cacheKey, fallback, GEOCODE_CACHE_TTL_MIN);
   return fallback;
 }
-
-export function midpoint(a: GeocodeResult, b: GeocodeResult): { lat: number; lng: number } {
-  return { lat: (a.lat + b.lat) / 2, lng: (a.lng + b.lng) / 2 };
-}
