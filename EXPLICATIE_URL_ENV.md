@@ -202,12 +202,7 @@ NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 | `UNSPLASH_ACCESS_KEY` | Secret server-only | [api/unsplash](src/app/api/unsplash/route.ts), [api/attractions/images](src/app/api/attractions/images/route.ts) |
 | `PEXELS_API_KEY` | Secret server-only | [pexelsVideos.ts](src/lib/pexelsVideos.ts) (video-uri destinație) |
 
-### G. **Gemini AI** (fallback pentru chat — dacă Claude e indisponibil)
-| Variabilă | Tip | Folosită în |
-|---|---|---|
-| `GEMINI_API_KEY` | Secret server-only | [api/chat](src/app/api/chat/route.ts) |
-
-### H. **Automat Vercel** (nu le setezi manual)
+### G. **Automat Vercel** (nu le setezi manual)
 | Variabilă | Setată automat |
 |---|---|
 | `NODE_ENV` | Vercel o setează la `production` pentru prod, `development` pentru preview |
@@ -232,7 +227,7 @@ NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 | Categorie | Variabile |
 |---|---|
 | **Publice (în browser)** | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` |
-| **Secrete (doar server)** | `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `RAPIDAPI_KEY`, `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_MAPS_SERVER_API_KEY` |
+| **Secrete (doar server)** | `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `RAPIDAPI_KEY`, `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `GOOGLE_MAPS_SERVER_API_KEY` |
 
 **Regula generală Next.js:**
 - `NEXT_PUBLIC_*` → injectată la build în bundle-ul JS → vizibilă în browser via DevTools → folosește DOAR pentru chei cu restricții stricte (Supabase anon, Maps cu restricție de domeniu)
