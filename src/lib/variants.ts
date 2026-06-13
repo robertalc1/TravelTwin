@@ -15,7 +15,7 @@ export interface VariantSpec {
   label: 'Buget' | 'Standard' | 'Premium';
   /** Romanian theme shown as card subtitle */
   theme: string;
-  /** English theme sent to Claude so the prompt stays consistent across locales */
+  /** English theme sent to the AI model so the prompt stays consistent across locales */
   themeEN: string;
   targetStars: 3 | 4 | 5;
   zoneHint: 'periphery' | 'central' | 'seafront';

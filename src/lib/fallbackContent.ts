@@ -2,8 +2,8 @@
  * Locale-aware fallback content generator shared between the flight planner
  * (`/api/ai/plan-trip`) and the road-trip planner (`/api/road-trip/plan`).
  *
- * When Anthropic Claude is unavailable or fails, this module produces the
- * SAME shape Claude would have returned (description, dayByDay,
+ * When the AI (Groq Llama 3.3) is unavailable or fails, this module produces
+ * the SAME shape the model would have returned (description, dayByDay,
  * topAttractions, topRestaurants, topCafes, localTips,
  * estimatedDailyExpenses) using a hardcoded city knowledge base + generic
  * templates.

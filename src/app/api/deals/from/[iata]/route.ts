@@ -2,7 +2,7 @@
 
    Cached for 60 minutes per origin in Supabase api_cache. On every hit the
    server returns a fresh Fisher-Yates shuffle of the cached array so the
-   homepage looks alive without burning extra RapidAPI / Anthropic quota. */
+   homepage looks alive without burning extra RapidAPI / Groq quota. */
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';

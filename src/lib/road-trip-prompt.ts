@@ -163,7 +163,7 @@ Rules:
 - Output ONLY valid JSON, starting with { and ending with }.`;
 }
 
-/** Tolerant JSON parser — extracts the first JSON object from Claude's text
+/** Tolerant JSON parser — extracts the first JSON object from the AI's text
  *  output. Mirrors the pattern used by the flight plan-trip route. */
 export function parseRoadTripAiJson(text: string): RoadTripAiContent | null {
   if (!text) return null;
