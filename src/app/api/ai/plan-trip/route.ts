@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     // Diagnostic — never logs the key value, only whether one exists. When
     // this prints `false` in Vercel logs you know every package will fall
     // back to deterministic content.
-    console.log('[plan-trip] ANTHROPIC_API_KEY configured:', !!process.env.ANTHROPIC_API_KEY);
+    console.log('[plan-trip] GROQ_API_KEY configured:', !!process.env.GROQ_API_KEY);
 
     // Auth gate — only authenticated users can generate AI trip plans.
     const supabase = await createClient();
@@ -412,7 +412,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Generate AI content — top 6 only (cost optimization), rest use fallback
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     const needAi = topPackages.slice(0, 6);
     const useFallback = topPackages.slice(6);
 
@@ -424,7 +424,7 @@ export async function POST(req: NextRequest) {
             ? `LANGUAGE: Reply entirely in Romanian (limba română). All description text, day titles, activity descriptions, restaurant/cafe descriptions and localTips must be in Romanian. Keep proper place names (e.g. "Sagrada Familia") in their original form.`
             : `LANGUAGE: Reply entirely in English.`;
 
-          // Anchor Claude on the REAL hotel + flight Tripadvisor returned so the
+          // Anchor the AI on the REAL hotel + flight Tripadvisor returned so the
           // itinerary references the actual property the user will book, not a
           // generic "City Hotel" placeholder.
           const livePriceLine = pkg.isEstimated
@@ -482,23 +482,23 @@ Return ONLY valid JSON (no markdown, no backticks):
   "estimatedDailyExpenses": { "food": 40, "transport": 15, "activities": 25 }
 }`;
 
-          // Abort the Anthropic call at 25s so a single hung request can't
-          // ride the full Vercel 60s budget and force a "An error occurred…"
-          // gateway page on the client.
+          // Abort the Groq call at 25s so a single hung request can't ride
+          // the full Vercel 60s budget and force a gateway error page.
           const aiAbort = new AbortController();
           const aiTimeout = setTimeout(() => aiAbort.abort(), 25_000);
           let aiRes: Response;
           try {
-            aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+            aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
+                Authorization: `Bearer ${apiKey}`,
               },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
+                model: 'llama-3.3-70b-versatile',
                 max_tokens: 2500,
+                temperature: 0.7,
+                response_format: { type: 'json_object' },
                 messages: [{ role: 'user', content: prompt }],
               }),
               signal: aiAbort.signal,
@@ -509,18 +509,18 @@ Return ONLY valid JSON (no markdown, no backticks):
 
           if (aiRes.ok) {
             const aiData = await aiRes.json();
-            const text = aiData.content?.[0]?.text || '';
+            const text = aiData.choices?.[0]?.message?.content || '';
             pkg.aiContent = JSON.parse(text);
           } else {
             console.error(
-              `[plan-trip] Claude non-OK for ${pkg.destination.iata}: status=${aiRes.status}`,
+              `[plan-trip] Groq non-OK for ${pkg.destination.iata}: status=${aiRes.status}`,
             );
             pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale);
           }
         } catch (e) {
           const err = e as Error;
           console.error(
-            `[plan-trip] Claude failed for ${pkg.destination.iata}:`,
+            `[plan-trip] Groq failed for ${pkg.destination.iata}:`,
             err.message,
             err.name,
           );
@@ -529,7 +529,7 @@ Return ONLY valid JSON (no markdown, no backticks):
       }));
     } else {
       if (!apiKey) {
-        console.warn('[plan-trip] ANTHROPIC_API_KEY missing — all packages will use locale-aware fallback content');
+        console.warn('[plan-trip] GROQ_API_KEY missing — all packages will use locale-aware fallback content');
       }
       needAi.forEach(pkg => { pkg.aiContent = generateFallbackContent(pkg.destination, nights, travelStyles, locale); });
     }
@@ -737,10 +737,10 @@ interface AiContentContext {
 }
 
 async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentContext): Promise<void> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
 
   if (!apiKey) {
-    console.warn('[plan-trip:variant] ANTHROPIC_API_KEY missing — using locale-aware fallback');
+    console.warn('[plan-trip:variant] GROQ_API_KEY missing — using locale-aware fallback');
     packages.forEach((pkg) => {
       pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
     });
@@ -762,16 +762,17 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
         const aiTimeout = setTimeout(() => aiAbort.abort(), 25_000);
         let aiRes: Response;
         try {
-          aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-api-key': apiKey,
-              'anthropic-version': '2023-06-01',
+              Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
-              model: 'claude-sonnet-4-6',
+              model: 'llama-3.3-70b-versatile',
               max_tokens: 2500,
+              temperature: 0.7,
+              response_format: { type: 'json_object' },
               messages: [{ role: 'user', content: prompt }],
             }),
             signal: aiAbort.signal,
@@ -781,18 +782,18 @@ async function generateVariantAiContent(packages: TripPackage[], ctx: AiContentC
         }
         if (aiRes.ok) {
           const aiData = await aiRes.json();
-          const text = aiData.content?.[0]?.text || '';
+          const text = aiData.choices?.[0]?.message?.content || '';
           pkg.aiContent = JSON.parse(text);
         } else {
           console.error(
-            `[plan-trip:variant] Claude non-OK for ${pkg.destination.iata} (${pkg.variant}): status=${aiRes.status}`,
+            `[plan-trip:variant] Groq non-OK for ${pkg.destination.iata} (${pkg.variant}): status=${aiRes.status}`,
           );
           pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);
         }
       } catch (e) {
         const err = e as Error;
         console.error(
-          `[plan-trip:variant] Claude failed for ${pkg.destination.iata} (${pkg.variant}):`,
+          `[plan-trip:variant] Groq failed for ${pkg.destination.iata} (${pkg.variant}):`,
           err.message,
         );
         pkg.aiContent = generateFallbackContent(pkg.destination, ctx.nights, ctx.travelStyles, ctx.locale);

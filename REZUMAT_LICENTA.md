@@ -2,7 +2,7 @@
 
 ## 1. Descriere generală
 
-**TravelTwin** este o platformă web modernă de planificare și rezervare a călătoriilor, dezvoltată ca lucrare de licență, care combină date reale de la furnizori globali (TripAdvisor prin RapidAPI pentru zboruri și hoteluri, Google Routes pentru hărți) cu inteligență artificială generativă (Claude Sonnet 4.6 de la Anthropic + Llama 3.3 prin Groq) pentru a oferi utilizatorului o experiență completă de tip „digital twin" al călătoriei sale — de la inspirație până la rezervare.
+**TravelTwin** este o platformă web modernă de planificare și rezervare a călătoriilor, dezvoltată ca lucrare de licență, care combină date reale de la furnizori globali (TripAdvisor prin RapidAPI pentru zboruri și hoteluri, Google Routes pentru hărți) cu inteligență artificială generativă (Llama 3.3 70B prin Groq pentru toate apelurile AI: itinerare, viză, chat live) pentru a oferi utilizatorului o experiență completă de tip „digital twin" al călătoriei sale — de la inspirație până la rezervare.
 
 Aplicația funcționează ca un **asistent personal de călătorie**: utilizatorul introduce un buget sau o destinație, iar sistemul construiește automat pachete complete (zbor + cazare + transferuri + itinerar zi-cu-zi) folosind prețuri live, recomandări AI și hărți interactive.
 
@@ -23,8 +23,7 @@ Aplicația funcționează ca un **asistent personal de călătorie**: utilizator
 ### Backend & integrări
 - **Supabase** — autentificare (email + OAuth Google), bază de date PostgreSQL pentru utilizatori, favorite, istoric căutări
 - **TripAdvisor API (prin RapidAPI)** — date live pentru zboruri, hoteluri, locații, restaurante, atracții turistice și POI (sursă unică pentru toate datele live de călătorie)
-- **Anthropic Claude AI** (`claude-sonnet-4-6`) — generare itinerarii personalizate, chat AI multilingv, verificări viză
-- **Groq + Llama 3.3 70B** — asistent live conversational (latență sub o secundă)
+- **Groq Llama 3.3 70B Versatile** (`llama-3.3-70b-versatile`) — toate apelurile AI într-un singur model: generare itinerarii personalizate, chat AI multilingv cu tool calling, verificări viză, descrieri oferte homepage, planificator road-trip (latență sub o secundă)
 - **Google Routes API** — rute pietonal/auto/transport public între puncte
 - **Open-Meteo** — prognoză meteo (16 zile)
 - **Unsplash + Pexels** — imagini și video de înaltă calitate pentru destinații
@@ -58,7 +57,7 @@ Aplicația funcționează ca un **asistent personal de călătorie**: utilizator
 - Iframe Google Maps embedded pentru ghidare
 
 ### 3.4 Chat AI integrat
-- Chatbot Claude în partea dreaptă a aplicației
+- Chatbot Llama 3.3 (Groq) în partea dreaptă a aplicației, cu tool calling pentru zboruri/hoteluri/deals
 - Răspunde în **limba locale-ului** (română dacă utilizatorul e pe `/ro`)
 - Generează cards interactive de zboruri/hoteluri/deal-uri direct în conversație
 - Context persistent pe sesiune
@@ -82,7 +81,7 @@ Aplicația funcționează ca un **asistent personal de călătorie**: utilizator
 - Rute `[locale]` în App Router (`/ro/...`, `/en/...`)
 - Toate textele traduse prin `next-intl`
 - Selector limbă cu icoane SVG steaguri
-- Claude AI răspunde în limba activă
+- AI-ul (Llama 3.3 prin Groq) răspunde în limba activă
 
 ---
 
@@ -106,7 +105,7 @@ src/
 ├── app/api/                            # 28 endpoint-uri REST
 │   ├── flights/{live,inspiration}      # TripAdvisor
 │   ├── hotels/{live,search,[id]}       # TripAdvisor
-│   ├── ai/{plan-trip,trip-content,visa-check}  # Claude
+│   ├── ai/{plan-trip,trip-content,visa-check}  # Groq Llama 3.3
 │   ├── chat, weather, geolocation
 │   ├── cars, restaurants, poi, directions
 │   └── recommendations, popular-trips, deals
@@ -134,11 +133,11 @@ src/
 
 1. **AI generativ end-to-end, nu doar filtre**
    - Booking/Skyscanner = motor de căutare cu filtre statice
-   - TravelTwin = **planificator AI** care construiește pachete complete pornind de la buget și preferințe, cu itinerar zi-cu-zi scris de Claude
+   - TravelTwin = **planificator AI** care construiește pachete complete pornind de la buget și preferințe, cu itinerar zi-cu-zi scris de Llama 3.3 (Groq)
 
 2. **Chat AI conversațional cu carduri interactive**
    - Concurența folosește chatbots scriptate (FAQ)
-   - TravelTwin folosește **Claude Sonnet 4** care răspunde contextual și generează carduri de zboruri reale direct în chat
+   - TravelTwin folosește **Llama 3.3 70B prin Groq** care răspunde contextual și generează carduri de zboruri reale direct în chat (prin tool calling)
 
 3. **Trei pachete personalizate, nu o listă infinită**
    - Competiția returnează sute de rezultate
@@ -190,7 +189,7 @@ src/
 > **TravelTwin = Booking + ChatGPT + Google Maps într-o singură aplicație, dar cu focus pe utilizatorul român și pe AI generativ real, nu doar cosmetică.**
 
 Aplicația demonstrează:
-- Integrare a **patru servicii externe majore** (TripAdvisor RapidAPI + Anthropic Claude + Groq Llama + Google Routes)
+- Integrare a **trei servicii externe majore** (TripAdvisor RapidAPI + Groq Llama 3.3 + Google Routes)
 - **28 endpoint-uri REST** custom cu caching și rate limiting
 - **23 pagini full-stack** organizate în route groups + i18n
 - **60+ componente reutilizabile** cu design system propriu
@@ -204,8 +203,8 @@ Aplicația demonstrează:
 1. **Slide 1** — Titlu + screenshot homepage cu hero video
 2. **Slide 2** — Problema (planificarea unei călătorii e fragmentată: Booking, Skyscanner, Maps, ChatGPT separate)
 3. **Slide 3** — Soluția: TravelTwin (one-stop AI travel planner)
-4. **Slide 4** — Stack tehnologic (cu logo-uri: Next.js, React, TypeScript, Tailwind, Supabase, TripAdvisor, Claude, Groq)
-5. **Slide 5** — Diagrama arhitecturii (Client → Next.js API → TripAdvisor/Claude/Groq/Supabase)
+4. **Slide 4** — Stack tehnologic (cu logo-uri: Next.js, React, TypeScript, Tailwind, Supabase, TripAdvisor, Groq + Llama 3.3)
+5. **Slide 5** — Diagrama arhitecturii (Client → Next.js API → TripAdvisor/Groq/Supabase)
 6. **Slide 6** — Funcționalități clasice (zboruri/hoteluri/mașini) cu screenshot
 7. **Slide 7** — **AI Trip Planner** (flagship) — wizard + 3 pachete + itinerar AI
 8. **Slide 8** — Chat AI integrat + Visa Checker

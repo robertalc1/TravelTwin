@@ -149,16 +149,16 @@ const TOLL_PER_KM_EUR = 0.05;
 const BUS_FARE_PER_KM_EUR = 0.05;
 const STOPOVER_THRESHOLD_HOURS = 14;
 const HOURS_PER_STOPOVER = 12;
-const CLAUDE_TIMEOUT_MS = 45_000;
+const GROQ_TIMEOUT_MS = 45_000;
 
 export async function POST(req: NextRequest) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY ?? '';
-  const anthropicPreview = anthropicKey
-    ? `${anthropicKey.slice(0, 7)}...${anthropicKey.slice(-4)}`
+  const groqKey = process.env.GROQ_API_KEY ?? '';
+  const groqPreview = groqKey
+    ? `${groqKey.slice(0, 7)}...${groqKey.slice(-4)}`
     : '(empty)';
   console.log('[road-trip] env diagnostic:', {
-    hasAnthropic: !!anthropicKey,
-    anthropicPreview,
+    hasGroq: !!groqKey,
+    groqPreview,
     hasGoogleMaps: !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
     nodeEnv: process.env.NODE_ENV,
     vercelEnv: process.env.VERCEL_ENV,
@@ -398,7 +398,7 @@ export async function POST(req: NextRequest) {
     const destinationCountry = extractCountry(destination.formatted);
 
     let aiContent: RoadTripAiContent | null = null;
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.GROQ_API_KEY) {
       try {
         const prompt = buildRoadTripPrompt({
           originCity: shortCityName(origin),
@@ -415,33 +415,34 @@ export async function POST(req: NextRequest) {
           locale,
         });
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CLAUDE_TIMEOUT_MS);
+        const timeoutId = setTimeout(() => controller.abort(), GROQ_TIMEOUT_MS);
         try {
-          const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+          const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-api-key': process.env.ANTHROPIC_API_KEY,
-              'anthropic-version': '2023-06-01',
+              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
             },
             body: JSON.stringify({
-              model: 'claude-sonnet-4-6',
+              model: 'llama-3.3-70b-versatile',
               max_tokens: 3500,
+              temperature: 0.7,
+              response_format: { type: 'json_object' },
               messages: [{ role: 'user', content: prompt }],
             }),
             signal: controller.signal,
           });
           if (aiRes.ok) {
-            const aiData = (await aiRes.json()) as { content?: Array<{ text?: string }> };
-            const text = aiData.content?.[0]?.text || '';
+            const aiData = (await aiRes.json()) as { choices?: Array<{ message?: { content?: string } }> };
+            const text = aiData.choices?.[0]?.message?.content || '';
             aiContent = parseRoadTripAiJson(text);
             if (!aiContent) {
-              warnings.push('Claude returned unparseable JSON — itinerary skipped.');
+              warnings.push('Groq returned unparseable JSON — itinerary skipped.');
             }
           } else {
             const errText = await aiRes.text().catch(() => '');
             warnings.push(
-              `Claude returned HTTP ${aiRes.status}: ${errText.slice(0, 200)}`,
+              `Groq returned HTTP ${aiRes.status}: ${errText.slice(0, 200)}`,
             );
           }
         } finally {
@@ -458,7 +459,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Fallback path ────────────────────────────────────────────────
-    // Whenever Claude is unavailable, returns nonsense, or the key is
+    // Whenever the AI is unavailable, returns nonsense, or the key is
     // missing entirely, we fall back to the SAME locale-aware knowledge
     // base used by the flight planner. Attractions, restaurants and cafes
     // are always present — the page never shows an empty body.

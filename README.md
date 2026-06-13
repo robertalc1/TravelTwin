@@ -57,8 +57,7 @@ Călători digitali din România și Europa care vor să-și planifice rapid o v
 
 | Serviciu | Model | Utilizare |
 |---|---|---|
-| **Anthropic Claude** | claude-sonnet-4-6 | Generare itinerarii zi-cu-zi, verificare viză, conținut destinații |
-| **Groq** | llama-3.3-70b-versatile | Chat conversational live (low-latency) |
+| **Groq Llama 3.3** | llama-3.3-70b-versatile | Toate apelurile AI: itinerarii, verificare viză, conținut destinații, chat live cu tool calling |
 
 ### 2.4 Surse de date externe
 
@@ -104,7 +103,7 @@ Călători digitali din România și Europa care vor să-și planifice rapid o v
                       ▼
 ┌──────────────────────────────────────────────────────────┐
 │                  SERVICII EXTERNE                        │
-│  TripAdvisor · Groq · Claude · Google Routes             │
+│  TripAdvisor · Groq (Llama 3.3) · Google Routes          │
 │  Open-Meteo · Supabase Postgres · Unsplash               │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -136,7 +135,7 @@ Aplicația folosește **3 straturi separate**:
        ↓
 [5] Filtru & Rank (preț + scor combinat)
        ↓
-[6] Generator Itinerar (Claude Sonnet 4.6 pe top 6)
+[6] Generator Itinerar (Groq Llama 3.3 70B pe top 6)
        ↓
 [7] Pachete (până la 18 oferte sortate)
 ```
@@ -220,9 +219,9 @@ Mobile-first, breakpoint-uri `sm:` / `md:` / `lg:`. Touch target-uri ≥44px pe 
 24 endpoint-uri REST grupate logic:
 
 ### 5.1 Inteligență artificială (`/api/ai/`)
-- `plan-trip` — generează pachete cu Claude + TripAdvisor
+- `plan-trip` — generează pachete cu Groq (Llama 3.3) + TripAdvisor
 - `trip-content` — completează detalii itinerar pe destinație
-- `visa-check` — verifică cerințe viză (Claude, cache 24h)
+- `visa-check` — verifică cerințe viză (Groq Llama 3.3, cache 24h)
 - `/api/chat` — chat conversational live (Groq + tool calling)
 
 ### 5.2 Date călătorie
@@ -333,7 +332,7 @@ Tabel central pentru caching cu TTL adaptiv:
 - **Sanitizare** la inserare DB
 
 ### 7.4 Protecție chei API
-- Toate cheile (RapidAPI/TripAdvisor, Claude, Groq, Google) sunt **server-only**
+- Toate cheile (RapidAPI/TripAdvisor, Groq, Google) sunt **server-only**
 - Niciun apel direct din browser către servicii terțe
 - Variabile `NEXT_PUBLIC_*` sunt limitate la URL-uri publice (Supabase)
 
@@ -353,7 +352,7 @@ Tabel central pentru caching cu TTL adaptiv:
 - Structurate pe namespace-uri: `nav`, `home`, `plan`, `trip`, etc.
 
 ### 8.3 Conținut dinamic
-Itinerariile generate de Claude sunt produse direct în limba activă (prompt-ul include `language: 'ro'|'en'`).
+Itinerariile generate de Groq Llama 3.3 sunt produse direct în limba activă (prompt-ul include `language: 'ro'|'en'`).
 
 ---
 
@@ -377,7 +376,7 @@ Itinerariile generate de Claude sunt produse direct în limba activă (prompt-ul
 Fiecare API extern are fallback:
 - Dacă TripAdvisor pică → date din cache sau template content
 - Dacă TripAdvisor returnează 0 hoteluri → seed cu hotel din pachet
-- Dacă Anthropic timeout → fallback content static
+- Dacă Groq timeout → fallback content static
 
 ### 9.5 SessionTimeoutModal
 Tab-urile inactive sunt forțate să refresh-uiască după 10 minute, ca să nu consume quota API cu prețuri vechi.
@@ -459,8 +458,8 @@ Dacă utilizatorul dă acest link altcuiva, deschide **exact aceeași ofertă** 
 ### 13.1 De ce algoritm clasic, nu AI, la filtrarea destinațiilor?
 **Răspuns**: rezultate consistente, costuri zero per cerere, viteză. AI-ul e folosit doar unde aduce valoare reală (generare conținut).
 
-### 13.2 De ce 3 modele AI diferite (Claude, Llama)?
-**Răspuns**: fiecare e bun la altceva. Llama pe Groq e rapid pentru chat (<1s). Claude e elaborat pentru itinerarii. TripAdvisor pentru date reale. Folosim instrumentul potrivit pentru sarcina potrivită.
+### 13.2 De ce Groq Llama 3.3 70B pentru toate apelurile AI?
+**Răspuns**: cost zero (tier free Groq, 30 RPM), latență sub o secundă, JSON output garantat prin parametrul `response_format`. Llama 3.3 70B e suficient de capabil pentru itinerare structurate; pentru cazurile rare de output corupt există fallback content cu template-uri locale per oraș (`src/lib/fallbackContent.ts`).
 
 ### 13.3 De ce relational (PostgreSQL), nu NoSQL?
 **Răspuns**: datele au relații clare (user → trips → favorites). Relațional e perfect pentru asta. NoSQL ar fi fost mai bun pentru date nestructurate (loguri).
@@ -479,7 +478,7 @@ Dacă utilizatorul dă acest link altcuiva, deschide **exact aceeași ofertă** 
 - Node.js 20+
 - npm sau pnpm
 - Cont Supabase (free tier ok)
-- Chei API: RapidAPI (TripAdvisor), Anthropic, Groq, Google Maps
+- Chei API: RapidAPI (TripAdvisor), Groq, Google Maps
 
 ### 14.2 Pași
 ```bash
@@ -506,7 +505,6 @@ npx tsc --noEmit     # verificare tipuri (obligatoriu înainte de commit)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 RAPIDAPI_KEY=
-ANTHROPIC_API_KEY=
 GROQ_API_KEY=
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
 GOOGLE_MAPS_SERVER_API_KEY=

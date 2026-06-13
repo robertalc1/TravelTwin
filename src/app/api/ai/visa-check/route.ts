@@ -30,7 +30,7 @@ const FALLBACK: VisaInfo = {
  * POST /api/ai/visa-check
  * Body: { nationality: string, country: string, nights: number }
  *
- * Returns a structured visa requirements profile produced by Claude.
+ * Returns a structured visa requirements profile produced by the AI (Groq Llama 3.3).
  * Cached 24h in api_cache to keep cost predictable.
  */
 export async function POST(req: NextRequest) {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ...(cached.data as VisaInfo), source: "cached" });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ ...FALLBACK, source: "fallback" });
     }
@@ -65,16 +65,17 @@ Respond ONLY with valid JSON, no extra text, no markdown:
   "disclaimer": "Always confirm with the official embassy before travel."
 }`;
 
-    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: "llama-3.3-70b-versatile",
         max_tokens: 800,
+        temperature: 0.3,
+        response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -84,7 +85,7 @@ Respond ONLY with valid JSON, no extra text, no markdown:
     }
 
     const aiData = await aiRes.json();
-    const text: string = aiData.content?.[0]?.text ?? "";
+    const text: string = aiData.choices?.[0]?.message?.content ?? "";
 
     let parsed: VisaInfo;
     try {

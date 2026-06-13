@@ -15,8 +15,7 @@ graph TB
 
     subgraph EXT["External Systems"]
         TripAdvisor[TripAdvisor / RapidAPI<br/>flights + hotels]
-        Claude[Anthropic Claude API<br/>itinerary + chat + visa]
-        Groq[Groq · Llama 3.3<br/>chat live]
+        Groq[Groq · Llama 3.3 70B<br/>all AI: itinerary + visa + deals + chat]
         Supabase[Supabase<br/>Postgres + Auth + Realtime]
         GoogleRoutes[Google Routes API<br/>driving / transit / walking]
         OpenMeteo[Open-Meteo<br/>weather forecast]
@@ -27,7 +26,6 @@ graph TB
     User -->|HTTPS| Web
     Admin -->|Dashboard| Supabase
     Web -->|RapidAPI key| TripAdvisor
-    Web -->|Messages API| Claude
     Web -->|OpenAI-compat| Groq
     Web -->|REST| GoogleRoutes
     Web -->|SSR + Realtime| Supabase
@@ -56,8 +54,7 @@ graph TB
 
     subgraph ExternalAPIs["External APIs"]
         TripAdvisorAPI[TripAdvisor / RapidAPI]
-        ClaudeAPI[Claude Sonnet 4.6]
-        GroqAPI[Groq · Llama 3.3]
+        GroqAPI[Groq · Llama 3.3 70B<br/>all AI endpoints]
         GoogleRoutesAPI[Google Routes]
         OpenMeteoAPI[Open-Meteo]
     end
@@ -66,7 +63,6 @@ graph TB
     Browser -->|Direct| Auth
     Next --> APIRoutes
     APIRoutes --> TripAdvisorAPI
-    APIRoutes --> ClaudeAPI
     APIRoutes --> GroqAPI
     APIRoutes --> GoogleRoutesAPI
     APIRoutes --> OpenMeteoAPI
@@ -151,7 +147,7 @@ sequenceDiagram
     participant D as Destinations Matcher
     participant A as TripAdvisor Client
     participant Cache as api_cache
-    participant C as Claude API
+    participant C as Groq API
 
     U->>W: Complete 5-step wizard
     W->>API: POST { origin, budget, dates, styles, priorities }
@@ -211,7 +207,7 @@ sequenceDiagram
     actor U as User
     participant CP as ChatPanel
     participant API as /api/ai/chat
-    participant C as Claude API
+    participant C as Groq API
 
     U->>CP: Type "1500€, 5 days at the beach in July"
     CP->>API: POST { messages[] }
@@ -234,7 +230,7 @@ sequenceDiagram
     participant V as VisaRequirementsCard
     participant API as /api/ai/visa-check
     participant Cache as api_cache (24h)
-    participant C as Claude API
+    participant C as Groq API
 
     U->>V: Mount with { nationality, country }
     V->>API: POST { nationality, country, nights }
@@ -259,7 +255,7 @@ sequenceDiagram
 | API | `api_cache` table | 15min | Flights (TripAdvisor) |
 | API | `api_cache` table | 30min | Hotels (TripAdvisor) |
 | API | `api_cache` table | 24h | Locations (IATA autocomplete) |
-| API | `api_cache` table | 24h | Visa check (Claude) |
+| API | `api_cache` table | 24h | Visa check (Groq Llama 3.3) |
 | API | `api_cache` table | 3h | Weather (Open-Meteo) |
 | Edge | Vercel CDN | revalidate=10800 | Open-Meteo fetch |
 | In-memory | `geocodeCache` Map | per session | Nominatim results |
@@ -267,6 +263,6 @@ sequenceDiagram
 ## Error handling philosophy
 
 - TripAdvisor errors → 4xx surface as "no results, try different dates"; 5xx surface as "try again later".
-- Claude errors → fall back to deterministic template content (no broken UI).
+- Groq errors → fall back to deterministic template content (no broken UI).
 - Open-Meteo / FX errors → use static fallback snapshot (lib has hard-coded values).
 - Cache write failures → silently ignored (cache is best-effort).

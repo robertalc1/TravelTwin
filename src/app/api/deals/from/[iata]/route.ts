@@ -356,7 +356,7 @@ export async function GET(
     const top = diversifyPackages(packages, 30);
 
     // Generate AI content — top 3 get real AI, rest use fallback (cost optimization)
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     const needAi = top.slice(0, 3);
     const useFallback = top.slice(3);
 
@@ -408,23 +408,24 @@ Return ONLY valid JSON (no markdown, no backticks):
   "estimatedDailyExpenses": { "food": 35, "transport": 12, "activities": 20 }
 }`;
 
-                const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+                const aiRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
+                        Authorization: `Bearer ${apiKey}`,
                     },
                     body: JSON.stringify({
-                        model: 'claude-sonnet-4-6',
+                        model: 'llama-3.3-70b-versatile',
                         max_tokens: 2500,
+                        temperature: 0.7,
+                        response_format: { type: 'json_object' },
                         messages: [{ role: 'user', content: prompt }],
                     }),
                 });
 
                 if (aiRes.ok) {
                     const aiData = await aiRes.json();
-                    const text = aiData.content?.[0]?.text || '';
+                    const text = aiData.choices?.[0]?.message?.content || '';
                     pkg.aiContent = JSON.parse(text);
                 } else {
                     pkg.aiContent = buildFallbackAiContent(pkg);

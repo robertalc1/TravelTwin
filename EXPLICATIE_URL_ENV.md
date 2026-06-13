@@ -169,19 +169,14 @@ Toate aceste variabile sunt setate în **Vercel Dashboard → Project Settings �
 
 Prefixul `NEXT_PUBLIC_` = expune variabila la browser. E sigur pentru ANON_KEY pentru că Supabase folosește RLS (Row Level Security) pe DB.
 
-### B. **Anthropic Claude AI** (planificare + chat + viza)
+### B. **Groq** (toate apelurile AI — Llama 3.3 70B Versatile)
 | Variabilă | Tip | Folosită în |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | **Secret server-only** | [api/ai/plan-trip](src/app/api/ai/plan-trip/route.ts), [api/ai/visa-check](src/app/api/ai/visa-check/route.ts), [api/deals/from](src/app/api/deals/from/[iata]/route.ts) |
+| `GROQ_API_KEY` | **Secret server-only** | [api/chat](src/app/api/chat/route.ts), [api/ai/plan-trip](src/app/api/ai/plan-trip/route.ts), [api/ai/visa-check](src/app/api/ai/visa-check/route.ts), [api/deals/from](src/app/api/deals/from/[iata]/route.ts), [api/road-trip/plan](src/app/api/road-trip/plan/route.ts) |
 
 NU are prefix `NEXT_PUBLIC_` → nu ajunge niciodată în browser → securizat.
 
-### C. **Groq** (chat live cu Llama 3.3)
-| Variabilă | Tip | Folosită în |
-|---|---|---|
-| `GROQ_API_KEY` | Secret server-only | [api/chat](src/app/api/chat/route.ts) |
-
-> Notă istorică: în versiunile anterioare, zborurile și hotelurile veneau de la **Amadeus GDS** prin `AMADEUS_CLIENT_ID` și `AMADEUS_CLIENT_SECRET`. Migrarea către TripAdvisor (RapidAPI) a eliminat acele chei — nu mai sunt necesare.
+> Notă istorică: în versiunile anterioare ale aplicației, apelurile AI pentru `plan-trip`, `visa-check`, `deals` și `road-trip` foloseau **Anthropic Claude** (`ANTHROPIC_API_KEY`). Migrarea la Groq a eliminat acea cheie — pentru toate cele 5 endpoint-uri AI există acum o singură cheie: `GROQ_API_KEY`. Tot istoric: zborurile și hotelurile veneau inițial de la **Amadeus GDS** (`AMADEUS_CLIENT_ID/SECRET`) — migrarea la TripAdvisor RapidAPI a eliminat și acele chei.
 
 ### D. **Google Maps / Routes** (hartă + directions)
 | Variabilă | Tip | Folosită în |

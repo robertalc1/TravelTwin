@@ -97,10 +97,26 @@ Detail and map pages (`src/app/[locale]/(main)/plan/trip/[id]/page.tsx` + `.../m
 
 The road-trip side has the equivalent under `sessionStorage[roadTrip_${id}]` storing `RoadTripData`.
 
-### AI routes — two models, two providers
+### AI routes — single provider (Groq), single model (Llama 3.3 70B Versatile)
 
-- **`/api/ai/plan-trip`** (Anthropic) uses model `claude-sonnet-4-6` (current). If you see `claude-sonnet-4-20250514` anywhere, that's the old retired ID — update it. Each Anthropic fetch must be wrapped in an `AbortController` with a ~25s timeout so a hung request can't blow Vercel's `maxDuration = 60` budget.
-- **`/api/chat`** (Groq) uses `llama-3.3-70b-versatile` with OpenAI-compatible tool calls. The system prompt at `BASE_SYSTEM_PROMPT` includes a "budget-fallback rule" — if you change the prompt, preserve that section (it stops the bot from replying with a flat "no offers" when the user asks for unrealistically cheap deals).
+All 5 AI endpoints call Groq's OpenAI-compatible Chat Completions API
+(`https://api.groq.com/openai/v1/chat/completions`) with model
+`llama-3.3-70b-versatile`. They share one env var: `GROQ_API_KEY`. Anthropic
+was the previous provider; it's been fully removed.
+
+Pattern conventions across all 5 routes:
+- Headers: `Authorization: \`Bearer ${apiKey}\`` (no `x-api-key`, no provider-specific version header)
+- Body: `{ model, max_tokens, temperature, response_format: { type: 'json_object' }, messages }` — the `response_format` is critical for JSON output endpoints (everything except `/api/chat` which uses tool calling)
+- Response: `data.choices?.[0]?.message?.content` (NOT `data.content[0].text` — that was Anthropic's shape)
+- `temperature`: 0.7 for creative endpoints (plan-trip, deals, road-trip), 0.3 for factual (visa-check)
+
+Per-route notes:
+- **`/api/ai/plan-trip`** generates 6 itineraries in parallel (`Promise.all`). Each fetch is wrapped in a 25s `AbortController` so a single hung request can't blow Vercel's `maxDuration = 60` budget.
+- **`/api/chat`** is the only endpoint with tool calling (3 functions: `searchFlights`, `searchHotels`, `getCurrentDeals`). Multi-turn loop capped at 3 iterations. The system prompt at `BASE_SYSTEM_PROMPT` includes a "budget-fallback rule" — if you change the prompt, preserve that section (it stops the bot from replying with a flat "no offers" when the user asks for unrealistically cheap deals).
+- **`/api/ai/visa-check`** caches results 24h in `api_cache` (per `nationality:country` key).
+- **`/api/road-trip/plan`** uses the longest output (`max_tokens: 3500`) with tolerant JSON parsing via `parseRoadTripAiJson` (regex extraction of the first `{...}` block — handles occasional malformed Llama output).
+
+If a route returns an error or Groq is unreachable, every endpoint falls back gracefully to template content from `src/lib/fallbackContent.ts` (no 500 errors, no broken UI).
 
 ### Open-Meteo weather has a 16-day horizon
 

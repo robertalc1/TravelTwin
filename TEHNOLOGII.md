@@ -386,58 +386,67 @@ Apelate prin `supabase.auth.signInWithOAuth({ provider, ... })` (`SocialButtons.
 
 ## 15. AI / LLM
 
-### 15.1 Modele Claude (Anthropic) — verificat prin `grep -rn "claude-" src/`
+### 15.1 Model AI unic — Groq Llama 3.3 70B Versatile
 
-| Endpoint | Model | Linia | Status model |
+Verificat prin `grep -rn "llama-\|model: " src/app/api/`:
+
+| Endpoint | Model | Linia | Scop |
 |---|---|---|---|
-| `/api/ai/plan-trip` | `claude-sonnet-4-6` | 500 | ✅ curent |
-| `/api/ai/plan-trip` | `claude-sonnet-4-6` | 773 | ✅ curent |
-| `/api/ai/visa-check` | `claude-sonnet-4-6` | 76 | ✅ curent |
-| `/api/road-trip/plan` | `claude-sonnet-4-6` | 428 | ✅ curent |
-| `/api/deals/from/[iata]` | `claude-sonnet-4-6` | 419 | ✅ curent |
+| `/api/ai/plan-trip` (discovery) | `llama-3.3-70b-versatile` | 498 | Itinerar zi-cu-zi pentru top 6 pachete |
+| `/api/ai/plan-trip` (variant) | `llama-3.3-70b-versatile` | 772 | Itinerar pentru variantele Economic/Balanced/Premium |
+| `/api/ai/visa-check` | `llama-3.3-70b-versatile` | 75 | Cerințe viză (cached 24h) |
+| `/api/deals/from/[iata]` | `llama-3.3-70b-versatile` | 419 | Descrieri oferte homepage (top 3) |
+| `/api/road-trip/plan` | `llama-3.3-70b-versatile` | 428 | Plan road-trip cu opriri |
+| `/api/chat` | `llama-3.3-70b-versatile` | 335 | Chat live conversational cu tool calling |
+| `/api/debug/chat-key` | `llama-3.3-70b-versatile` | 24, 46 | Diagnostic chei |
 
-> Toate cele 5 apeluri folosesc consistent `claude-sonnet-4-6`. Unificat în această sesiune.
+> Toate cele 7 apeluri AI folosesc consistent **un singur model**, **un singur provider**, **o singură cheie** (`GROQ_API_KEY`).
 
-### 15.2 Modele Groq (Llama) — verificat prin `grep -rn "llama-" src/`
+### 15.2 Configurație Groq
 
-| Endpoint | Model | Linia |
-|---|---|---|
-| `/api/chat` | `llama-3.3-70b-versatile` | 335 |
-| `/api/debug/chat-key` | `llama-3.3-70b-versatile` | 24, 46 |
-
-- API OpenAI-compatibil
-- Tool calling activ (vector `tools` cu funcții callable)
+- **Endpoint**: `https://api.groq.com/openai/v1/chat/completions` (API OpenAI-compatibil)
+- **Headers**: `Authorization: Bearer ${GROQ_API_KEY}`
+- **Body**: `{ model, max_tokens, temperature, response_format?, messages, tools? }`
+- **JSON output**: garantat prin `response_format: { type: 'json_object' }` la cele 4 endpoint-uri care produc itinerare/JSON structurat
+- **Tool calling**: doar `/api/chat` are `tools` array — 3 funcții: `searchFlights`, `searchHotels`, `getCurrentDeals`
+- **Temperature**:
+  - `0.7` pentru creativitate (plan-trip, deals, road-trip, chat)
+  - `0.3` pentru factual (visa-check)
+- **max_tokens per endpoint**:
+  - `plan-trip`, `deals`: 2500
+  - `chat`: 1024
+  - `visa-check`: 800
+  - `road-trip/plan`: 3500
+- **Timeout**: 25s pentru plan-trip, 45s pentru road-trip (via `AbortController`)
+- **Free tier Groq**: 30 cereri/minut — suficient pentru un proiect de licență
 
 ### 15.3 Alte LLM-uri — verificat prin grep
 
+- ❌ **Anthropic Claude**: zero referințe `claude-` sau `anthropic.com` în cod (migrat la Groq în această sesiune)
 - ❌ **OpenAI** (GPT-3.5, GPT-4, GPT-4o): zero referințe `gpt-`
-- ❌ **Google Gemini**: zero referințe `gemini-` în cod runtime
+- ❌ **Google Gemini**: zero referințe `gemini-`
 - ❌ **Mistral**, **DeepSeek**, **Cohere**: zero referințe
 
 ### 15.4 SDK-uri
-- ❌ **`@anthropic-ai/sdk`**: NU instalat (apelurile sunt `fetch` direct la `https://api.anthropic.com`)
-- ❌ **`@ai-sdk/anthropic`**, **Vercel AI SDK**: NU instalate
-- ❌ **`openai`**: NU instalat
 - ❌ **`groq-sdk`**: NU instalat (apelurile sunt `fetch` direct)
+- ❌ **`@anthropic-ai/sdk`**: NU instalat
+- ❌ **`@ai-sdk/*`**, **Vercel AI SDK**: NU instalate
+- ❌ **`openai`**: NU instalat
 
-### 15.5 De ce două modele AI diferite? (decizie arhitecturală)
+### 15.5 De ce Groq Llama 3.3 pentru toate apelurile AI? (decizie arhitecturală)
 
-Folosim Claude Sonnet 4.6 și Llama 3.3 70B (prin Groq) **complementar**, nu redundant. Fiecare e ales pentru ce e bun:
+**Motive concrete:**
 
-**Claude Sonnet 4.6** generează **conținut structurat lung** (itinerarii zi-cu-zi cu 61+ câmpuri JSON nested, cerințe viză cu 8 câmpuri factuale, planuri road-trip cu opriri și hoteluri pe drum). Aici contează:
-- Fidelitatea pe atracții și restaurante reale (Claude e disciplinat, Llama tinde să inventeze nume)
-- Stabilitatea pe JSON nested complex (Llama sparge structura pe ~30-50% din apeluri la 2500+ tokens output)
-- Calitate la 5-14 zile de itinerar continuu
+1. **Cost zero** — Groq free tier (30 req/min) acoperă confortabil traficul unui proiect de licență
+2. **Latență sub o secundă** — față de 2-25s la modele frontier proprietare, ceea ce face UI-ul fluid
+3. **JSON output garantat** — parametrul `response_format: { type: 'json_object' }` din API-ul Groq forțează răspuns JSON valid, eliminând riscul de „spargere format"
+4. **Tool calling robust** — necesar pentru agentul live (3 funcții callable)
+5. **Open-source** — model Llama 3.3 dezvoltat de Meta, generație curentă (decembrie 2024)
+6. **Un singur provider** — simplifică gestionarea cheilor (o singură variabilă de mediu: `GROQ_API_KEY`)
 
-**Llama 3.3 70B (Groq)** alimentează **agentul live conversațional**, unde contează viteza (sub o secundă vs. 2-25s la Claude) și **tool calling** robust (3 funcții active: `searchFlights`, `searchHotels`, `getCurrentDeals`). Răspunsurile sunt scurte (max 1024 tokens), focalizate, cu reușită demonstrată pe apel de funcții.
+**Mitigare risc calitate**: pentru cazurile rare în care Llama 3.3 returnează JSON corupt sau conținut irelevant, există un sistem complet de fallback content cu template-uri locale per oraș (`src/lib/fallbackContent.ts` — ~30 destinații populare cu atracții, restaurante și descrieri scrise manual). Utilizatorul niciodată nu vede o pagină goală sau o eroare 500 — în cel mai rău caz, primește un itinerar mai generic.
 
-**Verificat empiric**: am rulat o analiză comparativă (în această sesiune) pe cele 4 endpoint-uri Claude vs. înlocuire cu Groq:
-- `/api/ai/plan-trip`: ❌ Llama sparge JSON-ul → fallback static în loc de itinerar
-- `/api/road-trip/plan`: ❌ cel mai complex (3500 tokens), risc maxim
-- `/api/ai/visa-check`: ⚠️ date factuale despre viză — eroare = utilizator ajunge la frontieră fără viză
-- `/api/deals/from/[iata]`: ✅ ar merge la Groq, dar câștigul este marginal (~25% din costul AI total)
-
-**Concluzie**: arhitectura hibridă este intenționată — „instrumentul potrivit pentru sarcina potrivită". Un model singur (oricare) ar însemna fie cost ridicat pe chat (Claude), fie calitate scăzută pe itinerar (Llama). În prezentare, asta arată gândire de inginer, nu „am ales primul AI care era la îndemână".
+**Pentru prezentare la licență**: ai un argument tehnic clar — „am ales un singur model AI de generație curentă, eficient ca cost și latență, cu garanție JSON, și am construit un sistem de fallback determinist ca plasă de siguranță". Demonstrează decizii inginerești, nu „am pus AI peste tot ce s-a putut".
 
 ---
 
@@ -556,7 +565,7 @@ Folosim Claude Sonnet 4.6 și Llama 3.3 70B (prin Groq) **complementar**, nu red
 - **Cookies httpOnly** (JWT Supabase managed) — protejează față de XSS
 - **Row Level Security** PostgreSQL pe tabelele user (`profiles`, `favorites`, `saved_trips`)
 - **CHECK constraints** la nivel DB (`favorites.item_type`, `saved_trips.status`)
-- **Server-only secrets** — toate cheile API (Anthropic, Groq, RapidAPI, Google server) sunt server-only, accesate doar din `src/app/api/*` și `src/lib/*`
+- **Server-only secrets** — toate cheile API (Groq, RapidAPI, Google server, Pexels, Unsplash) sunt server-only, accesate doar din `src/app/api/*` și `src/lib/*`
 - **Rate limiting** (vezi §14)
 - **Anti-flash dark mode script** inline în `<head>` — previne flicker la load
 
@@ -630,11 +639,10 @@ Folosim Claude Sonnet 4.6 și Llama 3.3 70B (prin Groq) **complementar**, nu red
 | Variabilă | Referințe | Categorie | Status în `.env.example` |
 |---|:---:|---|---|
 | `RAPIDAPI_KEY` | 7 fișiere | server-secret | ✅ documentat |
+| `GROQ_API_KEY` | 7 fișiere (TOATE apelurile AI) | server-secret | ✅ documentat |
 | `GOOGLE_MAPS_API_KEY` | 5 fișiere | server-secret (fallback legacy) | ❌ NU în `.env.example` (suficient `GOOGLE_MAPS_SERVER_API_KEY`) |
-| `ANTHROPIC_API_KEY` | 4 fișiere | server-secret | ✅ documentat |
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | 4 fișiere | public | ✅ documentat |
 | `GOOGLE_MAPS_SERVER_API_KEY` | 3 fișiere | server-secret | ✅ documentat |
-| `GROQ_API_KEY` | 2 fișiere | server-secret | ✅ documentat |
 | `NEXT_PUBLIC_SUPABASE_URL` | 2 fișiere | public | ✅ documentat |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | 2 fișiere | public | ✅ documentat |
 | `UNSPLASH_ACCESS_KEY` | 2 fișiere | server-secret | ✅ documentat |
@@ -729,13 +737,17 @@ Verificat în această sesiune și șters la commit `545c56d`:
 3. ✅ **Eliminată funcția moartă `midpoint()`** din `src/lib/google-maps-client.ts` (commit `545c56d`)
 
 ### Aplicate deja (continuare)
-4. ✅ **Unificat modelul Claude** la `claude-sonnet-4-6` în toate cele 3 endpoint-uri care foloseau versiunea retrasă `claude-sonnet-4-20250514`:
-   - `src/app/api/ai/visa-check/route.ts:76`
-   - `src/app/api/road-trip/plan/route.ts:428`
-   - `src/app/api/deals/from/[iata]/route.ts:419`
+4. ✅ **Migrat toate cele 4 endpoint-uri Claude la Groq Llama 3.3 70B**:
+   - `src/app/api/ai/plan-trip/route.ts` (2 apeluri)
+   - `src/app/api/ai/visa-check/route.ts`
+   - `src/app/api/deals/from/[iata]/route.ts`
+   - `src/app/api/road-trip/plan/route.ts`
+
+   Acum există un singur model AI (`llama-3.3-70b-versatile`), un singur provider (Groq) și o singură cheie (`GROQ_API_KEY`). Eliminat complet `ANTHROPIC_API_KEY` din `.env.example` și documentație. Costul AI = zero (Groq free tier).
 
 ### Rămase pentru utilizator (opțional)
-5. **Curăță variabilele de pe Vercel Dashboard** — dacă oricare dintre cele 13 chei DEAD sunt setate ca env vars pe Vercel, șterge-le și de acolo (n-au efect funcțional, doar ocupă slot-uri).
+5. **Curăță `ANTHROPIC_API_KEY` de pe Vercel Dashboard** — dacă a fost setată anterior, șterge-o (n-are efect funcțional, doar ocupă spațiu).
+6. **Curăță variabilele DEAD KEYS de pe Vercel Dashboard** — dacă oricare dintre cele 13 chei DEAD din §26.2 sunt setate, șterge-le și de acolo.
 
 ---
 
