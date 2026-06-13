@@ -392,11 +392,11 @@ Apelate prin `supabase.auth.signInWithOAuth({ provider, ... })` (`SocialButtons.
 |---|---|---|---|
 | `/api/ai/plan-trip` | `claude-sonnet-4-6` | 500 | ✅ curent |
 | `/api/ai/plan-trip` | `claude-sonnet-4-6` | 773 | ✅ curent |
-| `/api/ai/visa-check` | `claude-sonnet-4-20250514` | 76 | ⚠️ retras |
-| `/api/road-trip/plan` | `claude-sonnet-4-20250514` | 428 | ⚠️ retras |
-| `/api/deals/from/[iata]` | `claude-sonnet-4-20250514` | 419 | ⚠️ retras |
+| `/api/ai/visa-check` | `claude-sonnet-4-6` | 76 | ✅ curent |
+| `/api/road-trip/plan` | `claude-sonnet-4-6` | 428 | ✅ curent |
+| `/api/deals/from/[iata]` | `claude-sonnet-4-6` | 419 | ✅ curent |
 
-> 3 endpoint-uri folosesc modelul vechi `claude-sonnet-4-20250514`. Conform `.claude/CLAUDE.md`, modelul curent este `claude-sonnet-4-6`.
+> Toate cele 5 apeluri folosesc consistent `claude-sonnet-4-6`. Unificat în această sesiune.
 
 ### 15.2 Modele Groq (Llama) — verificat prin `grep -rn "llama-" src/`
 
@@ -709,11 +709,13 @@ Verificat în această sesiune și șters la commit `545c56d`:
 2. ✅ **Adăugată `PEXELS_API_KEY`** în `.env.example` (era folosită în cod dar nedocumentată)
 3. ✅ **Eliminată funcția moartă `midpoint()`** din `src/lib/google-maps-client.ts` (commit `545c56d`)
 
-### Rămase pentru utilizator (opțional)
-4. **Actualizează** cele 3 endpoint-uri care folosesc `claude-sonnet-4-20250514` la `claude-sonnet-4-6`:
+### Aplicate deja (continuare)
+4. ✅ **Unificat modelul Claude** la `claude-sonnet-4-6` în toate cele 3 endpoint-uri care foloseau versiunea retrasă `claude-sonnet-4-20250514`:
    - `src/app/api/ai/visa-check/route.ts:76`
    - `src/app/api/road-trip/plan/route.ts:428`
    - `src/app/api/deals/from/[iata]/route.ts:419`
+
+### Rămase pentru utilizator (opțional)
 5. **Curăță variabilele de pe Vercel Dashboard** — dacă oricare dintre cele 13 chei DEAD sunt setate ca env vars pe Vercel, șterge-le și de acolo (n-au efect funcțional, doar ocupă slot-uri).
 
 ---
