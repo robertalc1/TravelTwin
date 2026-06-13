@@ -420,6 +420,25 @@ Apelate prin `supabase.auth.signInWithOAuth({ provider, ... })` (`SocialButtons.
 - ❌ **`openai`**: NU instalat
 - ❌ **`groq-sdk`**: NU instalat (apelurile sunt `fetch` direct)
 
+### 15.5 De ce două modele AI diferite? (decizie arhitecturală)
+
+Folosim Claude Sonnet 4.6 și Llama 3.3 70B (prin Groq) **complementar**, nu redundant. Fiecare e ales pentru ce e bun:
+
+**Claude Sonnet 4.6** generează **conținut structurat lung** (itinerarii zi-cu-zi cu 61+ câmpuri JSON nested, cerințe viză cu 8 câmpuri factuale, planuri road-trip cu opriri și hoteluri pe drum). Aici contează:
+- Fidelitatea pe atracții și restaurante reale (Claude e disciplinat, Llama tinde să inventeze nume)
+- Stabilitatea pe JSON nested complex (Llama sparge structura pe ~30-50% din apeluri la 2500+ tokens output)
+- Calitate la 5-14 zile de itinerar continuu
+
+**Llama 3.3 70B (Groq)** alimentează **agentul live conversațional**, unde contează viteza (sub o secundă vs. 2-25s la Claude) și **tool calling** robust (3 funcții active: `searchFlights`, `searchHotels`, `getCurrentDeals`). Răspunsurile sunt scurte (max 1024 tokens), focalizate, cu reușită demonstrată pe apel de funcții.
+
+**Verificat empiric**: am rulat o analiză comparativă (în această sesiune) pe cele 4 endpoint-uri Claude vs. înlocuire cu Groq:
+- `/api/ai/plan-trip`: ❌ Llama sparge JSON-ul → fallback static în loc de itinerar
+- `/api/road-trip/plan`: ❌ cel mai complex (3500 tokens), risc maxim
+- `/api/ai/visa-check`: ⚠️ date factuale despre viză — eroare = utilizator ajunge la frontieră fără viză
+- `/api/deals/from/[iata]`: ✅ ar merge la Groq, dar câștigul este marginal (~25% din costul AI total)
+
+**Concluzie**: arhitectura hibridă este intenționată — „instrumentul potrivit pentru sarcina potrivită". Un model singur (oricare) ar însemna fie cost ridicat pe chat (Claude), fie calitate scăzută pe itinerar (Llama). În prezentare, asta arată gândire de inginer, nu „am ales primul AI care era la îndemână".
+
 ---
 
 ## 16. API-uri externe (date)
