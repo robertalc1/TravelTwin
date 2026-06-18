@@ -286,7 +286,7 @@ export function ChatPanel() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={isRo ? "Întreabă despre zboruri, hoteluri, oferte..." : "Ask about flights, hotels, deals..."}
-                className="flex-1 rounded-full bg-neutral-100 px-4 py-2 text-sm text-text-primary outline-none placeholder:text-text-muted dark:bg-secondary-700 dark:text-white"
+                className="flex-1 rounded-full bg-neutral-100 px-4 py-2 text-sm text-text-primary outline-none transition-shadow placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-secondary-700 dark:text-white"
                 disabled={isLoading}
               />
               <button

@@ -78,7 +78,8 @@
   --border-default: #E5E7EB;
   --border-subtle: rgba(0, 0, 0, 0.04);
   --border-emphasis: rgba(0, 0, 0, 0.15);
-  --border-focus: rgba(232, 93, 4, 0.5);
+  /* Solid (not translucent) so the focus ring reads at full contrast on any surface */
+  --border-focus: #E85D04;
 
   /* ──── Text ──── */
   --text-primary: #1A1A2E;
@@ -128,13 +129,15 @@
 
   --text-primary: #FFFFFF;
   --text-secondary: #A1A1AA;
-  --text-tertiary: #71717A;
-  --text-muted: #52525B;
+  --text-tertiary: #909099;
+  /* Bumped from #52525B (~2.5:1, failed AA) — clears WCAG AA on dark surfaces while staying the dimmest tier */
+  --text-muted: #80808A;
 
   --border-default: rgba(255, 255, 255, 0.10);
   --border-subtle: rgba(255, 255, 255, 0.04);
   --border-emphasis: rgba(255, 255, 255, 0.16);
-  --border-focus: rgba(232, 93, 4, 0.6);
+  /* Brighter solid orange — reads against true-black dark surfaces */
+  --border-focus: #FF8333;
 
   --success: #4ADE80;
   --warning: #FBBF24;

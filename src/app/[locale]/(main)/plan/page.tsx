@@ -901,7 +901,7 @@ export default function PlanPage() {
                 <p className="text-text-secondary mb-8 text-lg">{t("step6Subtitle")}</p>
 
                 {error && (
-                  <div className="mb-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  <div className="mb-6 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 px-4 py-3 text-sm text-red-700 dark:text-red-300">
                     {error}
                   </div>
                 )}

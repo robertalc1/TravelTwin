@@ -97,7 +97,7 @@ export function LocationAutocomplete({
             if (query.length >= 2) search(query);
           }}
           placeholder={placeholder}
-          className="w-full rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-8 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/20"
+          className="w-full rounded-radius-md border border-border-default bg-surface-sunken pl-10 pr-8 py-3 text-sm font-medium text-text-primary hover:border-border-emphasis transition-colors focus:outline-none focus:border-border-focus focus:ring-2 focus:ring-border-focus/50"
         />
         {loading && (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted animate-spin" />
