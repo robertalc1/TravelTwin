@@ -244,7 +244,6 @@ Mobile-first, breakpoint-uri `sm:` / `md:` / `lg:`. Touch target-uri ≥44px pe 
 - `/api/restaurants` — restaurante recomandate
 - `/api/poi` — puncte de interes generice
 - `/api/destinations` — date despre orașe (zone, descrieri)
-- `/api/recommendations` — recomandări personalizate
 
 ### 5.5 Conținut media
 - `/api/unsplash` — fotografii destinații
@@ -253,7 +252,6 @@ Mobile-first, breakpoint-uri `sm:` / `md:` / `lg:`. Touch target-uri ≥44px pe 
 ### 5.6 User-facing
 - `/api/favorites` — GET/POST/DELETE cu whitelist `item_type`
 - `/api/trips` — saved trips per utilizator
-- `/api/searches` — istoric căutări
 - `/api/deals/from/[iata]` — oferte din aeroport (homepage geo)
 - `/api/popular-trips` — destinații trending
 - `/api/weather` — proxy Open-Meteo

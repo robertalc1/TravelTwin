@@ -296,11 +296,10 @@ src/app/
 |---|---|
 | `api_cache` | `src/lib/cache.ts` (toate 4 operațiunile CRUD) |
 | `favorites` | `src/app/api/favorites/route.ts`, pagina `/favorites` |
-| `flights` | `src/app/api/recommendations/route.ts` (singurul consumator) |
-| `hotels` | `src/app/api/recommendations/route.ts` (singurul consumator) |
 | `profiles` | `src/providers/AuthProvider.tsx`, `src/hooks/useUser.ts`, profile page |
 | `saved_trips` | `src/app/api/trips/route.ts`, booking simulate, profile, trips page |
-| `user_searches` | `src/app/api/recommendations/route.ts`, `src/app/api/searches/route.ts` |
+
+> Notă: tabelele `flights`, `hotels` și `user_searches` (seed brazilian din template-ul original) au fost eliminate — nu mai existau consumatori în UI. Datele live vin din Tripadvisor și se cache-uiesc în `api_cache`.
 
 ### 11.4 Migrații în `supabase/migrations/`
 
