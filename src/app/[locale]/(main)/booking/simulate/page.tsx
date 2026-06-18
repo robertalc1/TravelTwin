@@ -17,6 +17,10 @@ import { useUser } from "@/hooks/useUser";
 import { useAuthModalStore } from "@/stores/authModalStore";
 import { useLocale } from "next-intl";
 import type { TripDetail } from "@/lib/tripDetail";
+import {
+  validatePersonName, validateEmail, validatePhone,
+  validateAdultDateOfBirth, validatePassport, type ValidationResult,
+} from "@/lib/validation";
 
 interface QuoteExtra { id: string; label: string; price: number }
 interface QuoteSnapshot {
@@ -59,6 +63,33 @@ function fmtDate(iso: string) {
   if (!iso) return "";
   try { return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }); }
   catch { return iso; }
+}
+
+const TRAVELER_FIELDS: ReadonlyArray<{
+  label: string;
+  key: keyof TravelerInfo;
+  type?: string;
+  placeholder?: string;
+  maxLength?: number;
+}> = [
+  { label: "First Name", key: "firstName", placeholder: "As on passport", maxLength: 50 },
+  { label: "Last Name", key: "lastName", placeholder: "As on passport", maxLength: 50 },
+  { label: "Email", key: "email", placeholder: "you@example.com", type: "email", maxLength: 254 },
+  { label: "Phone", key: "phone", placeholder: "+40 7XX XXX XXX", type: "tel", maxLength: 20 },
+  { label: "Date of Birth", key: "dateOfBirth", type: "date" },
+  { label: "Passport Number", key: "passportNumber", placeholder: "AB1234567", maxLength: 15 },
+];
+
+/** Per-field validation for the Traveler step. null = valid. */
+function validateTraveler(t: TravelerInfo): Record<keyof TravelerInfo, ValidationResult> {
+  return {
+    firstName: validatePersonName(t.firstName, "First name"),
+    lastName: validatePersonName(t.lastName, "Last name"),
+    email: validateEmail(t.email),
+    phone: validatePhone(t.phone),
+    dateOfBirth: validateAdultDateOfBirth(t.dateOfBirth),
+    passportNumber: validatePassport(t.passportNumber),
+  };
 }
 
 function StepBar({ current }: { current: number }) {
@@ -116,6 +147,11 @@ export default function BookingSimulatePage() {
   const [traveler, setTraveler] = useState<TravelerInfo>({
     firstName: "", lastName: "", email: "", phone: "", dateOfBirth: "", passportNumber: "",
   });
+  const [travelerTouched, setTravelerTouched] = useState<Record<string, boolean>>({});
+  const travelerErrors = validateTraveler(traveler);
+  const travelerValid = Object.values(travelerErrors).every((e) => !e);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   const [payment, setPayment] = useState<PaymentInfo>({
     cardNumber: "", expiry: "", cvc: "", cardholderName: "",
   });
@@ -195,6 +231,17 @@ export default function BookingSimulatePage() {
   async function handlePay() {
     if (!user) {
       openAuthModal("login", `/${locale}/booking/simulate`);
+      return;
+    }
+    // Defense-in-depth: never let an invalid/under-age traveler reach booking,
+    // even if the step gate was bypassed. Bounce back to the Traveler step.
+    if (!travelerValid) {
+      setTravelerTouched({
+        firstName: true, lastName: true, email: true,
+        phone: true, dateOfBirth: true, passportNumber: true,
+      });
+      setStep(2);
+      useToastStore.getState().show("Please complete the traveler details correctly.", "error");
       return;
     }
     if (!isTestCard(payment.cardNumber)) {
@@ -461,26 +508,39 @@ export default function BookingSimulatePage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      { label: "First Name", key: "firstName", placeholder: "As on passport" },
-                      { label: "Last Name", key: "lastName", placeholder: "As on passport" },
-                      { label: "Email", key: "email", placeholder: "you@example.com", type: "email" },
-                      { label: "Phone", key: "phone", placeholder: "+40 7XX XXX XXX", type: "tel" },
-                      { label: "Date of Birth", key: "dateOfBirth", type: "date" },
-                      { label: "Passport Number", key: "passportNumber", placeholder: "AB1234567" },
-                    ].map(({ label, key, placeholder, type = "text" }) => (
-                      <div key={key}>
-                        <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wide">{label}</label>
-                        <input
-                          type={type}
-                          placeholder={placeholder}
-                          value={traveler[key as keyof TravelerInfo]}
-                          onChange={(e) => setTraveler((p) => ({ ...p, [key]: e.target.value }))}
-                          className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
-                        />
-                      </div>
-                    ))}
+                    {TRAVELER_FIELDS.map(({ label, key, placeholder, type = "text", maxLength }) => {
+                      const err = travelerTouched[key] ? travelerErrors[key] : null;
+                      return (
+                        <div key={key}>
+                          <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wide">{label}</label>
+                          <input
+                            type={type}
+                            placeholder={placeholder}
+                            maxLength={maxLength}
+                            max={type === "date" ? todayStr : undefined}
+                            value={traveler[key]}
+                            onChange={(e) => setTraveler((p) => ({ ...p, [key]: e.target.value }))}
+                            onBlur={() => setTravelerTouched((t) => ({ ...t, [key]: true }))}
+                            aria-invalid={!!err}
+                            aria-describedby={err ? `err-${key}` : undefined}
+                            className={`w-full rounded-xl border bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-colors ${
+                              err
+                                ? "border-red-400 dark:border-red-500/60 focus:border-red-500 focus:ring-red-500/20"
+                                : "border-neutral-200 dark:border-border-default focus:border-primary-500 focus:ring-primary-500/20"
+                            }`}
+                          />
+                          {err && (
+                            <p id={`err-${key}`} className="mt-1 text-xs font-medium text-red-500">{err}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {!travelerValid && Object.keys(travelerTouched).length > 0 && (
+                    <p className="mt-4 text-xs text-text-muted">
+                      Please correct the highlighted fields to continue.
+                    </p>
+                  )}
                 </section>
 
                 <div className="flex gap-3">
@@ -493,9 +553,16 @@ export default function BookingSimulatePage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setStep(3)}
-                    disabled={!traveler.firstName || !traveler.lastName || !traveler.email}
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 text-base transition-colors shadow-md"
+                    onClick={() => {
+                      // Reveal every error, then gate navigation on full validity
+                      // (includes the 18+ age check — an under-age DOB blocks here).
+                      setTravelerTouched({
+                        firstName: true, lastName: true, email: true,
+                        phone: true, dateOfBirth: true, passportNumber: true,
+                      });
+                      if (travelerValid) setStep(3);
+                    }}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 hover:bg-primary-600 text-white font-bold py-3.5 text-base transition-colors shadow-md"
                   >
                     Continue to Payment <ArrowRight className="h-5 w-5" />
                   </button>
