@@ -317,6 +317,7 @@ function Field({
 /* ═════════ TAB — My Trips ═════════ */
 function TripsTab({ onPlanClick }: { onPlanClick: () => void }) {
     const { user } = useUser();
+    const locale = useLocale();
     const [trips, setTrips] = useState<SavedTrip[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -363,7 +364,7 @@ function TripsTab({ onPlanClick }: { onPlanClick: () => void }) {
             {trips.map((t) => (
                 <Link
                     key={t.id}
-                    href={`/trips/${t.id}`}
+                    href={`/${locale}/trips/${t.id}`}
                     className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-5 hover:shadow-md hover:-translate-y-0.5 transition-all"
                 >
                     <div className="flex items-center justify-between mb-2">
