@@ -24,6 +24,7 @@ import {
   Sun,
   Moon,
   ChevronRight,
+  ChevronDown,
   EyeOff,
   RotateCcw,
   Share2,
@@ -120,6 +121,96 @@ const RoadTripRouteTeaser = dynamic(
     ),
   },
 );
+
+// ─── Day-by-day accordion item ──────────────────────────────────────────────
+type RoadDay = NonNullable<RoadTripData['aiContent']>['dayByDay'][number];
+
+/**
+ * One collapsible day — mirrors the flight page's DayAccordionItem exactly,
+ * only the open-state accent is emerald (road-trip identity) instead of orange.
+ * Body animates via grid-template-rows (0fr↔1fr); time-slot icon tints stay
+ * semantic (amber/sky/indigo) just like the flight side.
+ */
+function RoadDayAccordionItem({
+  day,
+  isRo,
+  defaultOpen = false,
+}: {
+  day: RoadDay;
+  isRo: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const slots = [
+    { label: isRo ? 'Dimineață' : 'Morning', icon: Coffee, slot: day.morning, tint: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400' },
+    { label: isRo ? 'După-amiază' : 'Afternoon', icon: Sun, slot: day.afternoon, tint: 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400' },
+    { label: isRo ? 'Seara' : 'Evening', icon: Moon, slot: day.evening, tint: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400' },
+  ];
+
+  return (
+    <div
+      className={`overflow-hidden rounded-2xl border bg-white transition-all duration-300 dark:bg-surface ${
+        open
+          ? 'border-emerald-200 shadow-sm dark:border-emerald-900/40'
+          : 'border-neutral-200 dark:border-border-default'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 sm:gap-4 px-4 py-3.5 sm:px-5 sm:py-4 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500/40"
+      >
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-extrabold transition-all duration-300 ${
+            open
+              ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm shadow-emerald-500/30'
+              : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300'
+          }`}
+        >
+          {day.day}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            {isRo ? `Ziua ${day.day}` : `Day ${day.day}`}
+          </p>
+          <h3 className="font-bold text-secondary-500 dark:text-white text-[15px] leading-snug sm:text-base">
+            {day.title}
+          </h3>
+        </div>
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            open ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300' : 'text-text-muted'
+          }`}
+        >
+          <ChevronDown className={`h-5 w-5 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
+        <div className="overflow-hidden">
+          <div className="border-t border-neutral-100 dark:border-border-default divide-y divide-neutral-100 dark:divide-border-default">
+            {slots.map(({ label, icon: TimeIcon, slot, tint }) => (
+              <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 sm:py-4">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 mt-0.5 ${tint}`}>
+                  <TimeIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">{label}</p>
+                  <p className="font-semibold text-secondary-500 dark:text-white text-sm">{slot.activity}</p>
+                  {slot.description && (
+                    <p className="text-xs text-text-secondary mt-0.5 leading-snug">{slot.description}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   trip: RoadTripData;
@@ -328,21 +419,29 @@ export default function RoadTripDetailView({ trip }: Props) {
     trip.returnDate || addDays(destinationCheckIn, 2);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-neutral-50 dark:bg-background">
       {/* ── Header bar with back ── */}
-      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-4 sm:pt-6 pb-3">
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 pt-4 sm:pt-6 pb-3 sm:pb-4">
         <div className="flex items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={() => router.push(`/${locale}/road-trip`)}
             aria-label="Back"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-neutral-100 dark:bg-surface-elevated hover:bg-neutral-200 dark:hover:bg-surface-sunken transition-colors shrink-0"
           >
             <ArrowLeft className="h-4 w-4 text-text-primary" />
           </button>
-          <h1 className="flex-1 text-lg sm:text-xl font-bold text-text-primary truncate">
-            {originCity} → {trip.destinationCity}
-          </h1>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-base sm:text-xl md:text-2xl font-extrabold text-text-primary truncate">
+              {originCity} → {trip.destinationCity}
+            </h1>
+            <p className="hidden sm:block text-xs md:text-sm text-text-muted truncate">
+              {modeLabel}
+              {` · ${formatHours(trip.drive.durationHours)}`}
+              {` · ${trip.drive.distanceKm} km`}
+              {` · ${trip.adults} ${isRo ? 'călători' : 'travelers'}`}
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setShowShare(true)}
@@ -477,35 +576,47 @@ export default function RoadTripDetailView({ trip }: Props) {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="mx-auto max-w-[1280px] px-4 lg:px-8 py-6 sm:py-10 grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-10">
         {/* ── Main column ── */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-10">
           {/* Route teaser → links to /map */}
-          <RoadTripRouteTeaser
-            originCity={originCity}
-            originLat={trip.origin.lat}
-            originLon={trip.origin.lng}
-            destinationCity={trip.destinationCity}
-            destinationLat={trip.destination.lat}
-            destinationLon={trip.destination.lng}
-            stopovers={trip.stopovers.map((s) => ({ lat: s.lat, lng: s.lng }))}
-            mode={trip.mode}
-            href={`/${locale}/road-trip/result/${trip.id}/map`}
-            locale={isRo ? 'ro' : 'en'}
-          />
+          <section>
+            <div className="mb-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 text-xs font-bold uppercase tracking-wider mb-2">
+                <RouteIcon className="h-3 w-3" /> {isRo ? 'Planifică ruta' : 'Plan your route'}
+              </span>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
+                {isRo ? `Explorează ${trip.destinationCity}` : `Explore ${trip.destinationCity}`}
+              </h2>
+            </div>
+            <RoadTripRouteTeaser
+              originCity={originCity}
+              originLat={trip.origin.lat}
+              originLon={trip.origin.lng}
+              destinationCity={trip.destinationCity}
+              destinationLat={trip.destination.lat}
+              destinationLon={trip.destination.lng}
+              stopovers={trip.stopovers.map((s) => ({ lat: s.lat, lng: s.lng }))}
+              mode={trip.mode}
+              href={`/${locale}/road-trip/result/${trip.id}/map`}
+              locale={isRo ? 'ro' : 'en'}
+            />
+          </section>
 
           {/* Stopovers section */}
           {trip.stopovers.length > 0 && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
+            <section>
               <div className="mb-4 flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
-                  <h2 className="text-h3 text-text-primary flex items-center gap-2">
-                    <HotelIcon className="h-5 w-5 text-emerald-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-3 py-1 text-xs font-bold uppercase tracking-wider mb-2">
+                    <HotelIcon className="h-3 w-3" /> {isRo ? 'Popasuri peste noapte' : 'Overnight stops'}
+                  </span>
+                  <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
                     {isRo
-                      ? `Popasuri peste noapte (${trip.stopovers.length})`
-                      : `Overnight stopovers (${trip.stopovers.length})`}
+                      ? `${trip.stopovers.length} ${trip.stopovers.length === 1 ? 'oprire' : 'opriri'} pe drum`
+                      : `${trip.stopovers.length} ${trip.stopovers.length === 1 ? 'stop' : 'stops'} along the way`}
                   </h2>
-                  <p className="mt-1 text-body-sm text-text-secondary">
+                  <p className="mt-1.5 text-sm text-text-secondary">
                     {isRo
                       ? `Drumul de ${formatHours(trip.drive.durationHours)} e împărțit în ${trip.stopovers.length + 1} etape. Sari peste oricare nu îți place — costul scade.`
                       : `The ${formatHours(trip.drive.durationHours)} journey is split into ${trip.stopovers.length + 1} legs. Skip any stop you don't like — the cost drops.`}
@@ -527,7 +638,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {trip.stopovers.map((s) => {
                   const photo = hotelPhotoUrl(s.hotel, 320, 180);
                   const hotelHref = s.hotel
@@ -550,10 +661,10 @@ export default function RoadTripDetailView({ trip }: Props) {
                   return (
                     <div
                       key={s.order}
-                      className={`rounded-lg border overflow-hidden bg-background flex flex-col transition-opacity ${
+                      className={`rounded-2xl border overflow-hidden bg-white dark:bg-surface flex flex-col transition-opacity ${
                         isSkipped
-                          ? 'border-dashed border-border-default opacity-50'
-                          : 'border-border-default'
+                          ? 'border-dashed border-neutral-300 dark:border-border-default opacity-50'
+                          : 'border-neutral-200 dark:border-border-default'
                       }`}
                     >
                       <div className="relative">
@@ -715,12 +826,17 @@ export default function RoadTripDetailView({ trip }: Props) {
             </section>
           )}
 
-          {/* Day-by-day — gradient bar header to match flight detail */}
+          {/* Day-by-day — accordion, identical to flight detail */}
           {trip.aiContent && (
             <section>
-              <h2 className="text-xl font-bold text-secondary-500 dark:text-white mb-6">
-                {isRo ? 'Itinerariu zi cu zi' : 'Day-by-Day Plan'}
-              </h2>
+              <div className="flex items-baseline justify-between gap-3 mb-4">
+                <h2 className="text-xl font-bold text-secondary-500 dark:text-white">
+                  {isRo ? 'Itinerariu zi cu zi' : 'Day-by-Day Plan'}
+                </h2>
+                <span className="text-xs font-medium text-text-muted">
+                  {trip.aiContent.dayByDay.length} {isRo ? 'zile' : 'days'}
+                </span>
+              </div>
 
               {trip.ferry && (
                 <div className="mb-4 rounded-2xl border border-sky-200 dark:border-sky-800/40 bg-sky-50 dark:bg-sky-900/20 overflow-hidden">
@@ -760,43 +876,9 @@ export default function RoadTripDetailView({ trip }: Props) {
                 </div>
               )}
 
-              <div className="space-y-4">
-                {trip.aiContent.dayByDay.map((d) => (
-                  <div
-                    key={d.day}
-                    className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden"
-                  >
-                    <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-3">
-                      <h3 className="font-bold text-white">
-                        {isRo ? `Ziua ${d.day}` : `Day ${d.day}`}: {d.title}
-                      </h3>
-                    </div>
-                    <div className="divide-y divide-neutral-100 dark:divide-border-default">
-                      {[
-                        { label: isRo ? 'Dimineață' : 'Morning', Icon: Coffee, slot: d.morning },
-                        { label: isRo ? 'După-amiază' : 'Afternoon', Icon: Sun, slot: d.afternoon },
-                        { label: isRo ? 'Seara' : 'Evening', Icon: Moon, slot: d.evening },
-                      ].map(({ label, Icon: TimeIcon, slot }) => (
-                        <div
-                          key={label}
-                          className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4"
-                        >
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
-                            <TimeIcon className="h-4 w-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">
-                              {label}
-                            </p>
-                            <p className="font-semibold text-secondary-500 dark:text-white text-sm">
-                              {slot.activity}
-                            </p>
-                            <p className="text-xs text-text-secondary mt-0.5">{slot.description}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              <div className="space-y-3">
+                {trip.aiContent.dayByDay.map((d, i) => (
+                  <RoadDayAccordionItem key={d.day} day={d} isRo={isRo} defaultOpen={i === 0} />
                 ))}
               </div>
             </section>
@@ -805,12 +887,12 @@ export default function RoadTripDetailView({ trip }: Props) {
           {/* Restaurants — live first, AI/CITY_DATA fallback */}
           {(liveRestaurants.length > 0 ||
             (trip.aiContent?.topRestaurants && trip.aiContent.topRestaurants.length > 0)) && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-1 text-h3 text-text-primary flex items-center gap-2">
+            <section>
+              <h2 className="text-xl font-bold text-secondary-500 dark:text-white flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-emerald-500" />
                 {isRo ? `Restaurante în ${trip.destinationCity}` : `Restaurants in ${trip.destinationCity}`}
               </h2>
-              <p className="mb-4 text-xs text-text-muted">
+              <p className="mt-1 mb-4 text-xs text-text-muted">
                 {liveRestaurants.length > 0
                   ? (isRo ? 'Live Tripadvisor' : 'Live Tripadvisor')
                   : (isRo ? 'Selecție locală' : 'Local picks')}
@@ -818,7 +900,7 @@ export default function RoadTripDetailView({ trip }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {liveRestaurants.length > 0
                   ? liveRestaurants.slice(0, 8).map((r) => (
-                      <div key={r.id} className="rounded-lg border border-border-default overflow-hidden bg-background">
+                      <div key={r.id} className="rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden bg-white dark:bg-surface">
                         {r.thumbnail && (
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img src={r.thumbnail} alt={r.name} className="h-32 w-full object-cover" loading="lazy" />
@@ -836,7 +918,7 @@ export default function RoadTripDetailView({ trip }: Props) {
                       </div>
                     ))
                   : trip.aiContent!.topRestaurants.map((r, i) => (
-                      <div key={i} className="rounded-lg border border-border-default p-3">
+                      <div key={i} className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4">
                         <div className="flex items-baseline justify-between gap-2">
                           <p className="text-body font-semibold text-text-primary">{r.name}</p>
                           <span className="text-xs text-text-muted">{r.priceRange}</span>
@@ -851,14 +933,14 @@ export default function RoadTripDetailView({ trip }: Props) {
 
           {/* Cafes */}
           {trip.aiContent?.topCafes && trip.aiContent.topCafes.length > 0 && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary flex items-center gap-2">
+            <section>
+              <h2 className="mb-4 text-xl font-bold text-secondary-500 dark:text-white flex items-center gap-2">
                 <Coffee className="h-5 w-5 text-emerald-500" />
                 {isRo ? 'Cafenele' : 'Cafés'}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {trip.aiContent.topCafes.map((c, i) => (
-                  <div key={i} className="rounded-lg border border-border-default p-3">
+                  <div key={i} className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4">
                     <p className="text-body font-semibold text-text-primary">{c.name}</p>
                     <p className="text-xs text-text-muted">{c.specialty}</p>
                     <p className="mt-1 text-body-sm text-text-secondary">{c.description}</p>
@@ -870,12 +952,12 @@ export default function RoadTripDetailView({ trip }: Props) {
 
           {/* Local tips */}
           {trip.aiContent?.localTips && trip.aiContent.localTips.length > 0 && (
-            <section className="rounded-radius-xl border border-border-default bg-surface p-6">
-              <h2 className="mb-4 text-h3 text-text-primary flex items-center gap-2">
+            <section className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 sm:p-6">
+              <h2 className="mb-4 text-xl font-bold text-secondary-500 dark:text-white flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-emerald-500" />
                 {isRo ? 'Sfaturi pentru drum' : 'Road tips'}
               </h2>
-              <ul className="space-y-2 text-body-sm text-text-secondary">
+              <ul className="space-y-2 text-sm text-text-secondary">
                 {trip.aiContent.localTips.map((t, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
@@ -976,109 +1058,141 @@ export default function RoadTripDetailView({ trip }: Props) {
         </div>
 
         {/* ── Sidebar ── */}
-        <aside className="space-y-6">
-          {/* Cost breakdown */}
-          <section className="rounded-radius-xl border border-border-default bg-surface p-5 sticky top-4">
-            <h3 className="mb-3 flex items-center gap-2 text-body font-semibold text-text-primary">
-              <CircleDollarSign className="h-4 w-4 text-emerald-500" />
-              {isRo ? 'Cost estimat' : 'Estimated cost'}
-            </h3>
-            <dl className="space-y-2 text-body-sm">
-              {trip.mode === 'car' ? (
-                <>
-                  <Row label={isRo ? 'Combustibil' : 'Fuel'} value={money(trip.cost.fuel)} />
-                  <Row label={isRo ? 'Taxe drum' : 'Tolls (est.)'} value={money(trip.cost.tolls)} />
-                </>
-              ) : trip.mode === 'train' ? (
-                <>
-                  <Row
-                    label={isRo ? 'Bilet / pers. (est.)' : 'Fare / person (est.)'}
-                    value={money(trainFarePerPerson)}
-                  />
-                  <Row
-                    label={isRo ? `× ${trip.adults} pers.` : `× ${trip.adults} pax`}
+        <aside className="lg:col-span-1">
+          <div className="sticky top-24 space-y-4">
+            {/* Price card — mirrors the flight page's PriceBreakdown */}
+            <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 shadow-sm">
+              <p className="text-xs font-bold text-text-muted uppercase tracking-wider">
+                {isRo ? 'Cost total' : 'Total price'}
+              </p>
+              <p className="mt-1 text-3xl sm:text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 leading-none">
+                {money(trip.cost.total)}
+              </p>
+              <p className="mt-1.5 text-xs text-text-muted">
+                {modeLabel} · {trip.adults} {isRo ? 'călători' : 'travelers'} · {isRo ? 'estimat' : 'estimated'}
+              </p>
+
+              <div className="mt-4 space-y-3 border-t border-neutral-100 dark:border-border-default pt-4">
+                {trip.mode === 'car' ? (
+                  <>
+                    <PriceLine icon={<Car className="h-4 w-4" />} label={isRo ? 'Combustibil' : 'Fuel'} value={money(trip.cost.fuel)} />
+                    <PriceLine icon={<RouteIcon className="h-4 w-4" />} label={isRo ? 'Taxe drum (est.)' : 'Tolls (est.)'} value={money(trip.cost.tolls)} />
+                  </>
+                ) : trip.mode === 'train' ? (
+                  <PriceLine
+                    icon={<TrainFront className="h-4 w-4" />}
+                    label={isRo ? `Tren · ${trip.adults} pers.` : `Train · ${trip.adults} pax`}
                     value={money(trainFarePerPerson * trip.adults)}
                   />
-                </>
-              ) : (
-                <>
-                  <Row
-                    label={isRo ? 'Bilet / pers.' : 'Fare / person'}
-                    value={money(trip.cost.busFarePerPerson)}
-                  />
-                  <Row
-                    label={isRo ? `× ${trip.adults} pers.` : `× ${trip.adults} pax`}
+                ) : (
+                  <PriceLine
+                    icon={<Bus className="h-4 w-4" />}
+                    label={isRo ? `Autobuz · ${trip.adults} pers.` : `Bus · ${trip.adults} pax`}
                     value={money(trip.cost.busFarePerPerson * trip.adults)}
                   />
-                </>
-              )}
-              <div className="mt-2 flex justify-between border-t border-border-default pt-2">
-                <dt className="font-semibold text-text-primary">Total</dt>
-                <dd className="text-body font-bold text-emerald-600 dark:text-emerald-400">
-                  {money(trip.cost.total)}
-                </dd>
+                )}
+                {trip.ferry && trip.ferry.estimatedCost > 0 && (
+                  <PriceLine icon={<Ship className="h-4 w-4" />} label={isRo ? 'Feribot (est.)' : 'Ferry (est.)'} value={money(trip.ferry.estimatedCost)} />
+                )}
+                {trip.hotelDestination?.priceForDisplay && (
+                  <PriceLine
+                    icon={<HotelIcon className="h-4 w-4" />}
+                    label={isRo ? `Cazare în ${trip.destinationCity}` : `Stay in ${trip.destinationCity}`}
+                    value={trip.hotelDestination.priceForDisplay}
+                  />
+                )}
               </div>
-            </dl>
-            <a
-              href={trip.externalLinks.googleMaps}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-full border border-border-default px-4 py-2 text-sm font-semibold text-text-primary hover:bg-surface-sunken"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {isRo ? 'Vezi pe Google Maps' : 'View in Google Maps'}
-            </a>
-            {trip.externalLinks.flixbus && (
+
+              <div className="mt-4 flex items-center justify-between border-t border-neutral-100 dark:border-border-default pt-3">
+                <span className="font-bold text-text-primary">Total</span>
+                <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">{money(trip.cost.total)}</span>
+              </div>
+
+              {/* Primary action */}
               <a
-                href={trip.externalLinks.flixbus}
+                href={trip.externalLinks.googleMaps}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 px-4 py-3.5 text-sm font-bold text-white shadow-sm transition-colors"
               >
                 <ExternalLink className="h-4 w-4" />
-                Rezervă pe Flixbus
+                {isRo ? 'Vezi pe Google Maps' : 'View in Google Maps'}
               </a>
-            )}
-            {trip.externalLinks.trainline && (
-              <a
-                href={trip.externalLinks.trainline}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-full bg-sky-500 hover:bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-md"
-              >
-                <TrainFront className="h-4 w-4" />
-                {isRo ? 'Caută bilete pe Trainline' : 'Search tickets on Trainline'}
-              </a>
-            )}
-          </section>
+              {trip.externalLinks.flixbus && (
+                <a
+                  href={trip.externalLinks.flixbus}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5 text-sm font-semibold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  {isRo ? 'Rezervă pe Flixbus' : 'Book on Flixbus'}
+                </a>
+              )}
+              {trip.externalLinks.trainline && (
+                <a
+                  href={trip.externalLinks.trainline}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 dark:border-border-default px-4 py-2.5 text-sm font-semibold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
+                >
+                  <TrainFront className="h-4 w-4" />
+                  {isRo ? 'Caută bilete pe Trainline' : 'Search tickets on Trainline'}
+                </a>
+              )}
+              <p className="mt-3 text-center text-xs text-text-muted">
+                {isRo ? 'Cost estimativ · verifică prețurile reale' : 'Estimated cost · verify live prices'}
+              </p>
+            </div>
 
-          {/* Destination hotel + browse-all button */}
-          {trip.hotelDestination && (
-            <HotelMiniCard
-              hotel={trip.hotelDestination}
-              label={isRo ? `Cazare în ${trip.destinationCity}` : `Stay in ${trip.destinationCity}`}
-              href={`/${locale}/road-trip/result/${trip.id}/hotel/${encodeURIComponent(trip.hotelDestination.id)}`}
-              isRo={isRo}
-            />
-          )}
-          <Link
-            href={buildHotelSearchHref({
-              locale,
-              tripId: trip.id,
-              cityQuery: trip.destinationCountry
-                ? `${trip.destinationCity}, ${trip.destinationCountry}`
-                : trip.destinationCity,
-              cityName: trip.destinationCity,
-              iata: trip.destinationIata,
-              checkIn: destinationCheckIn,
-              checkOut: destinationCheckOut,
-              adults: trip.adults,
-            })}
-            className="flex w-full items-center justify-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md"
-          >
-            <HotelIcon className="h-4 w-4" />
-            {isRo ? `Vezi toate hotelurile în ${trip.destinationCity}` : `View all hotels in ${trip.destinationCity}`}
-          </Link>
+            {/* Meta card — Distance / Duration / Mode / Destination */}
+            <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5 shadow-sm space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-text-secondary"><RouteIcon className="h-4 w-4" /> {isRo ? 'Distanță' : 'Distance'}</span>
+                <span className="font-semibold">{trip.drive.distanceKm} km</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-text-secondary"><Clock className="h-4 w-4" /> {isRo ? 'Durată' : 'Duration'}</span>
+                <span className="font-semibold">{formatHours(trip.drive.durationHours)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-text-secondary"><Icon className="h-4 w-4" /> {isRo ? 'Transport' : 'Mode'}</span>
+                <span className="font-semibold">{modeLabel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="flex items-center gap-2 text-text-secondary"><MapPin className="h-4 w-4" /> {isRo ? 'Destinație' : 'Destination'}</span>
+                <span className="font-semibold">{trip.destinationCity}</span>
+              </div>
+            </div>
+
+            {/* Destination hotel + browse-all button */}
+            {trip.hotelDestination && (
+              <HotelMiniCard
+                hotel={trip.hotelDestination}
+                label={isRo ? `Cazare în ${trip.destinationCity}` : `Stay in ${trip.destinationCity}`}
+                href={`/${locale}/road-trip/result/${trip.id}/hotel/${encodeURIComponent(trip.hotelDestination.id)}`}
+                isRo={isRo}
+              />
+            )}
+            <Link
+              href={buildHotelSearchHref({
+                locale,
+                tripId: trip.id,
+                cityQuery: trip.destinationCountry
+                  ? `${trip.destinationCity}, ${trip.destinationCountry}`
+                  : trip.destinationCity,
+                cityName: trip.destinationCity,
+                iata: trip.destinationIata,
+                checkIn: destinationCheckIn,
+                checkOut: destinationCheckOut,
+                adults: trip.adults,
+              })}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+            >
+              <HotelIcon className="h-4 w-4" />
+              {isRo ? `Toate hotelurile în ${trip.destinationCity}` : `All hotels in ${trip.destinationCity}`}
+            </Link>
+          </div>
         </aside>
       </div>
     </div>
@@ -1087,7 +1201,7 @@ export default function RoadTripDetailView({ trip }: Props) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-radius-lg border border-border-default bg-surface p-3 sm:p-4">
+    <div className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-3 sm:p-4 shadow-sm">
       <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-text-muted">
         {icon}
         {label}
@@ -1097,11 +1211,16 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function PriceLine({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <dt className="text-text-secondary">{label}</dt>
-      <dd className="font-semibold text-text-primary">{value}</dd>
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="flex items-center gap-2.5 text-text-secondary min-w-0">
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 shrink-0">
+          {icon}
+        </span>
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="font-semibold text-text-primary shrink-0">{value}</span>
     </div>
   );
 }
@@ -1217,7 +1336,7 @@ function HotelMiniCard({
   return (
     <Link
       href={href}
-      className="block rounded-radius-xl border border-border-default bg-surface overflow-hidden hover:shadow-lg transition-shadow"
+      className="block rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface shadow-sm overflow-hidden hover:shadow-md transition-shadow"
     >
       <div className="px-5 pt-4 pb-2">
         <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
