@@ -7,8 +7,8 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
   Plane, Hotel, ArrowLeft, MapPin, Star, Calendar,
-  Coffee, Sun, Moon, Utensils, Camera,
-  Lightbulb, Navigation, DollarSign, Share2, Check, Heart,
+  Coffee, Sun, Moon,
+  Lightbulb, Navigation, DollarSign, Share2, Check, Heart, ChevronDown,
 } from 'lucide-react';
 import type { TripDetail } from '@/lib/tripDetail';
 import { resolveHeroUrl } from '@/lib/tripDetail';
@@ -55,12 +55,58 @@ function formatDuration(iso: string): string {
   return [h && `${h}h`, m && `${m}m`].filter(Boolean).join(' ');
 }
 
-const timeIcons: Record<string, React.ElementType> = {
-  transport: Plane,
-  sightseeing: Camera,
-  dining: Utensils,
-  accommodation: Hotel,
-};
+// ─── Day-by-day accordion item ──────────────────────────────────────────────────
+type DayPlan = NonNullable<TripDetail['aiContent']>['dayByDay'][number];
+
+/**
+ * One collapsible day. Header is a button toggling the body open/closed; the
+ * body animates via grid-template-rows (0fr↔1fr) — no height jank, respects
+ * the global reduced-motion reset.
+ */
+function DayAccordionItem({ day, defaultOpen = false }: { day: DayPlan; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const slots = [
+    { label: 'Morning', icon: Coffee, slot: day.morning },
+    { label: 'Afternoon', icon: Sun, slot: day.afternoon },
+    { label: 'Evening', icon: Moon, slot: day.evening },
+  ];
+
+  return (
+    <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 bg-gradient-to-r from-primary-500 to-primary-600 px-5 py-3.5 text-left transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70"
+      >
+        <h3 className="font-bold text-white text-sm sm:text-base">Day {day.day}: {day.title}</h3>
+        <ChevronDown
+          className={`h-5 w-5 shrink-0 text-white/90 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+      >
+        <div className="overflow-hidden">
+          <div className="divide-y divide-neutral-100 dark:divide-border-default">
+            {slots.map(({ label, icon: TimeIcon, slot }) => (
+              <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
+                  <TimeIcon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">{label}</p>
+                  <p className="font-semibold text-secondary-500 dark:text-white text-sm">{slot?.activity}</p>
+                  <p className="text-xs text-text-secondary mt-0.5">{slot?.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface Props {
@@ -751,41 +797,16 @@ export default function TripDetailView({
             {/* Day-by-Day Plan */}
             {ai?.dayByDay && ai.dayByDay.length > 0 && (
               <section>
-                <h2 className="text-xl font-bold text-secondary-500 mb-6">Day-by-Day Plan</h2>
-                <div className="space-y-4">
-                  {ai.dayByDay.map((day) => {
-                    const MorningIcon = timeIcons[day.morning?.type] ?? MapPin;
-                    const AfternoonIcon = timeIcons[day.afternoon?.type] ?? MapPin;
-                    const EveningIcon = timeIcons[day.evening?.type] ?? MapPin;
-                    return (
-                      <div
-                        key={day.day}
-                        className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden"
-                      >
-                        <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-5 py-3">
-                          <h3 className="font-bold text-white">Day {day.day}: {day.title}</h3>
-                        </div>
-                        <div className="divide-y divide-neutral-100 dark:divide-border-default">
-                          {[
-                            { label: 'Morning', icon: Coffee, slot: day.morning },
-                            { label: 'Afternoon', icon: Sun, slot: day.afternoon },
-                            { label: 'Evening', icon: Moon, slot: day.evening },
-                          ].map(({ label, icon: TimeIcon, slot }) => (
-                            <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
-                                <TimeIcon className="h-4 w-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">{label}</p>
-                                <p className="font-semibold text-secondary-500 text-sm">{slot?.activity}</p>
-                                <p className="text-xs text-text-secondary mt-0.5">{slot?.description}</p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="flex items-baseline justify-between gap-3 mb-4">
+                  <h2 className="text-xl font-bold text-secondary-500 dark:text-white">Day-by-Day Plan</h2>
+                  <span className="text-xs font-medium text-text-muted">
+                    {ai.dayByDay.length} {locale === "ro" ? "zile" : "days"}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {ai.dayByDay.map((day, i) => (
+                    <DayAccordionItem key={day.day} day={day} defaultOpen={i === 0} />
+                  ))}
                 </div>
               </section>
             )}
