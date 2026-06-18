@@ -38,7 +38,7 @@ export default function RoadTripMapPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
-          <div className="text-4xl mb-4 animate-bounce">🗺️</div>
+          <div className="text-4xl mb-4 animate-float">🗺️</div>
           <p className="text-text-secondary">
             {locale === 'ro' ? 'Se încarcă harta…' : 'Loading the map…'}
           </p>

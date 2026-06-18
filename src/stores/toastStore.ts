@@ -15,8 +15,9 @@ interface ToastStore {
 }
 
 /**
- * Tiny in-memory toast queue. Each call to `show` enqueues a toast that
- * auto-dismisses after ~2.5s. Renderer is `<Toaster />` mounted in layout.
+ * Tiny in-memory toast queue. `show` enqueues a toast; the per-toast
+ * auto-dismiss timer (with pause-on-hover) lives in `<Toaster />`, which is
+ * mounted in layout.
  */
 export const useToastStore = create<ToastStore>((set, get) => ({
   toasts: [],
@@ -25,7 +26,6 @@ export const useToastStore = create<ToastStore>((set, get) => ({
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2);
     set({ toasts: [...get().toasts, { id, message, tone }] });
-    setTimeout(() => get().dismiss(id), 2500);
   },
   dismiss: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));

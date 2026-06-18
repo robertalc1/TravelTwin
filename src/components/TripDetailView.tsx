@@ -668,7 +668,7 @@ export default function TripDetailView({
                   {/* Amenities */}
                   {displayHotelAmenities && displayHotelAmenities.length > 0 && (
                     <div className="px-5 py-3 border-t border-neutral-100 dark:border-border-default">
-                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">What&apos;s included</p>
+                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">What{`'`}s included</p>
                       <div className="flex flex-wrap gap-1.5">
                         {displayHotelAmenities.slice(0, 8).map((a) => (
                           <span key={a} className="rounded-full bg-neutral-100 dark:bg-surface-elevated px-2.5 py-0.5 text-xs text-text-secondary">

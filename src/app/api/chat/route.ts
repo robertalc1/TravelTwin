@@ -244,7 +244,6 @@ async function executeTool(
           // with the user's cookie so auth passes. This is the same path the
           // homepage triggers, so the AI never returns "no deals available"
           // just because the user hasn't visited the homepage yet.
-          console.log(`[Chat] Warming deals cache for ${origin} via internal fetch`);
           try {
             const res = await fetch(`${baseUrl}/api/deals/from/${origin}`, {
               headers: cookieHeader ? { cookie: cookieHeader } : {},
@@ -424,8 +423,6 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey = process.env.GROQ_API_KEY;
-    // SECURITY: log only presence as a boolean — never log the key, even partial.
-    console.log('[Chat] API Key configured:', !!apiKey);
     const { messages, pageContext } = (await req.json()) as {
       messages?: Array<{ role: string; content: string }>;
       pageContext?: PageContext;
@@ -493,7 +490,6 @@ export async function POST(req: NextRequest) {
         } catch {
           args = {};
         }
-        console.log(`[Chat] Executing tool: ${name}`, args);
 
         // Force the user's nearest-airport IATA into any tool call that
         // expects an `origin` but didn't get one from the model — happens

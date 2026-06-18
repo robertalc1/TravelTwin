@@ -124,11 +124,6 @@ export interface TripPackage {
 
 export async function POST(req: NextRequest) {
   try {
-    // Diagnostic — never logs the key value, only whether one exists. When
-    // this prints `false` in Vercel logs you know every package will fall
-    // back to deterministic content.
-    console.log('[plan-trip] GROQ_API_KEY configured:', !!process.env.GROQ_API_KEY);
-
     // Auth gate — only authenticated users can generate AI trip plans.
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -250,7 +245,6 @@ export async function POST(req: NextRequest) {
     //    Estimator stays as per-destination fallback only — if Tripadvisor
     //    returns nothing for a specific IATA, we still surface the card with
     //    a deterministic price + isEstimated badge.
-    console.log(`[plan-trip] Fetching live Tripadvisor data for ${candidates.length} candidates from ${origin}`);
     const liveResults = await fetchLivePackagesForDestinations({
       origin,
       destinations: candidates.map((c) => c.iata),
@@ -262,7 +256,6 @@ export async function POST(req: NextRequest) {
       return [];
     });
     const liveByIata = new Map(liveResults.map((r) => [r.destinationIata, r]));
-    console.log(`[plan-trip] Live results: ${liveResults.length}/${candidates.length} returned valid data`);
 
     const packages: TripPackage[] = [];
 
@@ -620,7 +613,6 @@ async function buildSingleDestinationVariants(input: BuildVariantsInput): Promis
 
   // Try live Tripadvisor first — gives us real flight + real hotel as the
   // baseline. Fall back to the deterministic estimator if live returns nothing.
-  console.log(`[plan-trip variants] Fetching live data for ${destinationIata}`);
   const liveSingle = await fetchLivePackagesForDestinations({
     origin,
     destinations: [destinationIata],

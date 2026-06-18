@@ -55,9 +55,6 @@ export function useUserLocation(): UserLocationResult {
             const cached = { ...entry.data, source: 'cached' as const };
             setData(cached);
             setIsLoading(false);
-            console.log(
-              `[Location] Cached: ${cached.city}, ${cached.country} → ${cached.iataCode}`
-            );
             return;
           }
         }
@@ -69,9 +66,6 @@ export function useUserLocation(): UserLocationResult {
         if (!res.ok) throw new Error(`Geolocation API ${res.status}`);
         const json: GeoResponse = await res.json();
         setData(json);
-        console.log(
-          `[Location] IP: ${json.city}, ${json.country} → ${json.iataCode} (${json.distanceKm} km)`
-        );
         // Persist for subsequent page visits
         try {
           const entry: CachedEntry = { data: json, timestamp: Date.now() };

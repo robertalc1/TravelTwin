@@ -406,12 +406,9 @@ export async function getFlightFilters(p: {
   // response (the field names we tried — airlines/marketingAirlines/stops
   // — gave false negatives on real routes like OTP→IST). Until we map the
   // shape correctly, treat ANY non-empty payload as "route is indexed" and
-  // only flag false when the response is literally empty. The raw key list
-  // is logged so we can iterate the parser based on real production data.
+  // only flag false when the response is literally empty.
   if (keys.length === 0) {
     out.hasResults = false;
-  } else {
-    console.log(`[getFlightFilters] ${p.origin}->${p.destination} response keys:`, keys.slice(0, 20));
   }
   return out;
 }

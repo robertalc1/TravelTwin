@@ -43,7 +43,6 @@ async function probeSuggestions(
     .slice(0, 6)
     .map((r) => r.to);
   if (seedDestinations.length === 0) return [];
-  console.log(`[Flights] Probing ${seedDestinations.length} suggestion candidates from ${origin}`);
 
   const probes = await Promise.allSettled(
     seedDestinations.map(async (dest) => {
@@ -72,12 +71,10 @@ async function probeSuggestions(
     }
   }
   out.sort((a, b) => a.price - b.price);
-  console.log(`[Flights] Found ${out.length} viable suggestions from ${origin}`);
   return out;
 }
 
 export async function GET(request: Request) {
-  console.log('[Flights] RAPIDAPI_KEY configured:', !!process.env.RAPIDAPI_KEY);
   try {
     const { searchParams } = new URL(request.url);
     const origin = searchParams.get('origin')?.toUpperCase();
@@ -87,7 +84,6 @@ export async function GET(request: Request) {
     const adults = searchParams.get('adults') || '1';
     const travelClass = searchParams.get('travelClass') || 'ECONOMY';
     const bypassCache = searchParams.get('nocache') === '1';
-    console.log(`[Flights] Search: ${origin} → ${destination} on ${departureDate}${returnDate ? ` (return ${returnDate})` : ''} class=${travelClass}${bypassCache ? ' (cache bypassed)' : ''}`);
 
     if (!origin || !destination || !departureDate) {
       return NextResponse.json(
@@ -104,7 +100,6 @@ export async function GET(request: Request) {
           ...f,
           source: 'cached' as const,
         }));
-        console.log(`[Flights] Cache hit: ${flights.length} flights`);
         return NextResponse.json({ flights, source: 'cached', count: flights.length });
       }
     }
@@ -128,7 +123,6 @@ export async function GET(request: Request) {
       flights = raw
         .map((f) => normalizeFlight(f, origin, destination, travelClass))
         .filter((f): f is NormalizedFlight => f !== null);
-      console.log(`[Flights] Tripadvisor returned ${rawCount} raw, ${flights.length} normalized`);
     } catch (err: unknown) {
       lastError = (err as Error)?.message ?? 'unknown error';
       console.error('[Flights] searchFlights failed:', lastError);

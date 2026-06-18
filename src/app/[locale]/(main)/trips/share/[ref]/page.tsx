@@ -6,21 +6,43 @@ import Link from "next/link";
 import { TripDetail, resolveCoordsForCity } from "@/lib/tripDetail";
 import TripDetailView from "@/components/TripDetailView";
 
-function normalizePkg(raw: Record<string, any>): TripDetail | null { // eslint-disable-line @typescript-eslint/no-explicit-any
+interface RawShareDestination { iata?: string; city?: string; country?: string; latitude?: number; longitude?: number; imageId?: string; }
+interface RawShareFlight { airline?: string; airlineCode?: string; price?: number; departureTime?: string; arrivalTime?: string; duration?: string; stops?: number; }
+interface RawShareHotel { name?: string; stars?: number; price?: number; pricePerNight?: number; checkIn?: string; checkOut?: string; amenities?: string[]; }
+
+/** Loose shape covering both share-link writers: nested TripPackage and an already-flat TripDetail. */
+interface RawShareData {
+  id?: string;
+  destination?: RawShareDestination;
+  destinationCode?: string;
+  destinationCity?: string;
+  destinationCountry?: string;
+  destinationLat?: number;
+  destinationLon?: number;
+  imageId?: string;
+  nights?: number;
+  currency?: string;
+  totalPrice?: number;
+  flight?: RawShareFlight;
+  hotel?: RawShareHotel;
+  aiContent?: TripDetail["aiContent"];
+}
+
+function normalizePkg(raw: RawShareData): TripDetail | null {
   // If it already looks like a TripDetail (has destinationCity + nights + totalPrice), use as-is
   if (raw.destinationCity && raw.nights != null && raw.totalPrice != null) {
     if (!raw.destinationLat || !raw.destinationLon) {
       const [lat, lon] = resolveCoordsForCity(raw.destinationCity);
       raw = { ...raw, destinationLat: lat, destinationLon: lon };
     }
-    return raw as TripDetail;
+    return raw as unknown as TripDetail;
   }
 
   // Convert nested TripPackage format (destination/flight/hotel)
   if (raw.destination || raw.flight) {
-    const dest = raw.destination || {};
-    const flight = raw.flight || {};
-    const hotel = raw.hotel || {};
+    const dest: RawShareDestination = raw.destination || {};
+    const flight: RawShareFlight = raw.flight || {};
+    const hotel: RawShareHotel = raw.hotel || {};
     const nights = raw.nights || 3;
     const city = dest.city || raw.destinationCity || '';
     const [lat, lon] = dest.latitude && dest.longitude
@@ -95,7 +117,7 @@ export default function TripSharePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
-          <div className="text-5xl mb-4 animate-bounce">✈️</div>
+          <div className="text-5xl mb-4 animate-float">✈️</div>
           <p className="text-text-secondary">Loading itinerary...</p>
         </div>
       </div>

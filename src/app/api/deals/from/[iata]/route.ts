@@ -262,7 +262,6 @@ export async function GET(
     const candidatePool = candidates.slice(0, 18);
 
     // 2. Fetch LIVE flight + hotel for each candidate in parallel batches.
-    console.log(`[deals] Fetching live Tripadvisor data for ${candidatePool.length} candidates from ${origin}`);
     let liveResults: LivePackageResult[] = [];
     try {
         liveResults = await fetchLivePackagesForDestinations({
@@ -272,7 +271,6 @@ export async function GET(
             returnDate,
             concurrency: 4,
         });
-        console.log(`[deals] Live results: ${liveResults.length}/${candidatePool.length} destinations returned valid data`);
     } catch (e) {
         console.warn('[deals] Live package batch failed entirely:', (e as Error).message);
     }
@@ -342,7 +340,6 @@ export async function GET(
     const liveSet = new Set(liveResults.map((r) => r.destinationIata));
     const missing = candidatePool.filter((c) => !liveSet.has(c));
     if (missing.length > 0) {
-        console.log(`[deals] Falling back to estimator for ${missing.length} destinations: ${missing.join(', ')}`);
         const fallbacks = missing
             .map((dest) => buildPackageForRoute(origin, dest, nights, departureDate, returnDate, currency))
             .filter((p): p is TripPackage => p !== null)

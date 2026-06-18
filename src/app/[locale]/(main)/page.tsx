@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useLocale } from "next-intl";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { SearchProgressHeader } from "@/components/deals/SearchProgressHeader";
 import { DealCardSkeleton } from "@/components/deals/DealCardSkeleton";
 import { useSearchProgress } from "@/hooks/useSearchProgress";
@@ -119,6 +119,7 @@ const FEATURE_CARDS: FeatureCard[] = [
 export default function Home() {
   const locale = useLocale();
   const isRo = locale === "ro";
+  const prefersReduced = useReducedMotion();
   const lp = (path: string) => `/${locale}${path === "/" ? "" : path}`;
   const offerTexts = isRo ? OFFER_TEXTS_RO : OFFER_TEXTS_EN;
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -196,12 +197,12 @@ export default function Home() {
           // Store each deal individually — do NOT touch planResults (reserved for AI planner)
           if (pkgs.length) {
             try {
-              pkgs.forEach((pkg: any) => {
+              pkgs.forEach((pkg: { id: string }) => {
                 sessionStorage.setItem(`trip_${pkg.id}`, JSON.stringify(pkg));
               });
               // Track currently-shown homepage destinations so /plan can skip them.
               const iatas = pkgs
-                .map((p: any) => p?.destination?.iata)
+                .map((p: { destination?: { iata?: string } }) => p?.destination?.iata)
                 .filter((c: unknown): c is string => typeof c === 'string');
               sessionStorage.setItem('homepage_destinations', JSON.stringify(iatas));
             } catch { /* ignore storage errors */ }
@@ -312,7 +313,7 @@ export default function Home() {
                     <motion.div
                       layoutId="activeTab"
                       className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500"
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                      transition={prefersReduced ? { duration: 0 } : { duration: 0.2, ease: "easeOut" }}
                     />
                   )}
                 </button>
@@ -387,9 +388,9 @@ export default function Home() {
                   <motion.div
                     key={pkg.id}
                     layout
-                    initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                    initial={prefersReduced ? false : { opacity: 0, y: 12, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.35, delay: i * 0.07, ease: 'easeOut' }}
+                    transition={prefersReduced ? { duration: 0 } : { duration: 0.35, delay: Math.min(i, 4) * 0.07, ease: 'easeOut' }}
                   >
                     <TripCard
                       id={pkg.id}
@@ -621,7 +622,7 @@ export default function Home() {
             <button
               type="button"
               onClick={goToPlan}
-              className="inline-flex items-center justify-center gap-2 h-11 sm:h-14 rounded-full bg-white text-primary-500 px-6 sm:px-8 shadow-xl hover:scale-110 transition-transform duration-300 font-bold text-sm sm:text-lg"
+              className="inline-flex items-center justify-center gap-2 h-11 sm:h-14 rounded-full bg-white text-primary-500 px-6 sm:px-8 shadow-xl hover:scale-[1.03] active:scale-[0.98] transition-transform duration-300 font-bold text-sm sm:text-lg"
             >
               <Plane className="h-4 w-4 sm:h-6 sm:w-6" />
               {isRo ? "Planifică-mi călătoria" : "Plan My Trip"}

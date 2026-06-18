@@ -114,7 +114,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
             }
 
             if (data?.packages && Array.isArray(data.packages)) {
-                data.packages.sort((a: any, b: any) => (a.totalPrice || 0) - (b.totalPrice || 0));
+                data.packages.sort((a: { totalPrice?: number }, b: { totalPrice?: number }) => (a.totalPrice || 0) - (b.totalPrice || 0));
             }
 
             set({

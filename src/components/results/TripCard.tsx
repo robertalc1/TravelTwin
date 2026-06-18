@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Plane } from "lucide-react";
+import { Plane, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { useCurrencyStore } from "@/stores/currencyStore";
 
 interface TripCardProps {
@@ -42,17 +44,35 @@ export function TripCard({
     viewDealHref,
 }: TripCardProps) {
     const [imageError, setImageError] = useState(false);
+    const [navigating, setNavigating] = useState(false);
     const formatCurrency = useCurrencyStore((s) => s.format);
+    const router = useRouter();
+    const locale = useLocale();
+    const isRo = locale === "ro";
 
     const formatDate = (dateStr: string) => {
         try {
-            return new Date(dateStr).toLocaleDateString("en-US", {
+            return new Date(dateStr).toLocaleDateString(isRo ? "ro-RO" : "en-US", {
                 day: "numeric",
                 month: "short",
             });
         } catch {
             return dateStr;
         }
+    };
+
+    const handleViewDeal = () => {
+        setNavigating(true);
+        if (viewDealHref) {
+            router.push(viewDealHref);
+            return;
+        }
+        // If a full TripPackage is stored for this id (deals or planner),
+        // open the rich /plan/trip/[id] detail page; otherwise the slim /trips/[id].
+        const hasFullPackage =
+            typeof window !== "undefined" && sessionStorage.getItem(`trip_${id}`);
+        const path = hasFullPackage || id.startsWith("deal-") ? `/plan/trip/${id}` : `/trips/${id}`;
+        router.push(`/${locale}${path}`);
     };
 
     const fallbackImage = `https://images.unsplash.com/photo-1488085061387-422e29b40080?w=800&h=600&fit=crop`;
@@ -86,8 +106,8 @@ export function TripCard({
 
             {/* Content */}
             <div className="p-4">
-                <h3 className="text-base font-bold text-secondary-500 mb-1">
-                    {days} days - {destinationCity}
+                <h3 className="text-base font-bold text-secondary-500 dark:text-white mb-1">
+                    {days} {isRo ? "zile" : "days"} - {destinationCity}
                 </h3>
                 <p className="text-xs text-text-secondary mb-1">
                     {formatDate(departureDate)} - {formatDate(returnDate)}
@@ -108,33 +128,23 @@ export function TripCard({
                                 {formatCurrency(originalPrice, currency)}
                             </span>
                         )}
-                        <span className="text-xl font-bold text-secondary-500">
+                        <span className="text-xl font-bold text-secondary-500 dark:text-white">
                             {formatCurrency(discountedPrice, currency)}
                         </span>
                         <p className="text-[10px] text-text-muted mt-0.5">
-                            Transportation for {travelers} person{travelers > 1 ? "s" : ""}
+                            {isRo
+                                ? `Transport pentru ${travelers} ${travelers > 1 ? "persoane" : "persoană"}`
+                                : `Transportation for ${travelers} person${travelers > 1 ? "s" : ""}`}
                         </p>
                     </div>
 
                     <button
-                        onClick={() => {
-                            if (viewDealHref) {
-                                window.location.href = viewDealHref;
-                                return;
-                            }
-                            // If a full TripPackage is stored for this id (deals or planner),
-                            // open the rich /plan/trip/[id] detail page
-                            const hasFullPackage = typeof window !== 'undefined' &&
-                                sessionStorage.getItem(`trip_${id}`);
-                            if (hasFullPackage || id.startsWith('deal-')) {
-                                window.location.href = `/plan/trip/${id}`;
-                            } else {
-                                window.location.href = `/trips/${id}`;
-                            }
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-600 hover:shadow-md active:scale-[0.98]"
+                        onClick={handleViewDeal}
+                        disabled={navigating}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-primary-600 hover:shadow-md active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:opacity-70"
                     >
-                        View deal
+                        {navigating && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {isRo ? "Vezi oferta" : "View deal"}
                     </button>
                 </div>
             </div>

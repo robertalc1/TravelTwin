@@ -39,9 +39,48 @@ function resolveCountry(code: string, countryName?: string): string {
   return getCountryFromIata(code) || '';
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function buildTripDetail(id: string, raw: Record<string, any>): Promise<TripDetail> {
-  const code = raw.destinationCode || raw.destination || '';
+interface RawNestedDestination { iata?: string; city?: string; country?: string; lat?: number; lon?: number; imageId?: string; }
+interface RawNestedFlight { airline?: string; airlineCode?: string; price?: number; departureTime?: string; arrivalTime?: string; duration?: string; stops?: number; }
+interface RawNestedHotel { name?: string; stars?: number; price?: number; pricePerNight?: number; checkIn?: string; checkOut?: string; amenities?: string[]; }
+
+/** Loose shape covering both sessionStorage trip writers: nested TripPackage and flat TripDetail. */
+interface RawTripData {
+  id?: string;
+  destination?: RawNestedDestination;
+  destinationCode?: string;
+  destinationCity?: string;
+  destinationCountry?: string;
+  destinationLat?: number;
+  destinationLon?: number;
+  imageId?: string;
+  nights?: number;
+  days?: number;
+  departureDate?: string;
+  returnDate?: string;
+  currency?: string;
+  price?: number;
+  totalPrice?: number;
+  airline?: string;
+  airlineCode?: string;
+  flightPrice?: number;
+  departureTime?: string;
+  arrivalTime?: string;
+  duration?: string;
+  stops?: number;
+  hotelName?: string;
+  hotelStars?: number;
+  hotelPrice?: number;
+  hotelPricePerNight?: number;
+  hotelCheckIn?: string;
+  hotelCheckOut?: string;
+  hotelAmenities?: string[];
+  flight?: RawNestedFlight;
+  hotel?: RawNestedHotel;
+  aiContent?: TripDetail["aiContent"];
+}
+
+async function buildTripDetail(id: string, raw: RawTripData): Promise<TripDetail> {
+  const code = raw.destinationCode || raw.destination?.iata || '';
   const city = resolveCity(code, raw.destinationCity);
   const country = resolveCountry(code, raw.destinationCountry);
   const nights = raw.nights || raw.days || 3;
@@ -79,8 +118,8 @@ async function buildTripDetail(id: string, raw: Record<string, any>): Promise<Tr
     destinationCode: code,
     destinationCity: city,
     destinationCountry: country,
-    destinationLat: lat,
-    destinationLon: lon,
+    destinationLat: lat ?? 48.8566,
+    destinationLon: lon ?? 2.3522,
     imageId: raw.imageId || undefined,
     nights,
     departureDate: raw.departureDate || raw.departureTime?.split('T')[0] || '',
@@ -105,8 +144,7 @@ async function buildTripDetail(id: string, raw: Record<string, any>): Promise<Tr
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizePkg(pkg: Record<string, any>): Record<string, any> {
+function normalizePkg(pkg: RawTripData): RawTripData {
   // Convert TripPackage format (nested destination/flight/hotel) to flat TripDetail-compatible
   if (pkg.destination || pkg.flight) {
     return {
@@ -155,7 +193,7 @@ export default function TripDetailPage() {
     const id = params?.id as string;
     if (!id) { router.push('/'); return; }
 
-    let rawData: Record<string, any> | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    let rawData: RawTripData | null = null;
 
     // 1. Try trip_ (from plan results or homepage deals)
     const tp = sessionStorage.getItem(`trip_${id}`);
@@ -168,7 +206,7 @@ export default function TripDetailPage() {
       const pr = sessionStorage.getItem('planResults_v2');
       if (pr) {
         const { packages } = JSON.parse(pr);
-        const found = packages?.find((p: any) => p.id === id); // eslint-disable-line @typescript-eslint/no-explicit-any
+        const found = packages?.find((p: RawTripData) => p.id === id);
         if (found) {
           sessionStorage.setItem(`trip_${id}`, JSON.stringify(found));
           rawData = normalizePkg(found);
@@ -214,7 +252,7 @@ export default function TripDetailPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
-          <div className="text-5xl mb-4 animate-bounce">✈️</div>
+          <div className="text-5xl mb-4 animate-float">✈️</div>
           <p className="text-text-secondary">Loading your trip...</p>
         </div>
       </div>

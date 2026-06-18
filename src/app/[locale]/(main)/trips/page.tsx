@@ -101,7 +101,7 @@ export default function TripsPage() {
                     <MapPin className="h-14 w-14 text-text-muted mx-auto mb-4 opacity-30" />
                     <h3 className="text-h3 text-text-primary mb-2">No trips yet</h3>
                     <p className="text-body text-text-muted max-w-md mx-auto mb-6">
-                        Search for trips on the homepage and save the ones you like. They&apos;ll appear here for you to track and manage.
+                        Search for trips on the homepage and save the ones you like. They{`'`}ll appear here for you to track and manage.
                     </p>
                     <Button variant="primary" size="lg" onClick={() => window.location.href = "/"}>
                         Start Searching

@@ -757,7 +757,7 @@ export default function BookingSimulatePage() {
 
               {/* What's included card */}
               <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default p-5">
-                <p className="text-xs text-text-muted uppercase tracking-wide mb-3">What&apos;s included</p>
+                <p className="text-xs text-text-muted uppercase tracking-wide mb-3">What{`'`}s included</p>
                 <ul className="space-y-2 text-sm text-text-secondary">
                   {flightPrice > 0 && (
                     <li className="flex items-start gap-2">
@@ -785,7 +785,7 @@ export default function BookingSimulatePage() {
                   ))}
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />
-                    All taxes &amp; fees
+                    All taxes & fees
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="h-4 w-4 mt-0.5 shrink-0 text-green-500" />

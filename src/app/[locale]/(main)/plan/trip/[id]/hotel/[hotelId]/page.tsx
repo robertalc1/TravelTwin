@@ -204,7 +204,7 @@ function HotelDetailContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-background">
         <div className="text-center">
-          <div className="text-4xl mb-4 animate-bounce">🏨</div>
+          <div className="text-4xl mb-4 animate-float">🏨</div>
           <p className="text-text-secondary">Loading hotel...</p>
         </div>
       </div>
@@ -494,7 +494,7 @@ function HotelDetailContent() {
                 Select Stay
               </button>
               <p className="mt-2 text-[11px] text-text-muted text-center">
-                You won&apos;t be charged yet
+                You won{`'`}t be charged yet
               </p>
             </div>
           </aside>

@@ -127,13 +127,6 @@ const TONE_STYLES: Record<VisualOption["tone"], { iconBg: string; iconFg: string
 
 const NIGHT_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30];
 
-const LOADING_STEPS = [
-  { icon: "✈️", text: "Searching 400+ airlines for the best flights..." },
-  { icon: "🏨", text: "Comparing 150,000+ hotels worldwide..." },
-  { icon: "🗺️", text: "Building your personalized itinerary..." },
-  { icon: "⭐", text: "Selecting the top matches for you..." },
-];
-
 const slideVariants = {
   enter: (dir: number) => ({ x: dir > 0 ? 300 : -300, opacity: 0 }),
   center: { x: 0, opacity: 1 },
@@ -214,7 +207,7 @@ export default function PlanPage() {
     priorities: [],
   });
 
-  function set(field: keyof PlanState, value: any) {
+  function set<K extends keyof PlanState>(field: K, value: PlanState[K]) {
     setState(prev => ({ ...prev, [field]: value }));
   }
 
@@ -349,11 +342,11 @@ export default function PlanPage() {
       }));
 
       setTimeout(() => router.push(`/${locale}/plan/results`), 500);
-    } catch (e: any) {
+    } catch (e) {
       clearInterval(stepInterval);
       clearInterval(progressInterval);
       setAiLoading(false);
-      setError(e.message || t("errorGeneric"));
+      setError((e as Error).message || t("errorGeneric"));
       setStep(5); // back to last step
     }
   }
@@ -364,7 +357,7 @@ export default function PlanPage() {
       <div className="min-h-screen bg-gradient-to-br from-secondary-500 via-secondary-600 to-primary-600 flex items-center justify-center py-8">
         <div className="w-full max-w-lg px-4 sm:px-6 text-center">
           {/* Animated plane */}
-          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-bounce">✈️</div>
+          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-float">✈️</div>
 
           <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 px-2">{t("loadingTitle")}</h2>
           <p className="text-sm sm:text-base text-white/70 mb-8 sm:mb-10 px-2">{t("loadingSubtitle")}</p>
@@ -868,15 +861,15 @@ export default function PlanPage() {
                 </div>
 
                 <div className="flex justify-center gap-4 mt-8">
-                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Back
+                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-border-default px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-all">
+                    <ArrowLeft className="h-4 w-4" /> {tCommon("back")}
                   </button>
                   <button
                     onClick={goNext}
                     disabled={state.travelStyles.length === 0}
                     className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
                   >
-                    Next <ArrowRight className="h-5 w-5" />
+                    {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
                 </div>
               </motion.div>
@@ -950,8 +943,8 @@ export default function PlanPage() {
                 </div>
 
                 <div className="flex justify-center gap-4 mt-8">
-                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 transition-all">
-                    <ArrowLeft className="h-4 w-4" /> Back
+                  <button onClick={goBack} className="inline-flex items-center gap-2 rounded-full border border-neutral-200 dark:border-border-default px-6 py-3 text-sm font-medium text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-all">
+                    <ArrowLeft className="h-4 w-4" /> {tCommon("back")}
                   </button>
                   <button
                     onClick={handleSubmit}

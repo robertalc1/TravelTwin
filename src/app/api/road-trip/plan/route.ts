@@ -152,17 +152,6 @@ const HOURS_PER_STOPOVER = 12;
 const GROQ_TIMEOUT_MS = 45_000;
 
 export async function POST(req: NextRequest) {
-  const groqKey = process.env.GROQ_API_KEY ?? '';
-  const groqPreview = groqKey
-    ? `${groqKey.slice(0, 7)}...${groqKey.slice(-4)}`
-    : '(empty)';
-  console.log('[road-trip] env diagnostic:', {
-    hasGroq: !!groqKey,
-    groqPreview,
-    hasGoogleMaps: !!process.env.GOOGLE_MAPS_SERVER_API_KEY,
-    nodeEnv: process.env.NODE_ENV,
-    vercelEnv: process.env.VERCEL_ENV,
-  });
   try {
     const supabase = await createClient();
     const {

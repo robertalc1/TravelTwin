@@ -242,7 +242,7 @@ export default function RoadTripWizardPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-secondary-900 via-secondary-800 to-primary-900 flex items-center justify-center px-4 py-8">
         <div className="max-w-md w-full text-center">
-          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-bounce">{heroIcon}</div>
+          <div className="text-5xl sm:text-6xl mb-6 sm:mb-8 animate-float">{heroIcon}</div>
           <h2 className="text-xl sm:text-2xl font-bold text-white mb-2 px-2">
             {isRo ? "Agentul tău AI lucrează..." : "Your AI travel agent is working..."}
           </h2>

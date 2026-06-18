@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { X as XClose, Copy, Check } from 'lucide-react';
 
 interface ShareModalProps {
@@ -10,7 +11,23 @@ interface ShareModalProps {
 }
 
 export default function ShareModal({ title, onClose, copied, onCopy }: ShareModalProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const url = typeof window !== 'undefined' ? window.location.href : '';
+
+  // Close on Escape, lock body scroll while open, move focus into the dialog.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
   const text = encodeURIComponent(title);
   const encodedUrl = encodeURIComponent(url);
 
@@ -75,7 +92,12 @@ export default function ShareModal({ title, onClose, copied, onCopy }: ShareModa
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-surface p-6 shadow-2xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-modal-title"
+        tabIndex={-1}
+        className="relative w-full max-w-sm rounded-2xl bg-white dark:bg-surface p-6 shadow-2xl outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -87,7 +109,7 @@ export default function ShareModal({ title, onClose, copied, onCopy }: ShareModa
           <XClose className="h-4 w-4" />
         </button>
 
-        <h3 className="text-center text-lg font-bold text-text-primary mb-6">Share</h3>
+        <h3 id="share-modal-title" className="text-center text-lg font-bold text-text-primary mb-6">Share</h3>
 
         <div className="flex justify-center gap-4 mb-6">
           {socials.map((s) => (

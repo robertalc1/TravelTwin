@@ -93,7 +93,7 @@ export function VisaRequirementsCard({ nationality, country, nights }: Props) {
         </div>
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-            Visa &amp; entry — {nationality} → {country}
+            Visa & entry — {nationality} → {country}
           </p>
           <h3 className="text-lg font-bold text-secondary-500">
             {data.visaRequired

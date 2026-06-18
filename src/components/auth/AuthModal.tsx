@@ -264,7 +264,7 @@ export function AuthModal() {
               <p className="mt-6 text-center text-sm text-text-secondary">
                 {view === "login" ? (
                   <>
-                    Don&apos;t have an account?{" "}
+                    Don{`'`}t have an account?{" "}
                     <button
                       type="button"
                       onClick={toggle}
