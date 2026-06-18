@@ -66,38 +66,65 @@ type DayPlan = NonNullable<TripDetail['aiContent']>['dayByDay'][number];
 function DayAccordionItem({ day, defaultOpen = false }: { day: DayPlan; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   const slots = [
-    { label: 'Morning', icon: Coffee, slot: day.morning },
-    { label: 'Afternoon', icon: Sun, slot: day.afternoon },
-    { label: 'Evening', icon: Moon, slot: day.evening },
+    { label: 'Morning', icon: Coffee, slot: day.morning, tint: 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400' },
+    { label: 'Afternoon', icon: Sun, slot: day.afternoon, tint: 'bg-sky-50 text-sky-600 dark:bg-sky-500/10 dark:text-sky-400' },
+    { label: 'Evening', icon: Moon, slot: day.evening, tint: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400' },
   ];
 
   return (
-    <div className="bg-white dark:bg-surface rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden">
+    <div
+      className={`overflow-hidden rounded-2xl border bg-white transition-all duration-300 dark:bg-surface ${
+        open
+          ? 'border-primary-200 shadow-sm dark:border-primary-900/40'
+          : 'border-neutral-200 dark:border-border-default'
+      }`}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-gradient-to-r from-primary-500 to-primary-600 px-5 py-3.5 text-left transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70"
+        className="flex w-full items-center gap-3 sm:gap-4 px-4 py-3.5 sm:px-5 sm:py-4 text-left transition-colors hover:bg-neutral-50 dark:hover:bg-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40"
       >
-        <h3 className="font-bold text-white text-sm sm:text-base">Day {day.day}: {day.title}</h3>
-        <ChevronDown
-          className={`h-5 w-5 shrink-0 text-white/90 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
-        />
+        {/* Day-number chip — orange used as a single, decisive accent */}
+        <span
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base font-extrabold transition-all duration-300 ${
+            open
+              ? 'bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-sm shadow-primary-500/30'
+              : 'bg-primary-50 text-primary-600 dark:bg-primary-500/15 dark:text-primary-300'
+          }`}
+        >
+          {day.day}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Day {day.day}</p>
+          <h3 className="font-bold text-secondary-500 dark:text-white text-[15px] leading-snug sm:text-base">
+            {day.title}
+          </h3>
+        </div>
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            open ? 'bg-primary-50 text-primary-600 dark:bg-primary-500/15 dark:text-primary-300' : 'text-text-muted'
+          }`}
+        >
+          <ChevronDown className={`h-5 w-5 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+        </span>
       </button>
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
       >
         <div className="overflow-hidden">
-          <div className="divide-y divide-neutral-100 dark:divide-border-default">
-            {slots.map(({ label, icon: TimeIcon, slot }) => (
-              <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-neutral-100 dark:bg-surface-elevated text-text-secondary shrink-0 mt-0.5">
+          <div className="border-t border-neutral-100 dark:border-border-default divide-y divide-neutral-100 dark:divide-border-default">
+            {slots.map(({ label, icon: TimeIcon, slot, tint }) => (
+              <div key={label} className="flex items-start gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 sm:py-4">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-xl shrink-0 mt-0.5 ${tint}`}>
                   <TimeIcon className="h-4 w-4" />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-0.5">{label}</p>
                   <p className="font-semibold text-secondary-500 dark:text-white text-sm">{slot?.activity}</p>
-                  <p className="text-xs text-text-secondary mt-0.5">{slot?.description}</p>
+                  {slot?.description && (
+                    <p className="text-xs text-text-secondary mt-0.5 leading-snug">{slot.description}</p>
+                  )}
                 </div>
               </div>
             ))}
