@@ -323,7 +323,27 @@ type GroqResponse = {
   choices?: GroqChoice[];
 };
 
-async function callGroq(apiKey: string, messages: GroqMessage[]): Promise<GroqResponse> {
+// Carries the upstream HTTP status so the POST catch can tailor the user
+// message (e.g. a "busy, try again" hint for rate limits vs. a generic error).
+class GroqError extends Error {
+  status: number;
+  constructor(status: number) {
+    super(`Groq API error ${status}`);
+    this.name = 'GroqError';
+    this.status = status;
+  }
+}
+
+// Groq's free tier caps tokens-per-minute (12k TPM). The app bursts past that
+// (multi-turn chat re-sends the system prompt; /api/ai/plan-trip fires 6 calls
+// in parallel), so 429s are expected under load. The TPM bucket refills within
+// seconds, so a short backoff-and-retry recovers transparently instead of
+// surfacing "something went wrong" to the user.
+async function callGroq(
+  apiKey: string,
+  messages: GroqMessage[],
+  attempt = 0,
+): Promise<GroqResponse> {
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -340,10 +360,26 @@ async function callGroq(apiKey: string, messages: GroqMessage[]): Promise<GroqRe
     }),
   });
 
+  // Rate limited — back off and retry up to twice. Honor `retry-after` when
+  // present, otherwise ramp 1.2s → 2.4s. Cap each wait so we stay well under
+  // Vercel's function timeout even across a multi-turn loop.
+  if (res.status === 429 && attempt < 2) {
+    const retryAfterSec = Number(res.headers.get('retry-after'));
+    const waitMs = Math.min(
+      Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? retryAfterSec * 1000
+        : 1200 * (attempt + 1),
+      3000,
+    );
+    console.warn(`[Groq] 429 rate limit — retry ${attempt + 1}/2 in ${waitMs}ms`);
+    await new Promise((r) => setTimeout(r, waitMs));
+    return callGroq(apiKey, messages, attempt + 1);
+  }
+
   if (!res.ok) {
     // Status only — never log body, may contain prompt fragments.
     console.error('[Groq API Error] Status:', res.status);
-    throw new Error(`Groq API error ${res.status}`);
+    throw new GroqError(res.status);
   }
 
   return res.json();
@@ -552,13 +588,19 @@ export async function POST(req: NextRequest) {
     console.error('[Chat] Full error:', error);
     console.error('[Chat] Error message:', (error as Error)?.message);
     console.error('[Chat] Error stack:', (error as Error)?.stack);
-    return NextResponse.json(
-      {
-        message: replyLangIsRomanian
-          ? 'Îmi pare rău, ceva nu a mers bine. Încearcă din nou într-o clipă. ✈️'
-          : 'Sorry, I had trouble processing that. Please try again! ✈️',
-      },
-      { status: 200 }
-    );
+
+    // A 429 that survived the in-callGroq retries means the per-minute token
+    // budget is still exhausted — tell the user it's a transient busy state
+    // (not a broken bot) so they retry in a few seconds instead of giving up.
+    const isRateLimited = error instanceof GroqError && error.status === 429;
+    const message = isRateLimited
+      ? replyLangIsRomanian
+        ? 'Asistentul AI este foarte solicitat chiar acum. Mai încearcă peste câteva secunde. ✈️'
+        : 'The AI assistant is very busy right now. Please try again in a few seconds. ✈️'
+      : replyLangIsRomanian
+        ? 'Îmi pare rău, ceva nu a mers bine. Încearcă din nou într-o clipă. ✈️'
+        : 'Sorry, I had trouble processing that. Please try again! ✈️';
+
+    return NextResponse.json({ message }, { status: 200 });
   }
 }
