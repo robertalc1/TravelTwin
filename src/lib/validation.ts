@@ -79,3 +79,49 @@ export function validatePassport(value: string): ValidationResult {
   if (!PASSPORT_RE.test(v)) return "Passport must be 5–15 letters or digits";
   return null;
 }
+
+// ── Payment ──────────────────────────────────────────────────────────────
+
+/** Luhn checksum — the standard sanity check every real card number passes. */
+export function luhnValid(digits: string): boolean {
+  if (!/^\d+$/.test(digits)) return false;
+  let sum = 0;
+  let double = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let n = digits.charCodeAt(i) - 48;
+    if (double) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+export function validateCardNumber(value: string): ValidationResult {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "Card number is required";
+  if (digits.length < 13 || digits.length > 19) return "Card number must be 13–19 digits";
+  if (!luhnValid(digits)) return "Enter a valid card number";
+  return null;
+}
+
+export function validateExpiry(value: string): ValidationResult {
+  const m = value.trim().match(/^(\d{2})\/(\d{2})$/);
+  if (!m) return "Use MM/YY format";
+  const month = Number(m[1]);
+  const year = 2000 + Number(m[2]);
+  if (month < 1 || month > 12) return "Invalid month";
+  // A card is valid through the last day of its expiry month.
+  const endOfExpiry = new Date(year, month, 0, 23, 59, 59);
+  if (endOfExpiry < new Date()) return "Card has expired";
+  return null;
+}
+
+export function validateCVC(value: string): ValidationResult {
+  const v = value.trim();
+  if (!v) return "CVC is required";
+  if (!/^\d{3,4}$/.test(v)) return "CVC must be 3 or 4 digits";
+  return null;
+}

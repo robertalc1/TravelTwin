@@ -19,7 +19,8 @@ import { useLocale } from "next-intl";
 import type { TripDetail } from "@/lib/tripDetail";
 import {
   validatePersonName, validateEmail, validatePhone,
-  validateAdultDateOfBirth, validatePassport, type ValidationResult,
+  validateAdultDateOfBirth, validatePassport,
+  validateCardNumber, validateExpiry, validateCVC, type ValidationResult,
 } from "@/lib/validation";
 
 interface QuoteExtra { id: string; label: string; price: number }
@@ -92,6 +93,16 @@ function validateTraveler(t: TravelerInfo): Record<keyof TravelerInfo, Validatio
   };
 }
 
+/** Per-field validation for the Payment step. null = valid. */
+function validatePayment(p: PaymentInfo): Record<keyof PaymentInfo, ValidationResult> {
+  return {
+    cardNumber: validateCardNumber(p.cardNumber),
+    expiry: validateExpiry(p.expiry),
+    cvc: validateCVC(p.cvc),
+    cardholderName: validatePersonName(p.cardholderName, "Cardholder name"),
+  };
+}
+
 function StepBar({ current }: { current: number }) {
   return (
     <div className="flex items-center gap-1 sm:gap-2 mb-8">
@@ -152,9 +163,17 @@ export default function BookingSimulatePage() {
   const travelerValid = Object.values(travelerErrors).every((e) => !e);
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  const [paymentTouched, setPaymentTouched] = useState<Record<string, boolean>>({});
+
   const [payment, setPayment] = useState<PaymentInfo>({
     cardNumber: "", expiry: "", cvc: "", cardholderName: "",
   });
+  const paymentErrors = validatePayment(payment);
+  const paymentValid = Object.values(paymentErrors).every((e) => !e);
+  const cardErr = paymentTouched.cardNumber ? paymentErrors.cardNumber : null;
+  const expiryErr = paymentTouched.expiry ? paymentErrors.expiry : null;
+  const cvcErr = paymentTouched.cvc ? paymentErrors.cvc : null;
+  const cardholderErr = paymentTouched.cardholderName ? paymentErrors.cardholderName : null;
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookingTrip");
@@ -242,6 +261,11 @@ export default function BookingSimulatePage() {
       });
       setStep(2);
       useToastStore.getState().show("Please complete the traveler details correctly.", "error");
+      return;
+    }
+    if (!paymentValid) {
+      setPaymentTouched({ cardNumber: true, expiry: true, cvc: true, cardholderName: true });
+      useToastStore.getState().show("Please check your card details.", "error");
       return;
     }
     if (!isTestCard(payment.cardNumber)) {
@@ -591,16 +615,27 @@ export default function BookingSimulatePage() {
                         <CreditCard className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
                         <input
                           type="text"
+                          inputMode="numeric"
                           placeholder={TEST_CARD}
                           value={payment.cardNumber}
                           onChange={(e) => setPayment((p) => ({ ...p, cardNumber: formatCardNumber(e.target.value) }))}
+                          onBlur={() => setPaymentTouched((t) => ({ ...t, cardNumber: true }))}
                           maxLength={19}
-                          className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated pl-10 pr-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 font-mono"
+                          aria-invalid={!!cardErr}
+                          className={`w-full rounded-xl border bg-white dark:bg-surface-elevated pl-10 pr-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-colors font-mono ${
+                            cardErr
+                              ? "border-red-400 dark:border-red-500/60 focus:border-red-500 focus:ring-red-500/20"
+                              : "border-neutral-200 dark:border-border-default focus:border-primary-500 focus:ring-primary-500/20"
+                          }`}
                         />
                       </div>
-                      <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
-                        Demo only — use the test card {TEST_CARD}
-                      </p>
+                      {cardErr ? (
+                        <p className="mt-1.5 text-xs font-medium text-red-500">{cardErr}</p>
+                      ) : (
+                        <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                          Demo only — use the test card {TEST_CARD}
+                        </p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -608,23 +643,39 @@ export default function BookingSimulatePage() {
                         <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wide">Expiry</label>
                         <input
                           type="text"
+                          inputMode="numeric"
                           placeholder="MM/YY"
                           value={payment.expiry}
                           onChange={(e) => setPayment((p) => ({ ...p, expiry: formatExpiry(e.target.value) }))}
+                          onBlur={() => setPaymentTouched((t) => ({ ...t, expiry: true }))}
                           maxLength={5}
-                          className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                          aria-invalid={!!expiryErr}
+                          className={`w-full rounded-xl border bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-colors ${
+                            expiryErr
+                              ? "border-red-400 dark:border-red-500/60 focus:border-red-500 focus:ring-red-500/20"
+                              : "border-neutral-200 dark:border-border-default focus:border-primary-500 focus:ring-primary-500/20"
+                          }`}
                         />
+                        {expiryErr && <p className="mt-1 text-xs font-medium text-red-500">{expiryErr}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wide">CVC</label>
                         <input
                           type="text"
+                          inputMode="numeric"
                           placeholder="123"
                           value={payment.cvc}
-                          onChange={(e) => setPayment((p) => ({ ...p, cvc: e.target.value.replace(/\D/g, "").slice(0, 3) }))}
-                          maxLength={3}
-                          className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                          onChange={(e) => setPayment((p) => ({ ...p, cvc: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                          onBlur={() => setPaymentTouched((t) => ({ ...t, cvc: true }))}
+                          maxLength={4}
+                          aria-invalid={!!cvcErr}
+                          className={`w-full rounded-xl border bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-colors ${
+                            cvcErr
+                              ? "border-red-400 dark:border-red-500/60 focus:border-red-500 focus:ring-red-500/20"
+                              : "border-neutral-200 dark:border-border-default focus:border-primary-500 focus:ring-primary-500/20"
+                          }`}
                         />
+                        {cvcErr && <p className="mt-1 text-xs font-medium text-red-500">{cvcErr}</p>}
                       </div>
                     </div>
 
@@ -635,8 +686,16 @@ export default function BookingSimulatePage() {
                         placeholder="Full name on card"
                         value={payment.cardholderName}
                         onChange={(e) => setPayment((p) => ({ ...p, cardholderName: e.target.value }))}
-                        className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+                        onBlur={() => setPaymentTouched((t) => ({ ...t, cardholderName: true }))}
+                        maxLength={50}
+                        aria-invalid={!!cardholderErr}
+                        className={`w-full rounded-xl border bg-white dark:bg-surface-elevated px-3.5 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 transition-colors ${
+                          cardholderErr
+                            ? "border-red-400 dark:border-red-500/60 focus:border-red-500 focus:ring-red-500/20"
+                            : "border-neutral-200 dark:border-border-default focus:border-primary-500 focus:ring-primary-500/20"
+                        }`}
                       />
+                      {cardholderErr && <p className="mt-1 text-xs font-medium text-red-500">{cardholderErr}</p>}
                     </div>
                   </div>
 
@@ -671,7 +730,7 @@ export default function BookingSimulatePage() {
                   <button
                     type="button"
                     onClick={handlePay}
-                    disabled={processing || !payment.cardNumber || !payment.expiry || !payment.cvc || !payment.cardholderName}
+                    disabled={processing}
                     className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 text-base transition-colors shadow-md"
                   >
                     {processing ? (
