@@ -65,15 +65,6 @@ interface LiveAttraction {
   description?: string;
 }
 
-interface LiveRestaurant {
-  id: string;
-  name: string;
-  cuisine?: string;
-  priceRange?: string;
-  thumbnail?: string;
-  description?: string;
-}
-
 function buildHotelSearchHref(opts: {
   locale: string;
   tripId: string;
@@ -390,24 +381,18 @@ export default function RoadTripDetailView({ trip }: Props) {
   // (cafes stay AI/CITY_DATA — Tripadvisor has no dedicated cafe endpoint).
   // Falls back to aiContent (CITY_DATA fallback) when live calls return empty.
   const [liveAttractions, setLiveAttractions] = useState<LiveAttraction[]>([]);
-  const [liveRestaurants, setLiveRestaurants] = useState<LiveRestaurant[]>([]);
   useEffect(() => {
     if (!trip.destinationCity) return;
     let cancelled = false;
     const qs = new URLSearchParams({ city: trip.destinationCity });
     if (trip.destinationCountry) qs.set('country', trip.destinationCountry);
-    Promise.all([
-      fetch(`/api/attractions/search?${qs.toString()}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-      fetch(`/api/restaurants/search?${qs.toString()}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null),
-    ]).then(([attrData, restData]) => {
-      if (cancelled) return;
-      if (attrData?.attractions?.length) setLiveAttractions(attrData.attractions);
-      if (restData?.restaurants?.length) setLiveRestaurants(restData.restaurants);
-    });
+    fetch(`/api/attractions/search?${qs.toString()}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((attrData) => {
+        if (cancelled) return;
+        if (attrData?.attractions?.length) setLiveAttractions(attrData.attractions);
+      });
     return () => {
       cancelled = true;
     };
@@ -884,71 +869,8 @@ export default function RoadTripDetailView({ trip }: Props) {
             </section>
           )}
 
-          {/* Restaurants — live first, AI/CITY_DATA fallback */}
-          {(liveRestaurants.length > 0 ||
-            (trip.aiContent?.topRestaurants && trip.aiContent.topRestaurants.length > 0)) && (
-            <section>
-              <h2 className="text-xl font-bold text-secondary-500 dark:text-white flex items-center gap-2">
-                <Utensils className="h-5 w-5 text-emerald-500" />
-                {isRo ? `Restaurante în ${trip.destinationCity}` : `Restaurants in ${trip.destinationCity}`}
-              </h2>
-              <p className="mt-1 mb-4 text-xs text-text-muted">
-                {liveRestaurants.length > 0
-                  ? (isRo ? 'Live Tripadvisor' : 'Live Tripadvisor')
-                  : (isRo ? 'Selecție locală' : 'Local picks')}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {liveRestaurants.length > 0
-                  ? liveRestaurants.slice(0, 8).map((r) => (
-                      <div key={r.id} className="rounded-2xl border border-neutral-200 dark:border-border-default overflow-hidden bg-white dark:bg-surface">
-                        {r.thumbnail && (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={r.thumbnail} alt={r.name} className="h-32 w-full object-cover" loading="lazy" />
-                        )}
-                        <div className="p-3">
-                          <div className="flex items-baseline justify-between gap-2">
-                            <p className="text-body font-semibold text-text-primary line-clamp-1">{r.name}</p>
-                            {r.priceRange && <span className="text-xs text-text-muted">{r.priceRange}</span>}
-                          </div>
-                          {r.cuisine && <p className="text-xs text-text-muted line-clamp-1">{r.cuisine}</p>}
-                          {r.description && (
-                            <p className="mt-1 text-body-sm text-text-secondary line-clamp-2">{r.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  : trip.aiContent!.topRestaurants.map((r, i) => (
-                      <div key={i} className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-body font-semibold text-text-primary">{r.name}</p>
-                          <span className="text-xs text-text-muted">{r.priceRange}</span>
-                        </div>
-                        <p className="text-xs text-text-muted">{r.cuisine}</p>
-                        <p className="mt-1 text-body-sm text-text-secondary">{r.description}</p>
-                      </div>
-                    ))}
-              </div>
-            </section>
-          )}
-
-          {/* Cafes */}
-          {trip.aiContent?.topCafes && trip.aiContent.topCafes.length > 0 && (
-            <section>
-              <h2 className="mb-4 text-xl font-bold text-secondary-500 dark:text-white flex items-center gap-2">
-                <Coffee className="h-5 w-5 text-emerald-500" />
-                {isRo ? 'Cafenele' : 'Cafés'}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {trip.aiContent.topCafes.map((c, i) => (
-                  <div key={i} className="rounded-2xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface p-4">
-                    <p className="text-body font-semibold text-text-primary">{c.name}</p>
-                    <p className="text-xs text-text-muted">{c.specialty}</p>
-                    <p className="mt-1 text-body-sm text-text-secondary">{c.description}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Restaurants & cafés intentionally omitted — users find these
+              directly in Google Maps, so we don't duplicate them here. */}
 
           {/* Local tips */}
           {trip.aiContent?.localTips && trip.aiContent.localTips.length > 0 && (
