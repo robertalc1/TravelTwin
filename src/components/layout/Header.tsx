@@ -136,7 +136,7 @@ export function Header() {
                                     type="button"
                                     onClick={() => openAuthModal("login")}
                                     className={cn(
-                                        "inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 h-8 sm:h-9 text-sm font-semibold transition-colors",
+                                        "inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 h-11 sm:h-9 text-sm font-semibold transition-colors",
                                         isHome
                                             ? "bg-white text-secondary-500 hover:bg-white/90"
                                             : "bg-primary-500 text-white hover:bg-primary-600"
@@ -152,12 +152,12 @@ export function Header() {
                             <button
                                 onClick={() => setMenuOpen(true)}
                                 className={cn(
-                                    "flex items-center justify-center h-8 w-8 sm:h-9 sm:w-9 rounded-full transition-colors",
+                                    "flex items-center justify-center h-11 w-11 sm:h-9 sm:w-9 rounded-full transition-colors",
                                     isHome
                                         ? "text-white/80 hover:bg-white/10 hover:text-white"
                                         : "text-text-secondary hover:bg-neutral-100 dark:hover:bg-surface-elevated"
                                 )}
-                                aria-label={tCommon("close")}
+                                aria-label={tCommon("openMenu")}
                             >
                                 <Menu className="h-5 w-5" />
                             </button>

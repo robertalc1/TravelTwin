@@ -474,7 +474,7 @@ export default function PlanPage() {
                   <button
                     onClick={goNext}
                     disabled={!state.originIata}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:bg-neutral-200 dark:disabled:bg-surface-elevated disabled:text-neutral-400 disabled:shadow-none disabled:cursor-not-allowed transition-all shadow-lg"
                   >
                     {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
@@ -583,7 +583,7 @@ export default function PlanPage() {
                   <button
                     onClick={goNext}
                     disabled={state.destinationMode !== "specific" || !state.destinationIata}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:bg-neutral-200 dark:disabled:bg-surface-elevated disabled:text-neutral-400 disabled:shadow-none disabled:cursor-not-allowed transition-all shadow-lg"
                   >
                     {tCommon("continue")} <ArrowRight className="h-5 w-5" />
                   </button>
@@ -748,12 +748,12 @@ export default function PlanPage() {
                           <span className="text-sm text-text-secondary w-16">{label}</span>
                           <button
                             onClick={() => set(field, Math.max(field === "adults" ? 1 : 0, state[field] - 1))}
-                            className="h-9 w-9 rounded-full border border-neutral-200 flex items-center justify-center text-lg font-medium hover:bg-neutral-100 transition-colors"
+                            className="h-11 w-11 sm:h-9 sm:w-9 rounded-full border border-neutral-200 dark:border-border-default flex items-center justify-center text-lg font-medium text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors"
                           >-</button>
                           <span className="w-6 text-center font-bold text-text-primary">{state[field]}</span>
                           <button
                             onClick={() => set(field, Math.min(9, state[field] + 1))}
-                            className="h-9 w-9 rounded-full border border-neutral-200 flex items-center justify-center text-lg font-medium hover:bg-neutral-100 transition-colors"
+                            className="h-11 w-11 sm:h-9 sm:w-9 rounded-full border border-neutral-200 dark:border-border-default flex items-center justify-center text-lg font-medium text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors"
                           >+</button>
                         </div>
                       ))}
@@ -814,7 +814,7 @@ export default function PlanPage() {
                             <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
                               {t(`travelStyles.${style.id}` as never)}
                             </p>
-                            <p className="text-[11px] text-text-muted leading-snug mt-0.5 line-clamp-2">
+                            <p className="text-xs text-text-muted leading-snug mt-0.5 line-clamp-2">
                               {t(`travelStyles.${style.id}Desc` as never)}
                             </p>
                           </div>
@@ -851,7 +851,7 @@ export default function PlanPage() {
                               <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
                                 {t(`climates.${c.id === "no-preference" ? "noPreference" : c.id}` as never)}
                               </p>
-                              <p className="text-[11px] text-text-muted leading-snug">{t(`climates.${c.id === "no-preference" ? "noPreferenceDesc" : c.id + "Desc"}` as never)}</p>
+                              <p className="text-xs text-text-muted leading-snug">{t(`climates.${c.id === "no-preference" ? "noPreferenceDesc" : c.id + "Desc"}` as never)}</p>
                             </div>
                           </button>
                         );
@@ -867,7 +867,7 @@ export default function PlanPage() {
                   <button
                     onClick={goNext}
                     disabled={state.travelStyles.length === 0}
-                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg"
+                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-8 py-4 text-base font-semibold text-white hover:bg-primary-600 disabled:bg-neutral-200 dark:disabled:bg-surface-elevated disabled:text-neutral-400 disabled:shadow-none disabled:cursor-not-allowed transition-all shadow-lg"
                   >
                     {tCommon("next")} <ArrowRight className="h-5 w-5" />
                   </button>
@@ -926,7 +926,7 @@ export default function PlanPage() {
                             <p className={`text-sm font-bold leading-tight ${selected ? "text-primary-600 dark:text-primary-400" : "text-text-primary"}`}>
                               {t(`priorities.${p.id === "best-hotel" ? "bestHotel" : p.id === "direct-flights" ? "directFlights" : p.id === "shortest-time" ? "shortestTime" : p.id === "central-location" ? "centralLocation" : p.id === "free-cancellation" ? "freeCancellation" : p.id}` as never)}
                             </p>
-                            <p className="text-[11px] text-text-muted leading-snug mt-0.5">
+                            <p className="text-xs text-text-muted leading-snug mt-0.5">
                               {t(`priorities.${p.id === "best-hotel" ? "bestHotelDesc" : p.id === "direct-flights" ? "directFlightsDesc" : p.id === "shortest-time" ? "shortestTimeDesc" : p.id === "central-location" ? "centralLocationDesc" : p.id === "free-cancellation" ? "freeCancellationDesc" : p.id + "Desc"}` as never)}
                             </p>
                           </div>

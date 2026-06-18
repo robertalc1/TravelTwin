@@ -232,7 +232,7 @@ export function ChatPanel() {
               </div>
               <button
                 onClick={closeChat}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-neutral-100 dark:hover:bg-secondary-700"
+                className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-full text-text-secondary transition-colors hover:bg-neutral-100 dark:hover:bg-secondary-700 focus-visible:ring-2 focus-visible:ring-primary-500"
                 aria-label={isRo ? "Închide chat" : "Close chat"}
               >
                 <X className="h-4 w-4" />
@@ -286,16 +286,16 @@ export function ChatPanel() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={isRo ? "Întreabă despre zboruri, hoteluri, oferte..." : "Ask about flights, hotels, deals..."}
-                className="flex-1 rounded-full bg-neutral-100 px-4 py-2 text-sm text-text-primary outline-none transition-shadow placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-primary-500 dark:bg-secondary-700 dark:text-white"
+                className="flex-1 rounded-full bg-neutral-100 px-4 py-2 text-sm text-text-primary outline-none transition-shadow placeholder:text-text-muted focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-60 disabled:cursor-not-allowed dark:bg-secondary-700 dark:text-white"
                 disabled={isLoading}
               />
               <button
                 onClick={() => sendText(input)}
                 disabled={!input.trim() || isLoading}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-11 w-11 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full bg-primary-500 text-white transition-colors hover:bg-primary-600 focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label={isRo ? "Trimite mesaj" : "Send message"}
               >
-                <Send className="h-3.5 w-3.5" />
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </motion.div>

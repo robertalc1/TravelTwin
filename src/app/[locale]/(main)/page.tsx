@@ -276,7 +276,7 @@ export default function Home() {
 
       {/* ═══════════ 2. OFFERS SCROLLING BANNER ═══════════ */}
       <section className="bg-primary-500 overflow-hidden py-3">
-        <div className="animate-marquee flex items-center gap-8 whitespace-nowrap">
+        <div className="animate-marquee flex items-center gap-8 whitespace-nowrap" aria-hidden="true">
           {offerTexts.concat(offerTexts).map((text, i) => (
             <span key={i} className="flex items-center gap-3 text-sm font-semibold text-white">
               <span className="text-white/60">•</span>

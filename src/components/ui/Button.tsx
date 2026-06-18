@@ -22,7 +22,7 @@ const variantStyles: Record<Variant, string> = {
     outline:
         "border border-border-emphasis bg-transparent text-text-primary hover:bg-surface-sunken",
     danger:
-        "bg-error text-white hover:opacity-90",
+        "bg-error text-white hover:bg-error/90 active:bg-error/80 shadow-sm hover:shadow-md",
 };
 
 const sizeStyles: Record<Size, string> = {

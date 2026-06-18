@@ -530,7 +530,7 @@ export default function TripDetailView({
             {/* ── Plan your day teaser → opens dedicated full-page route map ── */}
             <section>
               <div className="mb-3">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 px-3 py-1 text-xs font-bold uppercase tracking-wider mb-2">
                   <Navigation className="h-3 w-3" /> Plan your day
                 </span>
                 <h2 className="text-2xl md:text-3xl font-extrabold text-secondary-500 dark:text-white tracking-tight">
@@ -573,7 +573,7 @@ export default function TripDetailView({
               <section>
                 <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
                   <div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-3 py-1 text-[11px] font-bold uppercase tracking-wider mb-1">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 px-3 py-1 text-xs font-bold uppercase tracking-wider mb-1">
                       <Check className="h-3 w-3" /> Included in your trip
                     </span>
                     <h2 className="text-xl font-bold text-secondary-500 dark:text-white">Your hotel</h2>
@@ -653,12 +653,12 @@ export default function TripDetailView({
                   {trip.hotelCheckIn && (
                     <div className="grid grid-cols-2 border-t border-neutral-100 dark:border-border-default">
                       <div className="px-5 py-3">
-                        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Check-in</p>
+                        <p className="text-xs font-bold text-text-muted uppercase tracking-wider">Check-in</p>
                         <p className="text-sm font-semibold text-text-primary mt-0.5">{trip.hotelCheckIn}</p>
                         <p className="text-xs text-text-muted">From 15:00</p>
                       </div>
                       <div className="px-5 py-3 border-l border-neutral-100 dark:border-border-default">
-                        <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Check-out</p>
+                        <p className="text-xs font-bold text-text-muted uppercase tracking-wider">Check-out</p>
                         <p className="text-sm font-semibold text-text-primary mt-0.5">{trip.hotelCheckOut}</p>
                         <p className="text-xs text-text-muted">By 11:00</p>
                       </div>
@@ -668,7 +668,7 @@ export default function TripDetailView({
                   {/* Amenities */}
                   {displayHotelAmenities && displayHotelAmenities.length > 0 && (
                     <div className="px-5 py-3 border-t border-neutral-100 dark:border-border-default">
-                      <p className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-2">What{`'`}s included</p>
+                      <p className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">What{`'`}s included</p>
                       <div className="flex flex-wrap gap-1.5">
                         {displayHotelAmenities.slice(0, 8).map((a) => (
                           <span key={a} className="rounded-full bg-neutral-100 dark:bg-surface-elevated px-2.5 py-0.5 text-xs text-text-secondary">
