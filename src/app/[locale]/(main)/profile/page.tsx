@@ -20,6 +20,12 @@ import {
     DollarSign,
     AlertTriangle,
     Trash2,
+    KeyRound,
+    Lock,
+    Eye,
+    EyeOff,
+    ShieldCheck,
+    ChevronDown,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -192,11 +198,69 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
     const currency = useCurrencyStore((s) => s.currency);
     const setCurrency = useCurrencyStore((s) => s.setCurrency);
 
+    // ── Change-password state ──
+    const [showPwForm, setShowPwForm] = useState(false);
+    const [currentPw, setCurrentPw] = useState("");
+    const [newPw, setNewPw] = useState("");
+    const [confirmPw, setConfirmPw] = useState("");
+    const [pwSaving, setPwSaving] = useState(false);
+    const [pwError, setPwError] = useState<string | null>(null);
+
+    // Email/password users carry "email" among their auth providers. OAuth-only
+    // accounts (e.g. Google) have no password to change — show a note instead.
+    const providers = (user?.app_metadata?.providers as string[] | undefined) ?? [];
+    const hasEmailPassword = providers.length === 0 ? true : providers.includes("email");
+
     useEffect(() => {
         if (!profile) return;
         setFullName(profile.full_name ?? "");
         setNationality(profile.nationality ?? "");
     }, [profile]);
+
+    async function handleChangePassword(e: React.FormEvent) {
+        e.preventDefault();
+        setPwError(null);
+        if (newPw.length < 6) {
+            setPwError("New password must be at least 6 characters");
+            return;
+        }
+        if (newPw !== confirmPw) {
+            setPwError("The new passwords don’t match");
+            return;
+        }
+        if (newPw === currentPw) {
+            setPwError("New password must differ from the current one");
+            return;
+        }
+        if (!user?.email) return;
+        setPwSaving(true);
+        try {
+            const supabase = createClient();
+            // 1) Re-authenticate to confirm the current password is correct —
+            //    Supabase's updateUser() does NOT verify the old password.
+            const { error: signInErr } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: currentPw,
+            });
+            if (signInErr) {
+                setPwError("Current password is incorrect");
+                return;
+            }
+            // 2) Set the new password on the (now re-authenticated) session.
+            const { error: updErr } = await supabase.auth.updateUser({ password: newPw });
+            if (updErr) throw updErr;
+            useToastStore.getState().show("Password updated", "success");
+            setShowPwForm(false);
+            setCurrentPw("");
+            setNewPw("");
+            setConfirmPw("");
+        } catch (err) {
+            console.error("[profile/change-password]", err);
+            setPwError(err instanceof Error ? err.message : "Couldn’t update password — try again");
+        } finally {
+            setPwSaving(false);
+        }
+    }
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault();
@@ -222,6 +286,7 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
     }
 
     return (
+        <div className="space-y-5">
         <form
             onSubmit={handleSave}
             className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-5 sm:p-7 space-y-5"
@@ -281,16 +346,142 @@ function PersonalInfoTab({ onSaved }: { onSaved: () => void }) {
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Save Changes
                 </button>
-                <button
-                    type="button"
-                    disabled
-                    title="Coming soon — for now use 'Forgot password' on the login modal"
-                    className="rounded-full border border-neutral-200 dark:border-border-default px-5 py-3 text-sm font-semibold text-text-secondary cursor-not-allowed opacity-60"
-                >
-                    Change Password
-                </button>
             </div>
         </form>
+
+        {/* ── Change password card ── */}
+        <div className="rounded-2xl bg-white dark:bg-surface shadow-sm border border-neutral-100 dark:border-border-default p-5 sm:p-7">
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-100 dark:bg-surface-elevated text-text-secondary">
+                        <KeyRound className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="font-semibold text-text-primary">Password</p>
+                        <p className="text-xs text-text-secondary">
+                            {hasEmailPassword
+                                ? "Update the password you use to log in."
+                                : "Managed by your sign-in provider."}
+                        </p>
+                    </div>
+                </div>
+                {hasEmailPassword && (
+                    <button
+                        type="button"
+                        onClick={() => { setShowPwForm((v) => !v); setPwError(null); }}
+                        aria-expanded={showPwForm}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 dark:border-border-default bg-white dark:bg-surface px-4 py-2 text-sm font-semibold text-text-primary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors shrink-0"
+                    >
+                        {showPwForm ? "Cancel" : "Change"}
+                        {!showPwForm && (
+                            <ChevronDown className="h-4 w-4" />
+                        )}
+                    </button>
+                )}
+            </div>
+
+            {!hasEmailPassword && (
+                <div className="mt-4 flex items-start gap-2 rounded-xl border border-neutral-200 dark:border-border-default bg-neutral-50 dark:bg-surface-sunken px-4 py-3">
+                    <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />
+                    <p className="text-sm text-text-secondary">
+                        You signed in with a social provider, so there{`'`}s no password to change here.
+                        Manage it from your provider{`'`}s account settings.
+                    </p>
+                </div>
+            )}
+
+            <AnimatePresence initial={false}>
+                {hasEmailPassword && showPwForm && (
+                    <motion.form
+                        key="pw-form"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onSubmit={handleChangePassword}
+                        className="overflow-hidden"
+                    >
+                        <div className="space-y-3 pt-5">
+                            {pwError && (
+                                <div className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-500/10 dark:border-red-800 px-4 py-2.5 text-sm text-red-700 dark:text-red-300">
+                                    {pwError}
+                                </div>
+                            )}
+                            <PasswordInput
+                                label="Current password"
+                                value={currentPw}
+                                onChange={setCurrentPw}
+                                autoComplete="current-password"
+                                placeholder="Your current password"
+                            />
+                            <PasswordInput
+                                label="New password"
+                                value={newPw}
+                                onChange={setNewPw}
+                                autoComplete="new-password"
+                                placeholder="At least 6 characters"
+                            />
+                            <PasswordInput
+                                label="Confirm new password"
+                                value={confirmPw}
+                                onChange={setConfirmPw}
+                                autoComplete="new-password"
+                                placeholder="Repeat the new password"
+                            />
+                            <div className="pt-1">
+                                <button
+                                    type="submit"
+                                    disabled={pwSaving}
+                                    className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-white hover:bg-primary-600 transition-colors disabled:opacity-60"
+                                >
+                                    {pwSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                                    Update Password
+                                </button>
+                            </div>
+                        </div>
+                    </motion.form>
+                )}
+            </AnimatePresence>
+        </div>
+        </div>
+    );
+}
+
+/** Password input with a show/hide toggle, matching the auth modal styling. */
+function PasswordInput({
+    label, value, onChange, autoComplete, placeholder,
+}: {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    autoComplete: string;
+    placeholder?: string;
+}) {
+    const [show, setShow] = useState(false);
+    return (
+        <label className="block">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-text-secondary mb-1.5">{label}</span>
+            <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-muted" />
+                <input
+                    type={show ? "text" : "password"}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    autoComplete={autoComplete}
+                    minLength={6}
+                    className="w-full rounded-xl border border-neutral-200 dark:border-border-default bg-white dark:bg-surface-elevated pl-10 pr-10 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <button
+                    type="button"
+                    onClick={() => setShow((v) => !v)}
+                    aria-label={show ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
+                >
+                    {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+            </div>
+        </label>
     );
 }
 
