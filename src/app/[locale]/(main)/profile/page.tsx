@@ -26,7 +26,6 @@ import {
     EyeOff,
     ShieldCheck,
     ChevronDown,
-    Camera,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -62,53 +61,6 @@ export default function ProfilePage() {
     const showToast = useToastStore((s) => s.show);
 
     const [activeTab, setActiveTab] = useState<TabId>("personal");
-
-    /* ── Avatar upload ── */
-    const [uploadingAvatar, setUploadingAvatar] = useState(false);
-    const [localAvatar, setLocalAvatar] = useState<string | null>(null);
-    const avatarUrl = localAvatar ?? profile?.avatar_url ?? null;
-
-    async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        e.target.value = ""; // allow re-selecting the same file later
-        if (!file || !user) return;
-        if (!file.type.startsWith("image/")) {
-            showToast("Please choose an image file", "error");
-            return;
-        }
-        if (file.size > 5 * 1024 * 1024) {
-            showToast("Image must be under 5 MB", "error");
-            return;
-        }
-        setUploadingAvatar(true);
-        try {
-            const supabase = createClient();
-            const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-            const path = `${user.id}/avatar.${ext}`;
-            const { error: upErr } = await supabase.storage
-                .from("avatars")
-                .upload(path, file, { upsert: true, contentType: file.type });
-            if (upErr) throw upErr;
-            const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-            // Cache-bust: the path is stable (upsert), so the CDN would otherwise
-            // serve the old image. The ?v= query forces a fresh fetch.
-            const busted = `${publicUrl}?v=${Date.now()}`;
-            const { error: dbErr } = await supabase.from("profiles").upsert({
-                id: user.id,
-                email: user.email,
-                avatar_url: busted,
-                updated_at: new Date().toISOString(),
-            });
-            if (dbErr) throw dbErr;
-            setLocalAvatar(busted);
-            showToast("Photo updated", "success");
-        } catch (err) {
-            console.error("[profile/avatar]", err);
-            showToast(err instanceof Error ? err.message : "Upload failed — try again", "error");
-        } finally {
-            setUploadingAvatar(false);
-        }
-    }
 
     /* ── Open auth modal if not logged in ── */
     useEffect(() => {
@@ -169,36 +121,8 @@ export default function ProfilePage() {
                 </div>
                 <div className="px-5 sm:px-8 pb-6 -mt-12 sm:-mt-14 relative">
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-                        <div className="relative shrink-0">
-                            <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center overflow-hidden rounded-full bg-primary-500 text-white text-3xl font-extrabold ring-4 ring-white dark:ring-surface">
-                                {avatarUrl ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                    <img
-                                        src={avatarUrl}
-                                        alt={displayName}
-                                        className="h-full w-full object-cover"
-                                    />
-                                ) : (
-                                    initials
-                                )}
-                            </div>
-                            <label
-                                title="Upload a profile photo"
-                                className="absolute bottom-0 right-0 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white dark:bg-surface-elevated text-text-primary ring-2 ring-white dark:ring-surface shadow-md hover:bg-neutral-100 dark:hover:bg-surface-sunken transition-colors"
-                            >
-                                {uploadingAvatar ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <Camera className="h-4 w-4" />
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="sr-only"
-                                    onChange={handleAvatarChange}
-                                    disabled={uploadingAvatar}
-                                />
-                            </label>
+                        <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-full bg-primary-500 text-white text-3xl font-extrabold ring-4 ring-white dark:ring-surface shrink-0">
+                            {initials}
                         </div>
                         <div className="flex-1 min-w-0 sm:pb-2">
                             <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary truncate">{displayName}</h1>

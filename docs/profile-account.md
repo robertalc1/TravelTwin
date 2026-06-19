@@ -34,26 +34,16 @@ Logica:
 atinge `auth.users`. Nu există `SUPABASE_SERVICE_ROLE_KEY` configurat, deci
 funcția SECURITY DEFINER e calea corectă pe Supabase Free.
 
-## 3. Upload poză de profil (avatar)
-Cercul avatarului din header are un buton cu iconiță **cameră**. Click → file
-picker (doar imagini, max 5 MB).
+> Avatarul rămâne doar inițiale (fără upload de poză) — feature-ul de imagine a
+> fost eliminat intenționat.
 
-Logica:
-1. Upload în Storage bucket `avatars`, path `‹uid›/avatar.‹ext›`, cu `upsert: true`.
-2. `getPublicUrl` → URL public; se adaugă `?v=<timestamp>` ca să spargă cache-ul
-   CDN (path-ul e stabil la upsert).
-3. Se salvează URL-ul în `profiles.avatar_url`.
-4. Afișare imediată prin state local optimist (`useUser` n-are refetch); fallback
-   pe inițiale când nu există poză.
-
-## ⚠️ Migrații SQL necesare (rulează manual în Supabase SQL Editor)
-Supabase Free nu aplică automat fișierele din `supabase/migrations/`. Funcțiile de
-mai sus **nu merg** până nu rulezi:
+## ⚠️ Migrație SQL necesară (rulează manual în Supabase SQL Editor)
+Supabase Free nu aplică automat fișierele din `supabase/migrations/`. Ștergerea
+contului (#2) **nu merge** până nu rulezi:
 
 | Fișier | Ce creează |
 |---|---|
 | `supabase/migrations/20260619_delete_user_function.sql` | funcția `delete_user()` (necesară pt. #2) |
-| `supabase/migrations/20260619_avatars_storage_bucket.sql` | bucket-ul `avatars` + politicile RLS (necesare pt. #3) |
 
-Ambele sunt idempotente (safe de re-rulat). Schimbarea parolei (#1) nu necesită
-nimic — folosește doar API-ul de auth.
+Idempotentă (safe de re-rulat). Schimbarea parolei (#1) nu necesită nimic —
+folosește doar API-ul de auth.
