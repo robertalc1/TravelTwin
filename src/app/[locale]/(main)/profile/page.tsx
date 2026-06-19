@@ -26,6 +26,7 @@ import {
     EyeOff,
     ShieldCheck,
     ChevronDown,
+    Camera,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -61,6 +62,53 @@ export default function ProfilePage() {
     const showToast = useToastStore((s) => s.show);
 
     const [activeTab, setActiveTab] = useState<TabId>("personal");
+
+    /* ── Avatar upload ── */
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const [localAvatar, setLocalAvatar] = useState<string | null>(null);
+    const avatarUrl = localAvatar ?? profile?.avatar_url ?? null;
+
+    async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // allow re-selecting the same file later
+        if (!file || !user) return;
+        if (!file.type.startsWith("image/")) {
+            showToast("Please choose an image file", "error");
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            showToast("Image must be under 5 MB", "error");
+            return;
+        }
+        setUploadingAvatar(true);
+        try {
+            const supabase = createClient();
+            const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+            const path = `${user.id}/avatar.${ext}`;
+            const { error: upErr } = await supabase.storage
+                .from("avatars")
+                .upload(path, file, { upsert: true, contentType: file.type });
+            if (upErr) throw upErr;
+            const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+            // Cache-bust: the path is stable (upsert), so the CDN would otherwise
+            // serve the old image. The ?v= query forces a fresh fetch.
+            const busted = `${publicUrl}?v=${Date.now()}`;
+            const { error: dbErr } = await supabase.from("profiles").upsert({
+                id: user.id,
+                email: user.email,
+                avatar_url: busted,
+                updated_at: new Date().toISOString(),
+            });
+            if (dbErr) throw dbErr;
+            setLocalAvatar(busted);
+            showToast("Photo updated", "success");
+        } catch (err) {
+            console.error("[profile/avatar]", err);
+            showToast(err instanceof Error ? err.message : "Upload failed — try again", "error");
+        } finally {
+            setUploadingAvatar(false);
+        }
+    }
 
     /* ── Open auth modal if not logged in ── */
     useEffect(() => {
@@ -121,8 +169,36 @@ export default function ProfilePage() {
                 </div>
                 <div className="px-5 sm:px-8 pb-6 -mt-12 sm:-mt-14 relative">
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-                        <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center rounded-full bg-primary-500 text-white text-3xl font-extrabold ring-4 ring-white dark:ring-surface shrink-0">
-                            {initials}
+                        <div className="relative shrink-0">
+                            <div className="flex h-24 w-24 sm:h-28 sm:w-28 items-center justify-center overflow-hidden rounded-full bg-primary-500 text-white text-3xl font-extrabold ring-4 ring-white dark:ring-surface">
+                                {avatarUrl ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img
+                                        src={avatarUrl}
+                                        alt={displayName}
+                                        className="h-full w-full object-cover"
+                                    />
+                                ) : (
+                                    initials
+                                )}
+                            </div>
+                            <label
+                                title="Upload a profile photo"
+                                className="absolute bottom-0 right-0 inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white dark:bg-surface-elevated text-text-primary ring-2 ring-white dark:ring-surface shadow-md hover:bg-neutral-100 dark:hover:bg-surface-sunken transition-colors"
+                            >
+                                {uploadingAvatar ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Camera className="h-4 w-4" />
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="sr-only"
+                                    onChange={handleAvatarChange}
+                                    disabled={uploadingAvatar}
+                                />
+                            </label>
                         </div>
                         <div className="flex-1 min-w-0 sm:pb-2">
                             <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary truncate">{displayName}</h1>
@@ -723,7 +799,37 @@ function FavoritesTab() {
 function SettingsTab() {
     const { theme, setTheme, resolvedTheme } = useTheme();
     const showToast = useToastStore((s) => s.show);
+    const { user } = useUser();
+    const router = useRouter();
+    const locale = useLocale();
     const isDark = (theme === "dark") || (theme === "system" && resolvedTheme === "dark");
+
+    const [confirming, setConfirming] = useState(false);
+    const [confirmText, setConfirmText] = useState("");
+    const [deleting, setDeleting] = useState(false);
+
+    // Gate the final delete behind typing the exact account email.
+    const canDelete =
+        !!user?.email && confirmText.trim().toLowerCase() === user.email.toLowerCase();
+
+    async function handleDeleteAccount() {
+        if (!canDelete) return;
+        setDeleting(true);
+        try {
+            const supabase = createClient();
+            // delete_user() (SECURITY DEFINER) wipes the user's rows + auth row.
+            const { error } = await supabase.rpc("delete_user");
+            if (error) throw error;
+            await supabase.auth.signOut();
+            showToast("Your account has been deleted", "info");
+            router.push(`/${locale}`);
+            router.refresh();
+        } catch (err) {
+            console.error("[profile/delete-account]", err);
+            showToast(err instanceof Error ? err.message : "Couldn’t delete account — try again", "error");
+            setDeleting(false);
+        }
+    }
 
     return (
         <div className="space-y-4">
@@ -744,15 +850,52 @@ function SettingsTab() {
                     <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-red-700 dark:text-red-300">Danger zone</h3>
                         <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-3">
-                            Permanently delete your account and all associated data. This cannot be undone.
+                            Permanently delete your account and all associated data (trips, favorites,
+                            profile). This cannot be undone.
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => showToast("Account deletion requires email verification — contact support.", "info")}
-                            className="rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold px-5 py-2 text-sm transition-colors"
-                        >
-                            Delete Account
-                        </button>
+
+                        {!confirming ? (
+                            <button
+                                type="button"
+                                onClick={() => setConfirming(true)}
+                                className="rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold px-5 py-2 text-sm transition-colors"
+                            >
+                                Delete Account
+                            </button>
+                        ) : (
+                            <div className="space-y-3">
+                                <p className="text-sm font-medium text-red-700 dark:text-red-300">
+                                    Type your email <span className="font-mono">{user?.email}</span> to confirm.
+                                </p>
+                                <input
+                                    type="email"
+                                    value={confirmText}
+                                    onChange={(e) => setConfirmText(e.target.value)}
+                                    placeholder={user?.email ?? "your@email.com"}
+                                    autoComplete="off"
+                                    className="w-full max-w-sm rounded-xl border border-red-300 dark:border-red-800 bg-white dark:bg-surface px-3 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-red-500"
+                                />
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={handleDeleteAccount}
+                                        disabled={!canDelete || deleting}
+                                        className="inline-flex items-center gap-2 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold px-5 py-2 text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                        Permanently delete
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setConfirming(false); setConfirmText(""); }}
+                                        disabled={deleting}
+                                        className="rounded-full border border-neutral-200 dark:border-border-default px-5 py-2 text-sm font-semibold text-text-secondary hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors disabled:opacity-60"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
