@@ -2,28 +2,32 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   ArrowLeft,
   Car,
   Bus,
+  Footprints,
+  Bike,
   MapPin,
   BedDouble,
   Coffee,
   Utensils,
   Compass,
   ExternalLink,
+  Info,
   Hotel as HotelIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import {
   buildDirectionsEmbedUrl,
   buildPlaceEmbedUrl,
+  TRAVEL_MODES,
+  type TravelMode,
 } from '@/components/RouteMap/buildEmbedUrl';
+import TransitDetails from '@/components/RouteMap/TransitDetails';
 import { shortCityFromFormatted, hotelPhotoUrl } from '@/lib/roadTrip';
 import type { RoadTripData } from '@/lib/roadTrip';
-
-type RoadMode = 'driving' | 'transit';
 
 interface LiveRestaurant {
   id: string;
@@ -49,11 +53,30 @@ interface Props {
   initialFocusedPlace?: string | null;
 }
 
+/** Mode toggle metadata — same four modes as the flight RouteMapView so the
+ *  road-trip map offers identical functionality (drive the whole way, walk
+ *  the last mile from the city centre to a café, see the bus lines via the
+ *  transit panel, or cycle). Labels are bilingual to match this file's
+ *  inline-ternary i18n style. */
+const MODE_META: Record<TravelMode, { en: string; ro: string; icon: typeof Car }> = {
+  driving: { en: 'Driving', ro: 'Mașină', icon: Car },
+  walking: { en: 'Walking', ro: 'Pe jos', icon: Footprints },
+  transit: { en: 'Transit', ro: 'Transport', icon: Bus },
+  bicycling: { en: 'Cycling', ro: 'Bicicletă', icon: Bike },
+};
+
+function googleMapsSearchUrl(name: string, city: string, country?: string): string {
+  const q = country ? `${name}, ${city}, ${country}` : `${name}, ${city}`;
+  return `https://www.google.com/maps/search/${encodeURIComponent(q)}`;
+}
+
 export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Props) {
   const router = useRouter();
   const locale = useLocale();
   const isRo = locale === 'ro';
-  const [mode, setMode] = useState<RoadMode>(trip.mode === 'bus' ? 'transit' : 'driving');
+  const tTransit = useTranslations('transit');
+  // Initial mode follows the chosen trip mode; bus trips open on Transit.
+  const [mode, setMode] = useState<TravelMode>(trip.mode === 'bus' ? 'transit' : 'driving');
   // Seed from the URL deep-link. Sidebar highlight does
   // `focusedPlace?.startsWith(name + ',')` — match the `${name}, ${city}`
   // shape `focusPlace()` uses for clicks so URL-driven seeds also highlight.
@@ -123,6 +146,11 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
   const destinationLabel = `${trip.destinationCity}${trip.destinationCountry ? `, ${trip.destinationCountry}` : ''}`;
   const stopoverWaypoints = trip.stopovers.slice(0, 3).map((s) => s.city);
 
+  // Coordinates are far more reliable than free-text geocoding for the
+  // Directions API (AI-named attractions often resolve to NOT_FOUND).
+  const originCoords = `${trip.origin.lat},${trip.origin.lng}`;
+  const destCoords = `${trip.destination.lat},${trip.destination.lng}`;
+
   const fullRouteUrl = buildDirectionsEmbedUrl({
     apiKey,
     origin: originLabel,
@@ -131,10 +159,22 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
     mode,
   });
 
+  // A focused place is "local" (inside the destination city) when it carries
+  // the ", <destinationCity>" suffix that focusPlace(name, city) appends.
+  // Local places route FROM the destination city centre — mirroring how the
+  // flight map routes local hops from the ARRIVAL airport, not the departure
+  // one ("din centrul Istanbulului la cafenea"). Stopover focuses (a bare
+  // city name) keep the inter-city origin so the macro drive still shows.
+  const focusIsLocal =
+    !!focusedPlace &&
+    focusedPlace.toLowerCase().endsWith(trip.destinationCity.toLowerCase());
+
+  const focusOrigin = focusIsLocal ? destCoords : originLabel;
+
   const focusedDirectionsUrl = focusedPlace
     ? buildDirectionsEmbedUrl({
         apiKey,
-        origin: originLabel,
+        origin: focusOrigin,
         destination: focusedPlace,
         waypoints: [],
         mode,
@@ -145,6 +185,16 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
 
   const iframeSrc = focusedDirectionsUrl ?? fullRouteUrl ?? fallbackUrl;
   const iframeKey = focusedPlace ? `focus:${focusedPlace}:${mode}` : `route:${mode}`;
+
+  // ── Transit panel queries ──
+  // Full route (no focus): inter-city bus/train lines, origin city → dest city.
+  // Focused local place: city-centre transit/walk to that place.
+  // Focused stopover: inter-city leg to the stopover.
+  const transitOrigin = focusIsLocal ? destCoords : originCoords;
+  const transitDestination = focusedPlace ?? destCoords;
+  const transitLabel = focusedPlace
+    ? tTransit('headerLocal', { place: focusedPlace.split(',')[0] })
+    : tTransit('headerMajor', { origin: originCity, destination: trip.destinationCity });
 
   const Icon = trip.mode === 'car' ? Car : Bus;
 
@@ -195,20 +245,51 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
         {/* Map column */}
         <section className="order-1 lg:order-2 lg:flex-1 relative bg-neutral-100 dark:bg-neutral-900">
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 max-w-[calc(100%-1.5rem)]">
+            {/* Mode toggle — all four modes, like the flight map. Switching
+                works for both the full route and any focused single-stop
+                route so the user can compare driving vs walking vs transit
+                vs cycling for the place they tapped. */}
             <div className="flex gap-1 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default p-1">
-              <ModeButton active={mode === 'driving'} onClick={() => setMode('driving')} icon={<Car className="h-4 w-4" />}>
-                {isRo ? 'Mașină' : 'Driving'}
-              </ModeButton>
-              <ModeButton active={mode === 'transit'} onClick={() => setMode('transit')} icon={<Bus className="h-4 w-4" />}>
-                Transit
-              </ModeButton>
+              {TRAVEL_MODES.map((id) => {
+                const { en, ro, icon: ModeIcon } = MODE_META[id];
+                const active = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMode(id)}
+                    aria-pressed={active}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all ${
+                      active
+                        ? 'bg-emerald-500 text-white shadow-md'
+                        : 'text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated'
+                    }`}
+                  >
+                    <ModeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="hidden xs:inline sm:inline">{isRo ? ro : en}</span>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Cycling-only notice — Google's cycling coverage is patchy
+                outside cities, so warn before the user reads an empty map. */}
+            {mode === 'bicycling' && (
+              <div className="flex items-start gap-1.5 bg-amber-50/95 dark:bg-amber-900/20 backdrop-blur-md rounded-xl border border-amber-200/60 dark:border-amber-800/40 px-3 py-1.5 max-w-full">
+                <Info className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-200">
+                  {isRo
+                    ? 'Rutele pe bicicletă depind de acoperirea Google. Dacă lipsesc, încearcă mașină sau pe jos.'
+                    : 'Cycling routes depend on Google coverage. If the path is missing, try driving or walking.'}
+                </p>
+              </div>
+            )}
 
             {focusedPlace && (
               <button
                 type="button"
                 onClick={showFullRoute}
-                className="flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 max-w-full hover:bg-neutral-50"
+                className="flex items-center gap-2 bg-white/95 dark:bg-surface/95 backdrop-blur-md rounded-full shadow-lg border border-neutral-200/60 dark:border-border-default px-3 py-1.5 max-w-full hover:bg-neutral-50 dark:hover:bg-surface-elevated transition-colors"
               >
                 <MapPin className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                 <span className="text-xs sm:text-sm font-semibold text-text-primary truncate">
@@ -249,6 +330,21 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
         {/* Sidebar */}
         <aside className="order-2 lg:order-1 lg:w-[420px] lg:shrink-0 lg:overflow-y-auto lg:h-[calc(100vh-4rem)] border-t lg:border-t-0 lg:border-r border-neutral-200 dark:border-border-default bg-white dark:bg-surface">
           <div className="p-4 sm:p-5 space-y-6">
+            {/* TRANSIT DETAILS — real bus/train lines from Google Directions.
+                Default (no focus) shows the inter-city lines (origin city →
+                destination city, e.g. the FlixBus connection). Focusing a
+                place inside the destination switches it to city-centre →
+                place transit. Coordinates are used for origin/destination so
+                geocoding of AI-named places can't break the lookup. */}
+            {mode === 'transit' && (
+              <TransitDetails
+                origin={transitOrigin}
+                destination={transitDestination}
+                mode="transit"
+                label={transitLabel}
+              />
+            )}
+
             {/* ROUTE STOPS */}
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wider text-text-muted mb-3">
@@ -345,18 +441,15 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
                 </h2>
                 <ul className="space-y-1.5">
                   {restaurants.slice(0, 6).map((r) => (
-                    <li key={r.id}>
-                      <button
-                        type="button"
-                        onClick={() => focusPlace(r.name, trip.destinationCity)}
-                        className="w-full text-left rounded-lg px-2 py-1.5 hover:bg-surface-sunken transition-colors"
-                      >
-                        <p className="text-body-sm font-semibold text-text-primary line-clamp-1">{r.name}</p>
-                        <p className="text-xs text-text-muted line-clamp-1">
-                          {[r.cuisine, r.priceRange].filter(Boolean).join(' · ')}
-                        </p>
-                      </button>
-                    </li>
+                    <PlaceItem
+                      key={r.id}
+                      name={r.name}
+                      sub={[r.cuisine, r.priceRange].filter(Boolean).join(' · ')}
+                      city={trip.destinationCity}
+                      country={trip.destinationCountry}
+                      isFocused={focusedPlace?.startsWith(r.name + ',') ?? false}
+                      onFocus={() => focusPlace(r.name, trip.destinationCity)}
+                    />
                   ))}
                 </ul>
               </section>
@@ -371,16 +464,15 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
                 </h2>
                 <ul className="space-y-1.5">
                   {cafes.slice(0, 5).map((c, i) => (
-                    <li key={i}>
-                      <button
-                        type="button"
-                        onClick={() => focusPlace(c.name, trip.destinationCity)}
-                        className="w-full text-left rounded-lg px-2 py-1.5 hover:bg-surface-sunken transition-colors"
-                      >
-                        <p className="text-body-sm font-semibold text-text-primary line-clamp-1">{c.name}</p>
-                        <p className="text-xs text-text-muted line-clamp-1">{c.specialty}</p>
-                      </button>
-                    </li>
+                    <PlaceItem
+                      key={i}
+                      name={c.name}
+                      sub={c.specialty}
+                      city={trip.destinationCity}
+                      country={trip.destinationCountry}
+                      isFocused={focusedPlace?.startsWith(c.name + ',') ?? false}
+                      onFocus={() => focusPlace(c.name, trip.destinationCity)}
+                    />
                   ))}
                 </ul>
               </section>
@@ -395,16 +487,15 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
                 </h2>
                 <ul className="space-y-1.5">
                   {attractions.map((a, i) => (
-                    <li key={i}>
-                      <button
-                        type="button"
-                        onClick={() => focusPlace(a.name, trip.destinationCity)}
-                        className="w-full text-left rounded-lg px-2 py-1.5 hover:bg-surface-sunken transition-colors"
-                      >
-                        <p className="text-body-sm font-semibold text-text-primary line-clamp-1">{a.name}</p>
-                        <p className="text-xs text-text-muted line-clamp-1">{a.description}</p>
-                      </button>
-                    </li>
+                    <PlaceItem
+                      key={i}
+                      name={a.name}
+                      sub={a.description}
+                      city={trip.destinationCity}
+                      country={trip.destinationCountry}
+                      isFocused={focusedPlace?.startsWith(a.name + ',') ?? false}
+                      onFocus={() => focusPlace(a.name, trip.destinationCity)}
+                    />
                   ))}
                 </ul>
               </section>
@@ -426,33 +517,6 @@ export default function RoadTripMapView({ trip, initialFocusedPlace = null }: Pr
         </aside>
       </div>
     </div>
-  );
-}
-
-function ModeButton({
-  active,
-  onClick,
-  icon,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-bold transition-all ${
-        active
-          ? 'bg-emerald-500 text-white shadow-md'
-          : 'text-text-secondary hover:text-text-primary hover:bg-neutral-100 dark:hover:bg-surface-elevated'
-      }`}
-    >
-      {icon}
-      <span>{children}</span>
-    </button>
   );
 }
 
@@ -498,6 +562,68 @@ function RouteStop({
           {name}
         </p>
       </button>
+    </li>
+  );
+}
+
+interface PlaceItemProps {
+  name: string;
+  sub?: string;
+  city: string;
+  country?: string;
+  isFocused: boolean;
+  onFocus: () => void;
+}
+
+/**
+ * Sidebar list row. Main click focuses the in-app map iframe on this place
+ * (no navigation, stays in our UI). The small external-link icon button is a
+ * separate optional escape hatch to open Google Maps in a new tab. Green
+ * accent mirrors the road-trip identity (the flight map uses orange).
+ */
+function PlaceItem({ name, sub, city, country, isFocused, onFocus }: PlaceItemProps) {
+  return (
+    <li>
+      <div
+        className={`relative flex items-start gap-2 rounded-xl border transition-colors ${
+          isFocused
+            ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-900/15 ring-2 ring-emerald-500/20'
+            : 'border-neutral-200 dark:border-border-default bg-white dark:bg-surface hover:border-emerald-300 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10'
+        }`}
+      >
+        <button
+          type="button"
+          onClick={onFocus}
+          className="flex items-start gap-2 flex-1 min-w-0 px-3 py-2.5 text-left group"
+          aria-pressed={isFocused}
+        >
+          <MapPin
+            className={`h-3.5 w-3.5 mt-0.5 shrink-0 ${
+              isFocused ? 'text-emerald-500' : 'text-text-muted group-hover:text-emerald-500'
+            }`}
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className={`text-sm font-semibold transition-colors truncate ${
+                isFocused ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-primary group-hover:text-emerald-600'
+              }`}
+            >
+              {name}
+            </p>
+            {sub && <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{sub}</p>}
+          </div>
+        </button>
+        <a
+          href={googleMapsSearchUrl(name, city, country)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`Open ${name} in Google Maps in a new tab`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex h-9 w-9 mr-1 my-auto items-center justify-center rounded-lg text-text-muted hover:text-emerald-500 hover:bg-neutral-100 dark:hover:bg-surface-elevated transition-colors shrink-0"
+        >
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
     </li>
   );
 }
